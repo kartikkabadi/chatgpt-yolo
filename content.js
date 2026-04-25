@@ -54,7 +54,7 @@
   const LOAD_GRACE_MS = 40000;
   const APPROVAL_COOLDOWN_MS = 12000;
   const CONTINUE_COOLDOWN_MS = 90000;
-  const DEEP_NUDGE_COOLDOWN_MS = 360000;
+  const DEEP_NUDGE_COOLDOWN_MS = 60000;
   const REFRESH_COOLDOWN_MS = 90000;
   const ERROR_REFRESH_DELAY_MIN_MS = 12000;
   const ERROR_REFRESH_DELAY_MAX_MS = 26000;
@@ -375,7 +375,6 @@
     if (composerText(composer).trim()) return false;
 
     state.continueInFlight = true;
-    state[lastAtKey] = now();
     try {
       await sleep(randomDelay());
 
@@ -393,6 +392,7 @@
         composer.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
       }
 
+      state[lastAtKey] = now();
       await incrementCounter(counterKey);
       await setLastAction(`Sent ${actionLabel} (${reason})`);
       return true;
@@ -541,14 +541,12 @@
     const idleSince = Math.max(state.lastGenerationAt, state.lastContinueAt, state.lastDeepNudgeAt, state.lastApprovalAt, state.pageLoadedAt);
     const deepIdleLongEnough = now() - idleSince > DEEP_NUDGE_AFTER_MS;
     if (state.settings.deepNudges && deepIdleLongEnough) {
-      state.lastGenerationAt = now();
       await sendDeepNudge("idle");
       return;
     }
 
     const continueIdleLongEnough = now() - idleSince > IDLE_CONTINUE_AFTER_MS;
     if (!state.settings.deepNudges && state.settings.errorContinue && continueIdleLongEnough) {
-      state.lastGenerationAt = now();
       await sendContinue("idle");
     }
   }
@@ -568,7 +566,7 @@
     });
     state.observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
     state.scanTimer = window.setInterval(scan, 5000);
-    state.idleTimer = window.setInterval(handleIdleContinue, 20000);
+    state.idleTimer = window.setInterval(handleIdleContinue, 10000);
     state.refreshTimer = window.setInterval(maybePeriodicRefresh, 15000);
   }
 
