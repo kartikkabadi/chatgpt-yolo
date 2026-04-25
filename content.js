@@ -21,6 +21,7 @@
     lastApprovalSignature: "",
     lastContinueAt: 0,
     lastApprovalAt: 0,
+    clickedApprovalSignatures: new Set(),
     lastActivityAt: Date.now(),
     lastGenerationAt: Date.now(),
     approvalInFlight: false,
@@ -65,10 +66,23 @@
 
   const looksRetry = (el) => /\bretry\b/i.test(buttonText(el) || normalizedText(el));
   const isDisabled = (el) => el?.disabled || el?.getAttribute("aria-disabled") === "true";
+  const looksDetails = (button) => /\bdetails?\b/i.test(buttonText(button));
+  const looksAffirmative = (button) => {
+    const text = buttonText(button);
+    return /\b(allow|approve|accept|create|update|delete|merge|confirm|run|grant|authorize)\b/i.test(text);
+  };
 
   const elementSignature = (el) => {
     const rect = el.getBoundingClientRect();
     return `${Math.round(rect.top)}:${Math.round(rect.left)}:${normalizedText(el).slice(0, 180)}`;
+  };
+  const approvalSignature = (card, button) => {
+    const text = normalizedText(card)
+      .replace(/\bDetails\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 260);
+    return `${buttonText(button)}::${text}`;
   };
 
   const storageGet = (keys) => new Promise((resolve) => chrome.storage.local.get(keys, resolve));
@@ -256,10 +270,7 @@
         const localButtons = Array.from(node.querySelectorAll("button")).filter(visible);
         const hasGithubSignal = /github|repository|pull request|branch|commit|file|workspace|permissions?/i.test(text);
         const hasApprovalPair = localButtons.length >= 2 && localButtons.some(looksNegative);
-        const hasAffirmativeSignal = localButtons.some((localButton) => {
-          const text = buttonText(localButton);
-          return /\b(allow|approve|accept|create|update|delete|merge|confirm|continue|run)\b/i.test(text);
-        });
+        const hasAffirmativeSignal = localButtons.some((localButton) => looksAffirmative(localButton) && !looksDetails(localButton));
 
         if (hasGithubSignal && hasApprovalPair && hasAffirmativeSignal) {
           cards.add(node);
@@ -273,18 +284,26 @@
 
   function rightmostAffirmativeButton(card) {
     const buttons = Array.from(card.querySelectorAll("button"))
-      .filter((button) => visible(button) && !isDisabled(button) && !looksRetry(button))
-      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+      .filter((button) => visible(button) && !isDisabled(button) && !looksRetry(button) && !looksDetails(button));
 
     if (buttons.length < 2) return null;
 
-    const rightButton = buttons[buttons.length - 1];
-    if (looksNegative(rightButton)) return null;
+    const pairs = [];
+    for (const negativeButton of buttons.filter(looksNegative)) {
+      const negativeRect = negativeButton.getBoundingClientRect();
+      const rowButtons = buttons
+        .filter((button) => {
+          if (button === negativeButton || looksNegative(button) || !looksAffirmative(button)) return false;
+          const rect = button.getBoundingClientRect();
+          const sameRow = Math.abs(rect.top - negativeRect.top) <= 18 || Math.abs(rect.bottom - negativeRect.bottom) <= 18;
+          return sameRow && rect.left > negativeRect.right;
+        })
+        .sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
 
-    const leftButtons = buttons.slice(0, -1);
-    if (!leftButtons.some((button) => looksNegative(button) && button.getBoundingClientRect().right <= rightButton.getBoundingClientRect().left)) return null;
+      if (rowButtons[0]) pairs.push(rowButtons[0]);
+    }
 
-    return rightButton;
+    return pairs.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left)[0] || null;
   }
 
   async function handleApprovalCards() {
@@ -298,8 +317,8 @@
       if (!button) continue;
       if (state.clickedApprovals.has(button)) continue;
 
-      const signature = elementSignature(card);
-      if (signature === state.lastApprovalSignature) continue;
+      const signature = approvalSignature(card, button);
+      if (signature === state.lastApprovalSignature || state.clickedApprovalSignatures.has(signature)) continue;
 
       state.approvalInFlight = true;
       state.lastApprovalSignature = signature;
@@ -311,6 +330,7 @@
         if (!visible(button) || isDisabled(button) || looksNegative(button) || hasActiveGeneration()) return;
 
         state.clickedApprovals.add(button);
+        state.clickedApprovalSignatures.add(signature);
         button.click();
         await incrementCounter("approvalsClicked");
         await setLastAction(`Clicked approval: ${normalizedText(button) || "right button"}`);
