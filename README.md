@@ -6,7 +6,7 @@ It keeps ChatGPT GitHub-agent sessions moving by:
 
 - Auto-approving GitHub permission/action cards by clicking the right-side affirmative button.
 - Recovering from ChatGPT error states by refreshing first, then typing `Continue` if refresh is not safe.
-- Nudging normal idle ChatGPT chats to review their last answer, go deeper, inspect gaps, and keep working without repeating themselves.
+- Nudging normal ChatGPT chats after 30 seconds of idle time to review their last answer, go deeper, inspect gaps, and keep working without repeating themselves.
 - Periodically refreshing enabled idle tabs every 3-5 minutes so heavyweight conversations can recover from stale React/error states.
 - Waiting 40 seconds after page load before approval or refresh automation starts, which gives large ChatGPT conversations time to settle.
 - Keeping settings per ChatGPT conversation URL, which makes split-view ChatGPT sessions safer.
