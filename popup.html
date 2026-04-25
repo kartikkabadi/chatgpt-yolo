@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YOLO</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <h1>YOLO</h1>
+          <p id="scope">This tab</p>
+        </div>
+        <span id="status" class="pill">Loading</span>
+      </header>
+
+      <section class="panel" aria-label="Controls">
+        <label class="row">
+          <span>
+            <strong>YOLO mode</strong>
+            <small>Enable automation for this ChatGPT tab.</small>
+          </span>
+          <input id="enabled" type="checkbox" role="switch">
+        </label>
+        <label class="row">
+          <span>
+            <strong>GitHub approvals</strong>
+            <small>Click the right affirmative card button.</small>
+          </span>
+          <input id="approvals" type="checkbox" role="switch">
+        </label>
+        <label class="row">
+          <span>
+            <strong>Error continue</strong>
+            <small>Send Continue instead of Retry.</small>
+          </span>
+          <input id="errorContinue" type="checkbox" role="switch">
+        </label>
+      </section>
+
+      <section class="activity" aria-label="Activity">
+        <div>
+          <span>Last action</span>
+          <strong id="lastAction">Idle</strong>
+        </div>
+        <div class="metrics">
+          <p><span id="approvalsClicked">0</span><small>approvals</small></p>
+          <p><span id="continuesSent">0</span><small>continues</small></p>
+        </div>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

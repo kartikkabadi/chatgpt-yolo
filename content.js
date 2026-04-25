@@ -1,0 +1,393 @@
+(() => {
+  "use strict";
+
+  const STORAGE_KEY = "yoloGlobal";
+  const TAB_KEY = "yoloTabSettings";
+  const COUNTERS_KEY = "yoloCounters";
+  const LAST_ACTION_KEY = "yoloLastAction";
+
+  const DEFAULT_SETTINGS = {
+    enabled: false,
+    approvals: true,
+    errorContinue: true
+  };
+
+  const state = {
+    settings: { ...DEFAULT_SETTINGS },
+    approvalsClicked: 0,
+    continuesSent: 0,
+    lastAction: "Idle",
+    lastErrorSignature: "",
+    lastApprovalSignature: "",
+    lastContinueAt: 0,
+    lastApprovalAt: 0,
+    lastActivityAt: Date.now(),
+    lastGenerationAt: Date.now(),
+    approvalInFlight: false,
+    continueInFlight: false,
+    clickedApprovals: new WeakSet(),
+    observer: null,
+    scanTimer: null,
+    idleTimer: null,
+    loaded: false
+  };
+
+  const MIN_DELAY_MS = 2000;
+  const MAX_DELAY_MS = 5000;
+  const APPROVAL_COOLDOWN_MS = 8000;
+  const CONTINUE_COOLDOWN_MS = 60000;
+  const IDLE_CONTINUE_AFTER_MS = 120000;
+  const MAX_CARD_WIDTH = 900;
+  const MAX_CARD_HEIGHT = 640;
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const randomDelay = () => MIN_DELAY_MS + Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1));
+
+  const visible = (el) => {
+    if (!el || !(el instanceof Element)) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+
+  const normalizedText = (el) => (el?.innerText || el?.textContent || "").replace(/\s+/g, " ").trim();
+  const now = () => Date.now();
+
+  const buttonText = (button) => {
+    const label = button.getAttribute("aria-label") || button.getAttribute("title") || normalizedText(button);
+    return label.toLowerCase();
+  };
+
+  const looksNegative = (button) => {
+    const text = buttonText(button);
+    return /\b(deny|decline|reject|cancel|stop|no|disallow|do not|don't)\b/i.test(text);
+  };
+
+  const looksRetry = (el) => /\bretry\b/i.test(buttonText(el) || normalizedText(el));
+  const isDisabled = (el) => el?.disabled || el?.getAttribute("aria-disabled") === "true";
+
+  const elementSignature = (el) => {
+    const rect = el.getBoundingClientRect();
+    return `${Math.round(rect.top)}:${Math.round(rect.left)}:${normalizedText(el).slice(0, 180)}`;
+  };
+
+  const storageGet = (keys) => new Promise((resolve) => chrome.storage.local.get(keys, resolve));
+  const storageSet = (items) => new Promise((resolve) => chrome.storage.local.set(items, resolve));
+
+  async function setLastAction(action) {
+    state.lastAction = action;
+    await storageSet({ [LAST_ACTION_KEY]: { action, at: Date.now(), url: location.href } });
+  }
+
+  async function incrementCounter(key) {
+    const stored = await storageGet([COUNTERS_KEY]);
+    const counters = stored[COUNTERS_KEY] || {};
+    counters[key] = (counters[key] || 0) + 1;
+    counters.updatedAt = Date.now();
+    await storageSet({ [COUNTERS_KEY]: counters });
+    state[key] = counters[key];
+  }
+
+  async function loadSettings() {
+    const stored = await storageGet([STORAGE_KEY, TAB_KEY, COUNTERS_KEY, LAST_ACTION_KEY]);
+    const globalSettings = stored[STORAGE_KEY] || {};
+    const tabSettings = readTabSettings();
+    state.settings = { ...DEFAULT_SETTINGS, ...globalSettings, ...tabSettings };
+
+    const counters = stored[COUNTERS_KEY] || {};
+    state.approvalsClicked = counters.approvalsClicked || 0;
+    state.continuesSent = counters.continuesSent || 0;
+    state.lastAction = stored[LAST_ACTION_KEY]?.action || "Idle";
+    state.loaded = true;
+  }
+
+  function readTabSettings() {
+    try {
+      return JSON.parse(sessionStorage.getItem(TAB_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function writeTabSettings(next) {
+    state.settings = { ...state.settings, ...next };
+    sessionStorage.setItem(TAB_KEY, JSON.stringify(next));
+    return storageSet({
+      [STORAGE_KEY]: {
+        approvals: state.settings.approvals,
+        errorContinue: state.settings.errorContinue
+      }
+    });
+  }
+
+  function findComposer() {
+    const selectors = [
+      "#prompt-textarea",
+      "textarea[data-testid='prompt-textarea']",
+      "div[contenteditable='true'][data-testid='prompt-textarea']",
+      "div[contenteditable='true'][role='textbox']",
+      "textarea"
+    ];
+
+    return selectors
+      .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+      .filter(visible)
+      .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom)[0] || null;
+  }
+
+  function findSendButton() {
+    const composer = findComposer();
+    const form = composer?.closest("form");
+    const scoped = form ? Array.from(form.querySelectorAll("button")) : [];
+    const candidates = [
+      "button[data-testid='send-button']",
+      "button[aria-label*='Send']",
+      "button[title*='Send']"
+    ].flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+
+    return [...scoped, ...candidates].find((button) => {
+      const text = buttonText(button);
+      const hasSendSignal = /send|submit/i.test(text) || button.getAttribute("data-testid") === "send-button";
+      return hasSendSignal && visible(button) && !isDisabled(button);
+    }) || null;
+  }
+
+  function hasActiveGeneration() {
+    const stopButton = Array.from(document.querySelectorAll("button")).find((button) => {
+      const text = buttonText(button);
+      return visible(button) && /\b(stop|interrupt|cancel generation)\b/i.test(text);
+    });
+
+    const busy = Array.from(document.querySelectorAll("[aria-busy='true'], [data-testid*='stop']")).some(visible);
+    const active = Boolean(stopButton || busy);
+    if (active) state.lastGenerationAt = now();
+    return active;
+  }
+
+  function setComposerValue(composer, value) {
+    composer.focus();
+
+    if (composer.tagName === "TEXTAREA" || composer.tagName === "INPUT") {
+      composer.value = value;
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+      composer.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(composer);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    document.execCommand("insertText", false, value);
+    composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+  }
+
+  async function sendContinue(reason) {
+    if (!state.settings.enabled || !state.settings.errorContinue) return false;
+    if (state.continueInFlight) return false;
+    if (now() - state.lastContinueAt < CONTINUE_COOLDOWN_MS) return false;
+    if (hasActiveGeneration()) return false;
+
+    const composer = findComposer();
+    if (!composer) return false;
+
+    state.continueInFlight = true;
+    state.lastContinueAt = now();
+    try {
+      await sleep(randomDelay());
+
+      if (hasActiveGeneration()) return false;
+
+      setComposerValue(composer, "Continue");
+      await sleep(150);
+
+      const sendButton = findSendButton();
+      if (sendButton) {
+        sendButton.click();
+      } else {
+        composer.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
+        composer.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
+      }
+
+      await incrementCounter("continuesSent");
+      await setLastAction(`Sent Continue (${reason})`);
+      return true;
+    } finally {
+      state.continueInFlight = false;
+    }
+  }
+
+  function findErrorState() {
+    const retryButton = Array.from(document.querySelectorAll("button")).find((button) => {
+      const text = normalizedText(button.closest("[role='alert']") || button.parentElement || button);
+      return visible(button) && looksRetry(button) && /error|went wrong|try again|retry/i.test(text);
+    });
+    const redBox = Array.from(document.querySelectorAll("[role='alert'], .text-red-500, .text-red-600, .border-red-500, .border-red-600, [class*='error']"))
+      .find((el) => visible(el) && /error|went wrong|try again|retry/i.test(normalizedText(el)));
+
+    return retryButton || redBox || null;
+  }
+
+  async function handleErrorState() {
+    const errorEl = findErrorState();
+    if (!errorEl) return;
+
+    const signature = elementSignature(errorEl);
+    if (signature === state.lastErrorSignature) return;
+
+    await setLastAction("Detected error; sending Continue soon");
+    const sent = await sendContinue("error recovery");
+    if (sent) state.lastErrorSignature = signature;
+  }
+
+  function githubCardCandidates() {
+    const buttons = Array.from(document.querySelectorAll("button")).filter(visible);
+    const cards = new Set();
+
+    for (const button of buttons) {
+      let node = button.parentElement;
+      for (let depth = 0; node && depth < 7; depth += 1, node = node.parentElement) {
+        const rect = node.getBoundingClientRect();
+        if (rect.width > MAX_CARD_WIDTH || rect.height > MAX_CARD_HEIGHT) continue;
+
+        const text = normalizedText(node);
+        const localButtons = Array.from(node.querySelectorAll("button")).filter(visible);
+        const hasGithubSignal = /github|repository|pull request|branch|commit|file|workspace|permissions?/i.test(text);
+        const hasApprovalPair = localButtons.length >= 2 && localButtons.some(looksNegative);
+        const hasAffirmativeSignal = localButtons.some((localButton) => {
+          const text = buttonText(localButton);
+          return /\b(allow|approve|accept|create|update|delete|merge|confirm|continue|run)\b/i.test(text);
+        });
+
+        if (hasGithubSignal && hasApprovalPair && hasAffirmativeSignal) {
+          cards.add(node);
+          break;
+        }
+      }
+    }
+
+    return Array.from(cards).filter(visible);
+  }
+
+  function rightmostAffirmativeButton(card) {
+    const buttons = Array.from(card.querySelectorAll("button"))
+      .filter((button) => visible(button) && !isDisabled(button) && !looksRetry(button))
+      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+
+    if (buttons.length < 2) return null;
+
+    const rightButton = buttons[buttons.length - 1];
+    if (looksNegative(rightButton)) return null;
+
+    const leftButtons = buttons.slice(0, -1);
+    if (!leftButtons.some((button) => looksNegative(button) && button.getBoundingClientRect().right <= rightButton.getBoundingClientRect().left)) return null;
+
+    return rightButton;
+  }
+
+  async function handleApprovalCards() {
+    if (!state.settings.enabled || !state.settings.approvals) return;
+    if (state.approvalInFlight) return;
+    if (now() - state.lastApprovalAt < APPROVAL_COOLDOWN_MS) return;
+    if (hasActiveGeneration()) return;
+
+    for (const card of githubCardCandidates()) {
+      const button = rightmostAffirmativeButton(card);
+      if (!button) continue;
+      if (state.clickedApprovals.has(button)) continue;
+
+      const signature = elementSignature(card);
+      if (signature === state.lastApprovalSignature) continue;
+
+      state.approvalInFlight = true;
+      state.lastApprovalSignature = signature;
+      state.lastApprovalAt = now();
+      try {
+        await setLastAction(`Approval found: ${normalizedText(button) || "right button"}`);
+        await sleep(randomDelay());
+
+        if (!visible(button) || isDisabled(button) || looksNegative(button) || hasActiveGeneration()) return;
+
+        state.clickedApprovals.add(button);
+        button.click();
+        await incrementCounter("approvalsClicked");
+        await setLastAction(`Clicked approval: ${normalizedText(button) || "right button"}`);
+        return;
+      } finally {
+        state.approvalInFlight = false;
+      }
+    }
+  }
+
+  async function handleIdleContinue() {
+    if (!state.settings.enabled || !state.settings.errorContinue) return;
+    if (hasActiveGeneration()) {
+      state.lastActivityAt = now();
+      return;
+    }
+
+    const recentlyGenerated = now() - state.lastGenerationAt < IDLE_CONTINUE_AFTER_MS;
+    const idleLongEnough = now() - Math.max(state.lastGenerationAt, state.lastContinueAt, state.lastApprovalAt) > IDLE_CONTINUE_AFTER_MS;
+    if (!recentlyGenerated && idleLongEnough) {
+      state.lastGenerationAt = now();
+      await sendContinue("idle");
+    }
+  }
+
+  async function scan() {
+    if (!state.loaded || !location.hostname.endsWith("chatgpt.com")) return;
+    await handleErrorState();
+    await handleApprovalCards();
+  }
+
+  function installObserver() {
+    state.observer = new MutationObserver(() => {
+      if (hasActiveGeneration()) state.lastActivityAt = now();
+      scan();
+    });
+    state.observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    state.scanTimer = window.setInterval(scan, 2500);
+    state.idleTimer = window.setInterval(handleIdleContinue, 15000);
+  }
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "YOLO_GET_STATE") {
+      sendResponse({
+        settings: state.settings,
+        approvalsClicked: state.approvalsClicked,
+        continuesSent: state.continuesSent,
+        lastAction: state.lastAction
+      });
+      return true;
+    }
+
+    if (message?.type === "YOLO_SET_TAB_SETTINGS") {
+      writeTabSettings(message.settings || {}).then(() => {
+        sendResponse({ ok: true, settings: state.settings });
+        scan();
+      });
+      return true;
+    }
+
+    return false;
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+    if (changes[STORAGE_KEY]) {
+      state.settings = { ...state.settings, ...(changes[STORAGE_KEY].newValue || {}), ...readTabSettings() };
+    }
+    if (changes[COUNTERS_KEY]) {
+      const counters = changes[COUNTERS_KEY].newValue || {};
+      state.approvalsClicked = counters.approvalsClicked || 0;
+      state.continuesSent = counters.continuesSent || 0;
+    }
+  });
+
+  loadSettings().then(() => {
+    installObserver();
+    scan();
+  });
+})();
