@@ -5,7 +5,8 @@
     enabled: false,
     approvals: true,
     errorContinue: true,
-    autoRefresh: true
+    autoRefresh: true,
+    deepNudges: false
   };
 
   const els = {
@@ -13,11 +14,13 @@
     approvals: document.querySelector("#approvals"),
     errorContinue: document.querySelector("#errorContinue"),
     autoRefresh: document.querySelector("#autoRefresh"),
+    deepNudges: document.querySelector("#deepNudges"),
     status: document.querySelector("#status"),
     scope: document.querySelector("#scope"),
     lastAction: document.querySelector("#lastAction"),
     approvalsClicked: document.querySelector("#approvalsClicked"),
-    continuesSent: document.querySelector("#continuesSent")
+    continuesSent: document.querySelector("#continuesSent"),
+    deepNudgesSent: document.querySelector("#deepNudgesSent")
   };
 
   let activeTab = null;
@@ -36,9 +39,18 @@
   });
 
   const injectContentScript = (tabId) => new Promise((resolve) => {
-    chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
-      resolve(!chrome.runtime.lastError);
-    });
+    if (!chrome.scripting?.executeScript) {
+      resolve(false);
+      return;
+    }
+
+    try {
+      chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
+        resolve(!chrome.runtime.lastError);
+      });
+    } catch {
+      resolve(false);
+    }
   });
 
   async function sendMessageWithInject(tabId, message) {
@@ -58,9 +70,11 @@
     els.approvals.checked = Boolean(settings.approvals);
     els.errorContinue.checked = Boolean(settings.errorContinue);
     els.autoRefresh.checked = Boolean(settings.autoRefresh);
+    els.deepNudges.checked = Boolean(settings.deepNudges);
     els.lastAction.textContent = state.lastAction || "Idle";
     els.approvalsClicked.textContent = String(state.approvalsClicked || 0);
     els.continuesSent.textContent = String(state.continuesSent || 0);
+    els.deepNudgesSent.textContent = String(state.deepNudgesSent || 0);
     els.status.textContent = settings.enabled ? "On" : "Off";
     els.status.dataset.on = String(Boolean(settings.enabled));
   }
@@ -68,7 +82,7 @@
   function disabled(message) {
     els.status.textContent = "Unavailable";
     els.scope.textContent = message;
-    for (const input of [els.enabled, els.approvals, els.errorContinue, els.autoRefresh]) {
+    for (const input of [els.enabled, els.approvals, els.errorContinue, els.autoRefresh, els.deepNudges]) {
       input.disabled = true;
     }
   }
@@ -116,6 +130,7 @@
   els.approvals.addEventListener("change", () => updateSetting("approvals", els.approvals.checked));
   els.errorContinue.addEventListener("change", () => updateSetting("errorContinue", els.errorContinue.checked));
   els.autoRefresh.addEventListener("change", () => updateSetting("autoRefresh", els.autoRefresh.checked));
+  els.deepNudges.addEventListener("change", () => updateSetting("deepNudges", els.deepNudges.checked));
 
   init();
 })();

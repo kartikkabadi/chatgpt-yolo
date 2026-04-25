@@ -14,7 +14,7 @@
 }
 
 body {
-  width: 310px;
+  width: 330px;
   margin: 0;
   background: var(--bg);
   color: var(--ink);
@@ -142,7 +142,7 @@ input[type="checkbox"]:disabled {
 
 .metrics {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 

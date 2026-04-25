@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YOLO",
-  "version": "0.1.0",
-  "description": "Keeps ChatGPT GitHub-agent sessions moving by approving GitHub cards and sending Continue after recoverable states.",
+  "version": "0.3.0",
+  "description": "Keeps ChatGPT sessions moving with GitHub approvals, error recovery, refreshes, and deep idle nudges.",
   "permissions": [
     "activeTab",
     "scripting",

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const SCRIPT_VERSION = "0.2.0";
+  const SCRIPT_VERSION = "0.3.0";
   if (window.__YOLO_EXTENSION__?.version === SCRIPT_VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
 
@@ -15,18 +15,21 @@
     enabled: false,
     approvals: true,
     errorContinue: true,
-    autoRefresh: true
+    autoRefresh: true,
+    deepNudges: false
   };
 
   const state = {
     settings: { ...DEFAULT_SETTINGS },
     approvalsClicked: 0,
     continuesSent: 0,
+    deepNudgesSent: 0,
     lastAction: "Idle",
     pageLoadedAt: Date.now(),
     lastErrorSignature: "",
     lastApprovalSignature: "",
     lastContinueAt: 0,
+    lastDeepNudgeAt: 0,
     lastApprovalAt: 0,
     lastRefreshAt: 0,
     nextScheduledRefreshAt: 0,
@@ -42,7 +45,8 @@
     scanTimer: null,
     idleTimer: null,
     refreshTimer: null,
-    loaded: false
+    loaded: false,
+    destroyed: false
   };
 
   const MIN_DELAY_MS = 4000;
@@ -50,14 +54,21 @@
   const LOAD_GRACE_MS = 40000;
   const APPROVAL_COOLDOWN_MS = 12000;
   const CONTINUE_COOLDOWN_MS = 90000;
+  const DEEP_NUDGE_COOLDOWN_MS = 360000;
   const REFRESH_COOLDOWN_MS = 90000;
   const ERROR_REFRESH_DELAY_MIN_MS = 12000;
   const ERROR_REFRESH_DELAY_MAX_MS = 26000;
   const PERIODIC_REFRESH_MIN_MS = 180000;
   const PERIODIC_REFRESH_MAX_MS = 300000;
   const IDLE_CONTINUE_AFTER_MS = 150000;
+  const DEEP_NUDGE_AFTER_MS = 240000;
   const MAX_CARD_WIDTH = 900;
   const MAX_CARD_HEIGHT = 640;
+  const DEEP_NUDGE_PROMPT = [
+    "Review where you stopped and keep going deeper.",
+    "Do not repeat the last answer.",
+    "Critically inspect your assumptions, look for gaps or edge cases, and continue the work toward my original goal with concrete next steps."
+  ].join(" ");
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const randomDelay = () => MIN_DELAY_MS + Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1));
@@ -104,8 +115,52 @@
     return `${buttonText(button)}::${text}`;
   };
 
-  const storageGet = (keys) => new Promise((resolve) => chrome.storage.local.get(keys, resolve));
-  const storageSet = (items) => new Promise((resolve) => chrome.storage.local.set(items, resolve));
+  const isContextInvalidated = (error) => /context invalidated|extension context/i.test(String(error?.message || error || ""));
+
+  function disableStaleContext(error) {
+    if (!isContextInvalidated(error)) return false;
+    destroy();
+    return true;
+  }
+
+  const storageGet = (keys) => new Promise((resolve) => {
+    if (state.destroyed) {
+      resolve({});
+      return;
+    }
+
+    try {
+      chrome.storage.local.get(keys, (items) => {
+        const error = chrome.runtime?.lastError;
+        if (error && disableStaleContext(error)) {
+          resolve({});
+          return;
+        }
+        resolve(error ? {} : items);
+      });
+    } catch (error) {
+      disableStaleContext(error);
+      resolve({});
+    }
+  });
+
+  const storageSet = (items) => new Promise((resolve) => {
+    if (state.destroyed) {
+      resolve(false);
+      return;
+    }
+
+    try {
+      chrome.storage.local.set(items, () => {
+        const error = chrome.runtime?.lastError;
+        if (error) disableStaleContext(error);
+        resolve(!error);
+      });
+    } catch (error) {
+      disableStaleContext(error);
+      resolve(false);
+    }
+  });
   const pageId = () => location.href.split("#")[0];
 
   async function setLastAction(action) {
@@ -132,6 +187,7 @@
     const counters = stored[COUNTERS_KEY] || {};
     state.approvalsClicked = counters.approvalsClicked || 0;
     state.continuesSent = counters.continuesSent || 0;
+    state.deepNudgesSent = counters.deepNudgesSent || 0;
     state.lastAction = stored[LAST_ACTION_KEY]?.action || "Idle";
     state.loaded = true;
   }
@@ -154,7 +210,8 @@
         enabled: state.settings.enabled,
         approvals: state.settings.approvals,
         errorContinue: state.settings.errorContinue,
-        autoRefresh: state.settings.autoRefresh
+        autoRefresh: state.settings.autoRefresh,
+        deepNudges: state.settings.deepNudges
       };
 
       return storageSet({
@@ -162,7 +219,8 @@
         [STORAGE_KEY]: {
           approvals: state.settings.approvals,
           errorContinue: state.settings.errorContinue,
-          autoRefresh: state.settings.autoRefresh
+          autoRefresh: state.settings.autoRefresh,
+          deepNudges: state.settings.deepNudges
         }
       });
     });
@@ -207,15 +265,17 @@
   }
 
   function queueScan() {
-    if (state.scanQueued) return;
+    if (state.destroyed || state.scanQueued) return;
     state.scanQueued = true;
     window.setTimeout(() => {
+      if (state.destroyed) return;
       state.scanQueued = false;
       scan();
     }, 1000);
   }
 
   function destroy() {
+    state.destroyed = true;
     state.observer?.disconnect();
     window.clearInterval(state.scanTimer);
     window.clearInterval(state.idleTimer);
@@ -291,23 +351,38 @@
     composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
   }
 
-  async function sendContinue(reason) {
-    if (!state.settings.enabled || !state.settings.errorContinue) return false;
+  function composerText(composer) {
+    if (!composer) return "";
+    if (composer.tagName === "TEXTAREA" || composer.tagName === "INPUT") return composer.value || "";
+    return normalizedText(composer);
+  }
+
+  async function sendPrompt(reason, prompt, options = {}) {
+    const {
+      counterKey = "continuesSent",
+      lastAtKey = "lastContinueAt",
+      cooldownMs = CONTINUE_COOLDOWN_MS,
+      actionLabel = "Continue"
+    } = options;
+
+    if (!state.settings.enabled) return false;
     if (state.continueInFlight) return false;
-    if (now() - state.lastContinueAt < CONTINUE_COOLDOWN_MS) return false;
+    if (now() - state[lastAtKey] < cooldownMs) return false;
     if (hasActiveGeneration()) return false;
 
     const composer = findComposer();
     if (!composer) return false;
+    if (composerText(composer).trim()) return false;
 
     state.continueInFlight = true;
-    state.lastContinueAt = now();
+    state[lastAtKey] = now();
     try {
       await sleep(randomDelay());
 
       if (hasActiveGeneration()) return false;
+      if (composerText(composer).trim()) return false;
 
-      setComposerValue(composer, "Continue");
+      setComposerValue(composer, prompt);
       await sleep(150);
 
       const sendButton = findSendButton();
@@ -318,12 +393,32 @@
         composer.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
       }
 
-      await incrementCounter("continuesSent");
-      await setLastAction(`Sent Continue (${reason})`);
+      await incrementCounter(counterKey);
+      await setLastAction(`Sent ${actionLabel} (${reason})`);
       return true;
     } finally {
       state.continueInFlight = false;
     }
+  }
+
+  async function sendContinue(reason) {
+    if (!state.settings.errorContinue) return false;
+    return sendPrompt(reason, "Continue", {
+      counterKey: "continuesSent",
+      lastAtKey: "lastContinueAt",
+      cooldownMs: CONTINUE_COOLDOWN_MS,
+      actionLabel: "Continue"
+    });
+  }
+
+  async function sendDeepNudge(reason) {
+    if (!state.settings.deepNudges) return false;
+    return sendPrompt(reason, DEEP_NUDGE_PROMPT, {
+      counterKey: "deepNudgesSent",
+      lastAtKey: "lastDeepNudgeAt",
+      cooldownMs: DEEP_NUDGE_COOLDOWN_MS,
+      actionLabel: "deep nudge"
+    });
   }
 
   function findErrorState() {
@@ -437,28 +532,37 @@
   }
 
   async function handleIdleContinue() {
-    if (!state.settings.enabled || !state.settings.errorContinue) return;
+    if (!state.settings.enabled || (!state.settings.errorContinue && !state.settings.deepNudges)) return;
     if (hasActiveGeneration()) {
       state.lastActivityAt = now();
       return;
     }
 
-    const recentlyGenerated = now() - state.lastGenerationAt < IDLE_CONTINUE_AFTER_MS;
-    const idleLongEnough = now() - Math.max(state.lastGenerationAt, state.lastContinueAt, state.lastApprovalAt) > IDLE_CONTINUE_AFTER_MS;
-    if (!recentlyGenerated && idleLongEnough) {
+    const idleSince = Math.max(state.lastGenerationAt, state.lastContinueAt, state.lastDeepNudgeAt, state.lastApprovalAt, state.pageLoadedAt);
+    const deepIdleLongEnough = now() - idleSince > DEEP_NUDGE_AFTER_MS;
+    if (state.settings.deepNudges && deepIdleLongEnough) {
+      state.lastGenerationAt = now();
+      await sendDeepNudge("idle");
+      return;
+    }
+
+    const continueIdleLongEnough = now() - idleSince > IDLE_CONTINUE_AFTER_MS;
+    if (!state.settings.deepNudges && state.settings.errorContinue && continueIdleLongEnough) {
       state.lastGenerationAt = now();
       await sendContinue("idle");
     }
   }
 
   async function scan() {
-    if (!state.loaded || !location.hostname.endsWith("chatgpt.com")) return;
+    if (state.destroyed || !state.loaded || !location.hostname.endsWith("chatgpt.com")) return;
     await handleErrorState();
     await handleApprovalCards();
   }
 
   function installObserver() {
+    if (state.destroyed) return;
     state.observer = new MutationObserver(() => {
+      if (state.destroyed) return;
       if (hasActiveGeneration()) state.lastActivityAt = now();
       queueScan();
     });
@@ -469,11 +573,13 @@
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (state.destroyed) return false;
     if (message?.type === "YOLO_GET_STATE") {
       sendResponse({
         settings: state.settings,
         approvalsClicked: state.approvalsClicked,
         continuesSent: state.continuesSent,
+        deepNudgesSent: state.deepNudgesSent,
         lastAction: state.lastAction,
         nextRefreshAt: state.nextScheduledRefreshAt
       });
@@ -482,6 +588,7 @@
 
     if (message?.type === "YOLO_SET_TAB_SETTINGS") {
       writeTabSettings(message.settings || {}).then(() => {
+        if (state.destroyed) return;
         sendResponse({ ok: true, settings: state.settings });
         scan();
       });
@@ -492,6 +599,7 @@
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (state.destroyed) return;
     if (areaName !== "local") return;
     if (changes[STORAGE_KEY]) {
       state.settings = { ...state.settings, ...(changes[STORAGE_KEY].newValue || {}), ...readTabSettings() };
@@ -504,12 +612,14 @@
       const counters = changes[COUNTERS_KEY].newValue || {};
       state.approvalsClicked = counters.approvalsClicked || 0;
       state.continuesSent = counters.continuesSent || 0;
+      state.deepNudgesSent = counters.deepNudgesSent || 0;
     }
   });
 
   loadSettings().then(() => {
+    if (state.destroyed) return;
     scheduleNextPeriodicRefresh();
     installObserver();
     scan();
-  });
+  }).catch(disableStaleContext);
 })();
