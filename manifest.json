@@ -5,6 +5,7 @@
   "description": "Keeps ChatGPT GitHub-agent sessions moving by approving GitHub cards and sending Continue after recoverable states.",
   "permissions": [
     "activeTab",
+    "scripting",
     "storage"
   ],
   "host_permissions": [

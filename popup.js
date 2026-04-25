@@ -4,13 +4,15 @@
   const DEFAULTS = {
     enabled: false,
     approvals: true,
-    errorContinue: true
+    errorContinue: true,
+    autoRefresh: true
   };
 
   const els = {
     enabled: document.querySelector("#enabled"),
     approvals: document.querySelector("#approvals"),
     errorContinue: document.querySelector("#errorContinue"),
+    autoRefresh: document.querySelector("#autoRefresh"),
     status: document.querySelector("#status"),
     scope: document.querySelector("#scope"),
     lastAction: document.querySelector("#lastAction"),
@@ -33,11 +35,29 @@
     });
   });
 
+  const injectContentScript = (tabId) => new Promise((resolve) => {
+    chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }, () => {
+      resolve(!chrome.runtime.lastError);
+    });
+  });
+
+  async function sendMessageWithInject(tabId, message) {
+    const first = await sendMessage(tabId, message);
+    if (first) return first;
+
+    const injected = await injectContentScript(tabId);
+    if (!injected) return null;
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    return sendMessage(tabId, message);
+  }
+
   function render(state = {}) {
     settings = { ...settings, ...(state.settings || {}) };
     els.enabled.checked = Boolean(settings.enabled);
     els.approvals.checked = Boolean(settings.approvals);
     els.errorContinue.checked = Boolean(settings.errorContinue);
+    els.autoRefresh.checked = Boolean(settings.autoRefresh);
     els.lastAction.textContent = state.lastAction || "Idle";
     els.approvalsClicked.textContent = String(state.approvalsClicked || 0);
     els.continuesSent.textContent = String(state.continuesSent || 0);
@@ -48,7 +68,7 @@
   function disabled(message) {
     els.status.textContent = "Unavailable";
     els.scope.textContent = message;
-    for (const input of [els.enabled, els.approvals, els.errorContinue]) {
+    for (const input of [els.enabled, els.approvals, els.errorContinue, els.autoRefresh]) {
       input.disabled = true;
     }
   }
@@ -58,7 +78,7 @@
     render({ settings });
 
     if (!activeTab?.id) return;
-    await sendMessage(activeTab.id, {
+    await sendMessageWithInject(activeTab.id, {
       type: "YOLO_SET_TAB_SETTINGS",
       settings
     });
@@ -78,9 +98,9 @@
       return;
     }
 
-    const state = await sendMessage(activeTab.id, { type: "YOLO_GET_STATE" });
+    const state = await sendMessageWithInject(activeTab.id, { type: "YOLO_GET_STATE" });
     if (!state) {
-      disabled("Refresh this ChatGPT tab once.");
+      disabled("Cannot inject into this pane yet.");
       return;
     }
 
@@ -95,6 +115,7 @@
   els.enabled.addEventListener("change", () => updateSetting("enabled", els.enabled.checked));
   els.approvals.addEventListener("change", () => updateSetting("approvals", els.approvals.checked));
   els.errorContinue.addEventListener("change", () => updateSetting("errorContinue", els.errorContinue.checked));
+  els.autoRefresh.addEventListener("change", () => updateSetting("autoRefresh", els.autoRefresh.checked));
 
   init();
 })();

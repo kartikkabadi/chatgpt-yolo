@@ -1,15 +1,21 @@
 (() => {
   "use strict";
 
+  const SCRIPT_VERSION = "0.2.0";
+  if (window.__YOLO_EXTENSION__?.version === SCRIPT_VERSION) return;
+  window.__YOLO_EXTENSION__?.destroy?.();
+
   const STORAGE_KEY = "yoloGlobal";
   const TAB_KEY = "yoloTabSettings";
+  const PAGE_KEY = "yoloPageSettings";
   const COUNTERS_KEY = "yoloCounters";
   const LAST_ACTION_KEY = "yoloLastAction";
 
   const DEFAULT_SETTINGS = {
     enabled: false,
     approvals: true,
-    errorContinue: true
+    errorContinue: true,
+    autoRefresh: true
   };
 
   const state = {
@@ -17,32 +23,45 @@
     approvalsClicked: 0,
     continuesSent: 0,
     lastAction: "Idle",
+    pageLoadedAt: Date.now(),
     lastErrorSignature: "",
     lastApprovalSignature: "",
     lastContinueAt: 0,
     lastApprovalAt: 0,
+    lastRefreshAt: 0,
+    nextScheduledRefreshAt: 0,
     clickedApprovalSignatures: new Set(),
     lastActivityAt: Date.now(),
     lastGenerationAt: Date.now(),
     approvalInFlight: false,
     continueInFlight: false,
+    refreshInFlight: false,
     clickedApprovals: new WeakSet(),
+    scanQueued: false,
     observer: null,
     scanTimer: null,
     idleTimer: null,
+    refreshTimer: null,
     loaded: false
   };
 
-  const MIN_DELAY_MS = 2000;
-  const MAX_DELAY_MS = 5000;
-  const APPROVAL_COOLDOWN_MS = 8000;
-  const CONTINUE_COOLDOWN_MS = 60000;
-  const IDLE_CONTINUE_AFTER_MS = 120000;
+  const MIN_DELAY_MS = 4000;
+  const MAX_DELAY_MS = 8500;
+  const LOAD_GRACE_MS = 40000;
+  const APPROVAL_COOLDOWN_MS = 12000;
+  const CONTINUE_COOLDOWN_MS = 90000;
+  const REFRESH_COOLDOWN_MS = 90000;
+  const ERROR_REFRESH_DELAY_MIN_MS = 12000;
+  const ERROR_REFRESH_DELAY_MAX_MS = 26000;
+  const PERIODIC_REFRESH_MIN_MS = 180000;
+  const PERIODIC_REFRESH_MAX_MS = 300000;
+  const IDLE_CONTINUE_AFTER_MS = 150000;
   const MAX_CARD_WIDTH = 900;
   const MAX_CARD_HEIGHT = 640;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const randomDelay = () => MIN_DELAY_MS + Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1));
+  const randomBetween = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 
   const visible = (el) => {
     if (!el || !(el instanceof Element)) return false;
@@ -87,6 +106,7 @@
 
   const storageGet = (keys) => new Promise((resolve) => chrome.storage.local.get(keys, resolve));
   const storageSet = (items) => new Promise((resolve) => chrome.storage.local.set(items, resolve));
+  const pageId = () => location.href.split("#")[0];
 
   async function setLastAction(action) {
     state.lastAction = action;
@@ -103,10 +123,11 @@
   }
 
   async function loadSettings() {
-    const stored = await storageGet([STORAGE_KEY, TAB_KEY, COUNTERS_KEY, LAST_ACTION_KEY]);
+    const stored = await storageGet([STORAGE_KEY, PAGE_KEY, COUNTERS_KEY, LAST_ACTION_KEY]);
     const globalSettings = stored[STORAGE_KEY] || {};
+    const pageSettings = stored[PAGE_KEY]?.[pageId()] || {};
     const tabSettings = readTabSettings();
-    state.settings = { ...DEFAULT_SETTINGS, ...globalSettings, ...tabSettings };
+    state.settings = { ...DEFAULT_SETTINGS, ...globalSettings, ...pageSettings, ...tabSettings };
 
     const counters = stored[COUNTERS_KEY] || {};
     state.approvalsClicked = counters.approvalsClicked || 0;
@@ -125,14 +146,86 @@
 
   function writeTabSettings(next) {
     state.settings = { ...state.settings, ...next };
-    sessionStorage.setItem(TAB_KEY, JSON.stringify(next));
-    return storageSet({
-      [STORAGE_KEY]: {
+    sessionStorage.setItem(TAB_KEY, JSON.stringify(state.settings));
+
+    return storageGet([PAGE_KEY]).then((stored) => {
+      const pageSettings = stored[PAGE_KEY] || {};
+      pageSettings[pageId()] = {
+        enabled: state.settings.enabled,
         approvals: state.settings.approvals,
-        errorContinue: state.settings.errorContinue
-      }
+        errorContinue: state.settings.errorContinue,
+        autoRefresh: state.settings.autoRefresh
+      };
+
+      return storageSet({
+        [PAGE_KEY]: pageSettings,
+        [STORAGE_KEY]: {
+          approvals: state.settings.approvals,
+          errorContinue: state.settings.errorContinue,
+          autoRefresh: state.settings.autoRefresh
+        }
+      });
     });
   }
+
+  function scheduleNextPeriodicRefresh() {
+    state.nextScheduledRefreshAt = now() + randomBetween(PERIODIC_REFRESH_MIN_MS, PERIODIC_REFRESH_MAX_MS);
+  }
+
+  function safeToRefresh() {
+    if (!state.settings.enabled || !state.settings.autoRefresh) return false;
+    if (state.refreshInFlight || state.approvalInFlight || state.continueInFlight) return false;
+    if (now() - state.pageLoadedAt < LOAD_GRACE_MS) return false;
+    if (now() - state.lastRefreshAt < REFRESH_COOLDOWN_MS) return false;
+    if (hasActiveGeneration()) return false;
+    return true;
+  }
+
+  async function refreshPage(reason, delayMs = randomDelay()) {
+    if (!safeToRefresh()) return false;
+
+    state.refreshInFlight = true;
+    state.lastRefreshAt = now();
+    try {
+      await setLastAction(`Refreshing soon (${reason})`);
+      await sleep(delayMs);
+      if (!safeToRefresh()) return false;
+      await setLastAction(`Refreshing (${reason})`);
+      location.reload();
+      return true;
+    } finally {
+      state.refreshInFlight = false;
+    }
+  }
+
+  async function maybePeriodicRefresh() {
+    if (!state.nextScheduledRefreshAt) scheduleNextPeriodicRefresh();
+    if (now() < state.nextScheduledRefreshAt) return;
+
+    const refreshed = await refreshPage("scheduled");
+    if (!refreshed) scheduleNextPeriodicRefresh();
+  }
+
+  function queueScan() {
+    if (state.scanQueued) return;
+    state.scanQueued = true;
+    window.setTimeout(() => {
+      state.scanQueued = false;
+      scan();
+    }, 1000);
+  }
+
+  function destroy() {
+    state.observer?.disconnect();
+    window.clearInterval(state.scanTimer);
+    window.clearInterval(state.idleTimer);
+    window.clearInterval(state.refreshTimer);
+  }
+
+  window.__YOLO_EXTENSION__ = {
+    destroy,
+    version: SCRIPT_VERSION
+  };
 
   function findComposer() {
     const selectors = [
@@ -251,8 +344,9 @@
     const signature = elementSignature(errorEl);
     if (signature === state.lastErrorSignature) return;
 
-    await setLastAction("Detected error; sending Continue soon");
-    const sent = await sendContinue("error recovery");
+    await setLastAction("Detected error; refreshing soon");
+    const refreshed = await refreshPage("error recovery", randomBetween(ERROR_REFRESH_DELAY_MIN_MS, ERROR_REFRESH_DELAY_MAX_MS));
+    const sent = refreshed || await sendContinue("error recovery");
     if (sent) state.lastErrorSignature = signature;
   }
 
@@ -310,6 +404,7 @@
     if (!state.settings.enabled || !state.settings.approvals) return;
     if (state.approvalInFlight) return;
     if (now() - state.lastApprovalAt < APPROVAL_COOLDOWN_MS) return;
+    if (now() - state.pageLoadedAt < LOAD_GRACE_MS) return;
     if (hasActiveGeneration()) return;
 
     for (const card of githubCardCandidates()) {
@@ -365,11 +460,12 @@
   function installObserver() {
     state.observer = new MutationObserver(() => {
       if (hasActiveGeneration()) state.lastActivityAt = now();
-      scan();
+      queueScan();
     });
     state.observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-    state.scanTimer = window.setInterval(scan, 2500);
-    state.idleTimer = window.setInterval(handleIdleContinue, 15000);
+    state.scanTimer = window.setInterval(scan, 5000);
+    state.idleTimer = window.setInterval(handleIdleContinue, 20000);
+    state.refreshTimer = window.setInterval(maybePeriodicRefresh, 15000);
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -378,7 +474,8 @@
         settings: state.settings,
         approvalsClicked: state.approvalsClicked,
         continuesSent: state.continuesSent,
-        lastAction: state.lastAction
+        lastAction: state.lastAction,
+        nextRefreshAt: state.nextScheduledRefreshAt
       });
       return true;
     }
@@ -399,6 +496,10 @@
     if (changes[STORAGE_KEY]) {
       state.settings = { ...state.settings, ...(changes[STORAGE_KEY].newValue || {}), ...readTabSettings() };
     }
+    if (changes[PAGE_KEY]) {
+      const pageSettings = changes[PAGE_KEY].newValue?.[pageId()] || {};
+      state.settings = { ...state.settings, ...pageSettings, ...readTabSettings() };
+    }
     if (changes[COUNTERS_KEY]) {
       const counters = changes[COUNTERS_KEY].newValue || {};
       state.approvalsClicked = counters.approvalsClicked || 0;
@@ -407,6 +508,7 @@
   });
 
   loadSettings().then(() => {
+    scheduleNextPeriodicRefresh();
     installObserver();
     scan();
   });

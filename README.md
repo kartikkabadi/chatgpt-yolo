@@ -5,8 +5,11 @@ YOLO is a personal-use Manifest V3 Chromium extension for `chatgpt.com`.
 It keeps ChatGPT GitHub-agent sessions moving by:
 
 - Auto-approving GitHub permission/action cards by clicking the right-side affirmative button.
-- Recovering from ChatGPT error states by typing `Continue` into the composer and submitting it.
-- Keeping settings per browser tab via content-script session state, which makes split-view ChatGPT sessions safer.
+- Recovering from ChatGPT error states by refreshing first, then typing `Continue` if refresh is not safe.
+- Periodically refreshing enabled idle tabs every 3-5 minutes so heavyweight conversations can recover from stale React/error states.
+- Waiting 40 seconds after page load before approval or refresh automation starts, which gives large ChatGPT conversations time to settle.
+- Keeping settings per ChatGPT conversation URL, which makes split-view ChatGPT sessions safer.
+- Self-injecting from the popup when possible, so an extension reload does not always require a manual page refresh.
 
 ## Load Unpacked
 
@@ -22,4 +25,5 @@ It keeps ChatGPT GitHub-agent sessions moving by:
 - Confirm GitHub approval cards click only the right affirmative button.
 - Confirm left negative buttons such as Deny, Reject, or Cancel are never clicked.
 - Confirm red error or Retry states send `Continue` through the input box and do not click Retry.
+- Confirm red error or Retry states prefer a slow refresh and reveal pending approval cards when ChatGPT reloads.
 - Confirm active generation is not interrupted.
