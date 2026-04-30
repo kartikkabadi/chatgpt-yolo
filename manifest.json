@@ -1,15 +1,17 @@
 {
   "manifest_version": 3,
   "name": "YOLO",
-  "version": "0.3.0",
-  "description": "Keeps ChatGPT sessions moving with GitHub approvals, error recovery, refreshes, and deep idle nudges.",
+  "version": "0.4.0",
+  "description": "Keeps ChatGPT and Grok sessions moving with approvals, error recovery, refreshes, and deep idle nudges.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage"
   ],
   "host_permissions": [
-    "https://chatgpt.com/*"
+    "https://chatgpt.com/*",
+    "https://grok.com/*",
+    "https://www.grok.com/*"
   ],
   "action": {
     "default_title": "YOLO",
@@ -30,7 +32,9 @@
   "content_scripts": [
     {
       "matches": [
-        "https://chatgpt.com/*"
+        "https://chatgpt.com/*",
+        "https://grok.com/*",
+        "https://www.grok.com/*"
       ],
       "js": [
         "content.js"

@@ -8,6 +8,7 @@
     autoRefresh: true,
     deepNudges: false
   };
+  const SUPPORTED_URLS = ["https://chatgpt.com/", "https://grok.com/", "https://www.grok.com/"];
 
   const els = {
     enabled: document.querySelector("#enabled"),
@@ -107,8 +108,8 @@
   async function init() {
     activeTab = await queryActiveTab();
 
-    if (!activeTab?.url?.startsWith("https://chatgpt.com/")) {
-      disabled("Open chatgpt.com to use this tab.");
+    if (!SUPPORTED_URLS.some((url) => activeTab?.url?.startsWith(url))) {
+      disabled("Open chatgpt.com or grok.com to use this tab.");
       return;
     }
 

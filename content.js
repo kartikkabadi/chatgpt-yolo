@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const SCRIPT_VERSION = "0.3.0";
+  const SCRIPT_VERSION = "0.4.0";
   if (window.__YOLO_EXTENSION__?.version === SCRIPT_VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
 
@@ -10,6 +10,7 @@
   const PAGE_KEY = "yoloPageSettings";
   const COUNTERS_KEY = "yoloCounters";
   const LAST_ACTION_KEY = "yoloLastAction";
+  const SUPPORTED_HOSTS = ["chatgpt.com", "grok.com", "www.grok.com"];
 
   const DEFAULT_SETTINGS = {
     enabled: false,
@@ -83,6 +84,7 @@
 
   const normalizedText = (el) => (el?.innerText || el?.textContent || "").replace(/\s+/g, " ").trim();
   const now = () => Date.now();
+  const isSupportedHost = () => SUPPORTED_HOSTS.some((host) => location.hostname === host || location.hostname.endsWith(`.${host}`));
 
   const buttonText = (button) => {
     const label = button.getAttribute("aria-label") || button.getAttribute("title") || normalizedText(button);
@@ -291,8 +293,15 @@
     const selectors = [
       "#prompt-textarea",
       "textarea[data-testid='prompt-textarea']",
+      "textarea[placeholder*='Ask']",
+      "textarea[placeholder*='Message']",
+      "textarea[aria-label*='Ask']",
+      "textarea[aria-label*='Message']",
       "div[contenteditable='true'][data-testid='prompt-textarea']",
+      "div[contenteditable='true'][aria-label*='Ask']",
+      "div[contenteditable='true'][aria-label*='Message']",
       "div[contenteditable='true'][role='textbox']",
+      "[contenteditable='true']",
       "textarea"
     ];
 
@@ -308,13 +317,18 @@
     const scoped = form ? Array.from(form.querySelectorAll("button")) : [];
     const candidates = [
       "button[data-testid='send-button']",
+      "button[data-testid*='send' i]",
+      "button[type='submit']",
       "button[aria-label*='Send']",
-      "button[title*='Send']"
+      "button[aria-label*='Submit']",
+      "button[title*='Send']",
+      "button[title*='Submit']"
     ].flatMap((selector) => Array.from(document.querySelectorAll(selector)));
 
     return [...scoped, ...candidates].find((button) => {
       const text = buttonText(button);
-      const hasSendSignal = /send|submit/i.test(text) || button.getAttribute("data-testid") === "send-button";
+      const testId = button.getAttribute("data-testid") || "";
+      const hasSendSignal = /send|submit/i.test(text) || /send|submit/i.test(testId) || button.type === "submit";
       return hasSendSignal && visible(button) && !isDisabled(button);
     }) || null;
   }
@@ -552,7 +566,7 @@
   }
 
   async function scan() {
-    if (state.destroyed || !state.loaded || !location.hostname.endsWith("chatgpt.com")) return;
+    if (state.destroyed || !state.loaded || !isSupportedHost()) return;
     await handleErrorState();
     await handleApprovalCards();
   }
