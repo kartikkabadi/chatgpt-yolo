@@ -25,6 +25,7 @@
   let pollTimer = null;
   let saveTimer = null;
   let busy = false;
+  let unavailable = false;
 
   const queryActiveTab = () => new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => resolve(tab || null));
@@ -121,21 +122,33 @@
     els.version.textContent = `v${state.version || Config.VERSION}`;
   }
 
+  function applyDisabledState() {
+    const disabled = busy || unavailable;
+    for (const control of controls) control.disabled = disabled;
+    for (const button of [...els.actionButtons, els.resetRuntime]) button.disabled = disabled;
+  }
+
   function setBusy(nextBusy) {
     busy = nextBusy;
-    for (const button of [...els.actionButtons, els.resetRuntime]) button.disabled = nextBusy;
+    applyDisabledState();
   }
 
   function disable(message) {
+    unavailable = true;
     els.status.textContent = "Unavailable";
     els.status.dataset.on = "false";
     els.scope.textContent = message;
-    for (const control of controls) control.disabled = true;
-    for (const button of [...els.actionButtons, els.resetRuntime]) button.disabled = true;
+    applyDisabledState();
   }
 
-  async function saveSettings() {
-    if (!activeTab?.id || busy) return;
+  async function saveSettings({ force = false } = {}) {
+    if (!activeTab?.id) return false;
+    if (busy && !force) {
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(() => saveSettings(), 150);
+      return false;
+    }
+
     settings = collectSettings();
     renderControls(settings);
     els.saveStatus.textContent = "Saving…";
@@ -147,36 +160,52 @@
 
     if (!response?.ok) {
       els.saveStatus.textContent = "Could not save settings.";
-      return;
+      return false;
     }
 
     renderState(response.state || { settings: response.settings });
     els.saveStatus.textContent = "Saved for this conversation.";
+    return true;
   }
 
   function scheduleSave(event) {
     if (event?.target?.closest("summary")) event.stopPropagation();
     window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(saveSettings, event?.type === "input" ? 350 : 0);
+    saveTimer = window.setTimeout(() => saveSettings(), event?.type === "input" ? 350 : 0);
+  }
+
+  async function flushScheduledSave() {
+    if (!saveTimer) return true;
+    window.clearTimeout(saveTimer);
+    saveTimer = null;
+    return saveSettings({ force: true });
   }
 
   async function runAction(action) {
     if (!activeTab?.id || busy) return;
+    await flushScheduledSave();
     setBusy(true);
     els.saveStatus.textContent = `Running ${action}…`;
-    const response = await sendMessageWithInject(activeTab.id, { type: "YOLO_RUN_ACTION", action });
-    if (response?.state) renderState(response.state);
-    els.saveStatus.textContent = response?.ok ? `${action} triggered.` : `${action} was blocked by safety or limits.`;
-    setBusy(false);
+    try {
+      const response = await sendMessageWithInject(activeTab.id, { type: "YOLO_RUN_ACTION", action });
+      if (response?.state) renderState(response.state);
+      els.saveStatus.textContent = response?.ok ? `${action} triggered.` : `${action} was blocked by safety or limits.`;
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function resetRuntime() {
     if (!activeTab?.id || busy) return;
+    await flushScheduledSave();
     setBusy(true);
-    const response = await sendMessageWithInject(activeTab.id, { type: "YOLO_RESET_RUNTIME" });
-    if (response?.state) renderState(response.state);
-    els.saveStatus.textContent = response?.ok ? "Session limits reset." : "Could not reset this session.";
-    setBusy(false);
+    try {
+      const response = await sendMessageWithInject(activeTab.id, { type: "YOLO_RESET_RUNTIME" });
+      if (response?.state) renderState(response.state);
+      els.saveStatus.textContent = response?.ok ? "Session limits reset." : "Could not reset this session.";
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function refreshState() {
@@ -219,5 +248,7 @@
     window.clearTimeout(saveTimer);
   });
 
-  init();
+  init().catch((error) => {
+    disable(`Popup startup failed: ${String(error?.message || error)}`);
+  });
 })();
