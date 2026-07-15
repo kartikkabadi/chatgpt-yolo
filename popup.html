@@ -10,62 +10,134 @@
     <main class="shell">
       <header class="header">
         <div>
+          <div class="eyebrow">AUTOMATION CONTROL</div>
           <h1>YOLO</h1>
-          <p id="scope">This tab</p>
+          <p id="scope">Current conversation</p>
         </div>
         <span id="status" class="pill">Loading</span>
       </header>
 
-      <section class="panel" aria-label="Controls">
-        <label class="row">
+      <section class="master-card">
+        <label class="master-row">
           <span>
-            <strong>YOLO mode</strong>
-            <small>Enable automation for this chat tab.</small>
+            <strong>Run automation</strong>
+            <small>Master switch for automatic actions in this conversation.</small>
           </span>
-          <input id="enabled" type="checkbox" role="switch">
+          <input data-setting="enabled" data-kind="boolean" type="checkbox" role="switch">
         </label>
-        <label class="row">
-          <span>
-            <strong>GitHub approvals</strong>
-            <small>Click the right affirmative card button.</small>
-          </span>
-          <input id="approvals" type="checkbox" role="switch">
-        </label>
-        <label class="row">
-          <span>
-            <strong>Error continue</strong>
-            <small>Refresh first, then Continue if needed.</small>
-          </span>
-          <input id="errorContinue" type="checkbox" role="switch">
-        </label>
-        <label class="row">
-          <span>
-            <strong>Auto refresh</strong>
-            <small>Reload stale tabs after a 40s settle window.</small>
-          </span>
-          <input id="autoRefresh" type="checkbox" role="switch">
-        </label>
-        <label class="row">
-          <span>
-            <strong>Deep nudges</strong>
-            <small>Ask idle chats to review and go deeper.</small>
-          </span>
-          <input id="deepNudges" type="checkbox" role="switch">
-        </label>
+        <div class="quick-actions" aria-label="Manual actions">
+          <button type="button" data-action="continue">Continue now</button>
+          <button type="button" data-action="nudge">Nudge now</button>
+          <button type="button" data-action="refresh">Refresh now</button>
+        </div>
       </section>
 
       <section class="activity" aria-label="Activity">
-        <div>
+        <div class="activity-copy">
           <span>Last action</span>
           <strong id="lastAction">Idle</strong>
+          <small id="lastActionTime">No activity yet</small>
         </div>
         <div class="metrics">
-          <p><span id="approvalsClicked">0</span><small>approvals</small></p>
-          <p><span id="continuesSent">0</span><small>continues</small></p>
-          <p><span id="deepNudgesSent">0</span><small>deep nudges</small></p>
+          <p><span id="sessionActions">0</span><small>session</small></p>
+          <p><span id="hourlyActions">0</span><small>last hour</small></p>
+          <p><span id="nextRefresh">—</span><small>next refresh</small></p>
         </div>
+        <p id="blockedReason" class="notice" hidden></p>
       </section>
+
+      <details open>
+        <summary>
+          <span><strong>GitHub approvals</strong><small>Control what permission cards may be clicked.</small></span>
+          <input data-setting="approvalsEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable GitHub approvals">
+        </summary>
+        <div class="fields">
+          <label class="field full">
+            <span>Approval policy</span>
+            <select data-setting="approvalPolicy" data-kind="string">
+              <option value="safe">Safe permissions only</option>
+              <option value="writes">Include repository writes</option>
+              <option value="all">Include destructive actions</option>
+            </select>
+          </label>
+          <label class="field"><span>Delay min</span><div><input data-setting="approvalDelayMinSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label class="field"><span>Delay max</span><div><input data-setting="approvalDelayMaxSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label class="field"><span>Cooldown</span><div><input data-setting="approvalCooldownSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label class="field"><span>Hourly limit</span><div><input data-setting="approvalLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span><strong>Error recovery</strong><small>Choose how failed chats recover.</small></span>
+          <input data-setting="errorRecoveryEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable error recovery">
+        </summary>
+        <div class="fields">
+          <label class="field full">
+            <span>Recovery strategy</span>
+            <select data-setting="errorRecoveryStrategy" data-kind="string">
+              <option value="continue-first">Continue, then refresh</option>
+              <option value="refresh-first">Refresh, then Continue</option>
+              <option value="continue-only">Continue only</option>
+              <option value="refresh-only">Refresh only</option>
+            </select>
+          </label>
+          <label class="field"><span>Delay min</span><div><input data-setting="errorDelayMinSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label class="field"><span>Delay max</span><div><input data-setting="errorDelayMaxSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label class="field"><span>Cooldown</span><div><input data-setting="errorCooldownSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label class="field"><span>Hourly limit</span><div><input data-setting="errorLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span><strong>Deep nudges</strong><small>Continue useful work after the model becomes idle.</small></span>
+          <input data-setting="deepNudgesEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable deep nudges">
+        </summary>
+        <div class="fields">
+          <label class="field"><span>Idle before nudge</span><div><input data-setting="deepNudgeIdleSec" data-kind="number" type="number" min="5" step="5"><em>sec</em></div></label>
+          <label class="field"><span>Cooldown</span><div><input data-setting="deepNudgeCooldownSec" data-kind="number" type="number" min="5" step="5"><em>sec</em></div></label>
+          <label class="field full"><span>Hourly limit</span><div><input data-setting="deepNudgeLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+          <label class="field full"><span>Nudge prompt</span><textarea data-setting="deepNudgePrompt" data-kind="string" rows="5" maxlength="4000"></textarea></label>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span><strong>Idle refresh</strong><small>Recover stale, heavy conversations without refreshing active work.</small></span>
+          <input data-setting="autoRefreshEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable idle refresh">
+        </summary>
+        <div class="fields">
+          <label class="field"><span>Required idle</span><div><input data-setting="refreshIdleMin" data-kind="number" type="number" min="0" step="0.5"><em>min</em></div></label>
+          <label class="field"><span>Cooldown</span><div><input data-setting="refreshCooldownMin" data-kind="number" type="number" min="0" step="0.5"><em>min</em></div></label>
+          <label class="field"><span>Interval min</span><div><input data-setting="refreshIntervalMinMin" data-kind="number" type="number" min="0.25" step="0.25"><em>min</em></div></label>
+          <label class="field"><span>Interval max</span><div><input data-setting="refreshIntervalMaxMin" data-kind="number" type="number" min="0.25" step="0.25"><em>min</em></div></label>
+          <label class="field full"><span>Hourly limit</span><div><input data-setting="refreshLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>refreshes</em></div></label>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span><strong>Safety and engine</strong><small>Global guardrails for this conversation.</small></span>
+        </summary>
+        <div class="fields">
+          <label class="field"><span>Load grace</span><div><input data-setting="loadGraceSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label class="field"><span>Scan interval</span><div><input data-setting="scanIntervalSec" data-kind="number" type="number" min="1" step="1"><em>sec</em></div></label>
+          <label class="field full"><span>Session action limit</span><div><input data-setting="maxActionsPerSession" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+          <label class="check-row full">
+            <span><strong>Pause when composer has text</strong><small>Never overwrite a draft you are typing.</small></span>
+            <input data-setting="pauseOnComposerText" data-kind="boolean" type="checkbox" role="switch">
+          </label>
+          <button id="resetRuntime" class="secondary full" type="button">Reset session limits and history</button>
+        </div>
+      </details>
+
+      <footer>
+        <span id="saveStatus">Settings load per conversation.</span>
+        <span id="version"></span>
+      </footer>
     </main>
+    <script src="config.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

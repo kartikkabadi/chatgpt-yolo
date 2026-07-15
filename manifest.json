@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YOLO",
-  "version": "0.4.0",
-  "description": "Keeps ChatGPT and Grok sessions moving with approvals, error recovery, refreshes, and deep idle nudges.",
+  "version": "0.5.0",
+  "description": "Configurable automation controls for keeping ChatGPT and Grok sessions moving safely.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -10,8 +10,9 @@
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
+    "https://*.chatgpt.com/*",
     "https://grok.com/*",
-    "https://www.grok.com/*"
+    "https://*.grok.com/*"
   ],
   "action": {
     "default_title": "YOLO",
@@ -33,10 +34,13 @@
     {
       "matches": [
         "https://chatgpt.com/*",
+        "https://*.chatgpt.com/*",
         "https://grok.com/*",
-        "https://www.grok.com/*"
+        "https://*.grok.com/*"
       ],
       "js": [
+        "config.js",
+        "platforms.js",
         "content.js"
       ],
       "run_at": "document_idle"
