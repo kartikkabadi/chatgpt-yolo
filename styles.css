@@ -117,6 +117,7 @@ button.danger { color: var(--danger); }
 .queue-meta { display: flex; gap: 7px; align-items: center; color: var(--muted); font-size: 10px; }
 .queue-meta .failed { color: var(--danger); }
 .queue-meta .sending { color: var(--success); }
+.queue-error { color: var(--danger); font-size: 10px; line-height: 1.35; overflow-wrap: anywhere; }
 .item-actions { display: flex; gap: 4px; }
 .item-actions button { min-width: 28px; min-height: 28px; padding: 0 7px; font-size: 11px; }
 

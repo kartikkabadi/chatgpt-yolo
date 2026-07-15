@@ -219,6 +219,13 @@
         meta.append(retry);
       }
       copy.append(strong, meta);
+      if (item.error) {
+        const error = document.createElement("small");
+        error.className = "queue-error";
+        error.textContent = compactText(item.error, 140);
+        error.title = item.error;
+        copy.append(error);
+      }
 
       const actions = document.createElement("div");
       actions.className = "item-actions";

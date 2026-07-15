@@ -63,12 +63,25 @@ test("reordering keeps a sending item in its fixed slot", () => {
   assert.equal(state.items[0].state, "sending");
 });
 
-test("expired claims return to pending safely", () => {
+test("expired pre-submit claims return to pending safely", () => {
   let state = Queue.addItem(Queue.freshState(1000), { text: "send me" }, { id: "a", at: 1001 }).state;
   state = Queue.claimNext(state, "owner", { at: 1100, leaseMs: 5000 }).state;
   const normalized = Queue.normalizeState(state, 7000);
   assert.equal(normalized.items[0].state, "pending");
   assert.equal(normalized.items[0].claimToken, "");
+  assert.equal(normalized.items[0].errorCode, "queue.claim_expired");
+});
+
+test("expired submitting claims fail closed instead of risking duplicate delivery", () => {
+  let state = Queue.addItem(Queue.freshState(1000), { text: "send once" }, { id: "a", at: 1001 }).state;
+  const claim = Queue.claimNext(state, "owner", { at: 1100, leaseMs: 5000 });
+  const submitting = Queue.markSubmitting(claim.state, "a", claim.item.claimToken, 1200);
+  assert.equal(submitting.ok, true);
+  assert.equal(submitting.item.claimPhase, "submitting");
+  const normalized = Queue.normalizeState(submitting.state, 7000);
+  assert.equal(normalized.items[0].state, "failed");
+  assert.equal(normalized.items[0].errorCode, "queue.delivery_unknown");
+  assert.match(normalized.items[0].error, /delivery status is unknown/i);
 });
 
 test("failures retry with backoff then pause after final failure", () => {

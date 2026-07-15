@@ -60,6 +60,14 @@ test("background serializes queue mutations and claim lifecycle", async () => {
   assert.equal(response.state.items.length, 2);
   const claim = await invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "tab" });
   assert.equal(claim.ok, true);
+  const submitting = await invoke({
+    type: "YOLO_QUEUE_MARK_SUBMITTING",
+    pageId,
+    itemId: claim.item.id,
+    claimToken: claim.item.claimToken
+  });
+  assert.equal(submitting.ok, true);
+  assert.equal(submitting.item.claimPhase, "submitting");
   const completed = await invoke({
     type: "YOLO_QUEUE_COMPLETE",
     pageId,

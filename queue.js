@@ -60,20 +60,27 @@
       state,
       attempts: Math.max(0, Math.round(finite(raw.attempts, 0))),
       error: cleanText(raw.error, 500),
+      errorCode: cleanText(raw.errorCode, 120),
       createdAt: finite(raw.createdAt, at),
       updatedAt: finite(raw.updatedAt, at),
       nextAttemptAt: Math.max(0, finite(raw.nextAttemptAt, 0)),
       claimToken: cleanText(raw.claimToken, 220),
       claimOwner: cleanText(raw.claimOwner, 220),
-      claimExpiresAt: Math.max(0, finite(raw.claimExpiresAt, 0))
+      claimExpiresAt: Math.max(0, finite(raw.claimExpiresAt, 0)),
+      claimPhase: ["claimed", "submitting"].includes(raw.claimPhase) ? raw.claimPhase : (state === "sending" ? "claimed" : "")
     };
 
     if (normalized.state === "sending" && normalized.claimExpiresAt <= at) {
-      normalized.state = "pending";
+      const deliveryUnknown = normalized.claimPhase === "submitting";
+      normalized.state = deliveryUnknown ? "failed" : "pending";
       normalized.claimToken = "";
       normalized.claimOwner = "";
       normalized.claimExpiresAt = 0;
-      normalized.error = normalized.error || "Previous sender lease expired";
+      normalized.claimPhase = "";
+      normalized.error = deliveryUnknown
+        ? "Delivery status is unknown because the sender lease expired after submission began"
+        : (normalized.error || "Previous sender lease expired before submission began");
+      normalized.errorCode = deliveryUnknown ? "queue.delivery_unknown" : (normalized.errorCode || "queue.claim_expired");
       normalized.updatedAt = at;
     }
 
@@ -81,6 +88,7 @@
       normalized.claimToken = "";
       normalized.claimOwner = "";
       normalized.claimExpiresAt = 0;
+      normalized.claimPhase = "";
     }
     return normalized;
   }
@@ -100,11 +108,16 @@
       totalTextLength += item.text.length;
       if (item.state === "sending") {
         if (hasSendingItem) {
-          item.state = "pending";
+          const deliveryUnknown = item.claimPhase === "submitting";
+          item.state = deliveryUnknown ? "failed" : "pending";
           item.claimToken = "";
           item.claimOwner = "";
           item.claimExpiresAt = 0;
-          item.error = item.error || "Duplicate sender lease recovered";
+          item.claimPhase = "";
+          item.error = deliveryUnknown
+            ? "Delivery status is unknown because multiple sender leases were recovered"
+            : (item.error || "Duplicate sender lease recovered before submission began");
+          item.errorCode = deliveryUnknown ? "queue.delivery_unknown" : (item.errorCode || "queue.duplicate_claim");
         } else hasSendingItem = true;
       }
       items.push(item);
@@ -192,6 +205,7 @@
     item.text = clean;
     item.updatedAt = at;
     item.error = "";
+    item.errorCode = "";
     if (item.state === "failed") {
       item.state = "pending";
       if (state.pauseReason === "failure" && !state.items.some((entry) => entry.id !== item.id && entry.state === "failed")) {
@@ -276,6 +290,7 @@
     if (item.state === "sending") return { state, ok: false, reason: "Message is currently sending", code: "queue.sending" };
     item.state = "pending";
     item.error = "";
+    item.errorCode = "";
     item.nextAttemptAt = 0;
     item.updatedAt = at;
     if (state.pauseReason === "failure") {
@@ -303,9 +318,23 @@
     item.claimOwner = cleanText(ownerId, 220) || "unknown";
     item.claimToken = makeId("claim");
     item.claimExpiresAt = at + Math.max(5000, finite(leaseMs, CLAIM_TTL_MS));
+    item.claimPhase = "claimed";
     item.updatedAt = at;
     state.updatedAt = at;
     state = appendEvent(state, { code: "queue.sending", message: "Sending next queued message", level: "info" }, at);
+    return { state, ok: true, item: clone(item) };
+  }
+
+  function markSubmitting(rawState, itemId, claimToken, at = Date.now()) {
+    let state = normalizeState(rawState, at);
+    const item = state.items.find((entry) => entry.id === itemId);
+    if (!item || item.state !== "sending" || item.claimToken !== claimToken) {
+      return { state, ok: false, reason: "Queue claim is no longer valid", code: "queue.claim_invalid" };
+    }
+    item.claimPhase = "submitting";
+    item.updatedAt = at;
+    state.updatedAt = at;
+    state = appendEvent(state, { code: "queue.submitting", message: "Submitting queued message", level: "info" }, at);
     return { state, ok: true, item: clone(item) };
   }
 
@@ -319,6 +348,7 @@
     item.claimToken = "";
     item.claimOwner = "";
     item.claimExpiresAt = 0;
+    item.claimPhase = "";
     item.updatedAt = at;
     state.updatedAt = at;
     state = appendEvent(state, { code: "queue.released", message: cleanText(reason, 500), level: "info" }, at);
@@ -351,9 +381,11 @@
     const backoffSec = Math.max(1, finite(options.backoffSec, 30));
     item.attempts += 1;
     item.error = cleanText(options.error || "Message could not be sent", 500);
+    item.errorCode = cleanText(options.errorCode || "queue.send_failed", 120);
     item.claimToken = "";
     item.claimOwner = "";
     item.claimExpiresAt = 0;
+    item.claimPhase = "";
     item.updatedAt = at;
 
     if (item.attempts <= maxRetries) {
@@ -413,6 +445,7 @@
     clearItems,
     retryItem,
     claimNext,
+    markSubmitting,
     releaseClaim,
     completeClaim,
     failClaim,

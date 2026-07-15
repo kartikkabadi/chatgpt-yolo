@@ -186,6 +186,9 @@ async function handleQueueMessage(message) {
   if (message.type === "YOLO_QUEUE_CLAIM") {
     return mutateQueue(pageId, async (state) => Queue.claimNext(state, message.ownerId));
   }
+  if (message.type === "YOLO_QUEUE_MARK_SUBMITTING") {
+    return mutateQueue(pageId, async (state) => Queue.markSubmitting(state, message.itemId, message.claimToken));
+  }
   if (message.type === "YOLO_QUEUE_RELEASE") {
     return mutateQueue(pageId, async (state) => Queue.releaseClaim(state, message.itemId, message.claimToken, { reason: message.reason }));
   }
@@ -195,6 +198,7 @@ async function handleQueueMessage(message) {
   if (message.type === "YOLO_QUEUE_FAIL") {
     return mutateQueue(pageId, async (state) => Queue.failClaim(state, message.itemId, message.claimToken, {
       error: message.error,
+      errorCode: message.errorCode,
       maxRetries: message.maxRetries,
       backoffSec: message.backoffSec,
       pauseOnFailure: message.pauseOnFailure

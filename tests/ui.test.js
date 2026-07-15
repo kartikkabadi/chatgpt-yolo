@@ -37,3 +37,12 @@ test("extension pages use external scripts only", () => {
     assert.doesNotMatch(html, /\son\w+\s*=/i);
   }
 });
+
+
+test("queue engine persists submission intent before touching the composer", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "content.js"), "utf8");
+  const markIndex = source.indexOf('type: "YOLO_QUEUE_MARK_SUBMITTING"');
+  const submitIndex = source.indexOf("const submitted = await writeAndSubmit(item.text, queuePageId)");
+  assert.ok(markIndex >= 0);
+  assert.ok(submitIndex > markIndex);
+});

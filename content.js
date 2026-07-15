@@ -597,13 +597,14 @@
     });
   }
 
-  async function failQueueClaim(pageId, item, error, options) {
+  async function failQueueClaim(pageId, item, error, options, errorCode = "queue.send_failed") {
     return backgroundSendWithRetry({
       type: "YOLO_QUEUE_FAIL",
       pageId,
       itemId: item.id,
       claimToken: item.claimToken,
       error,
+      errorCode,
       maxRetries: options.maxRetries,
       backoffSec: options.backoffSec,
       pauseOnFailure: options.pauseOnFailure
@@ -669,10 +670,22 @@
         return false;
       }
 
+      const markedSubmitting = await backgroundSendWithRetry({
+        type: "YOLO_QUEUE_MARK_SUBMITTING",
+        pageId: queuePageId,
+        itemId: item.id,
+        claimToken: item.claimToken
+      });
+      if (!markedSubmitting?.ok) {
+        await releaseQueueClaim(queuePageId, item, "Could not persist the queue submission phase");
+        await setLastAction("Queue send blocked: could not persist delivery intent", "error", "queue.submit_intent_failed", true);
+        return false;
+      }
+
       await setLastAction("Sending queued message", "info", "queue.sending");
       const submitted = await writeAndSubmit(item.text, queuePageId);
       if (!submitted.ok) {
-        await failQueueClaim(queuePageId, item, submitted.reason, queueFailureOptions);
+        await failQueueClaim(queuePageId, item, submitted.reason, queueFailureOptions, submitted.code);
         await setLastAction(`Queue send failed: ${submitted.reason}`, "error", submitted.code, true);
         return false;
       }
@@ -693,7 +706,7 @@
       await setLastAction("Sent queued message", "success", "queue.sent", true);
       return true;
     } catch (error) {
-      await failQueueClaim(queuePageId, item, String(error?.message || error), queueFailureOptions);
+      await failQueueClaim(queuePageId, item, String(error?.message || error), queueFailureOptions, "queue.exception");
       await setLastAction(`Queue send failed: ${String(error?.message || error)}`, "error", "queue.failed", true);
       return false;
     } finally {
