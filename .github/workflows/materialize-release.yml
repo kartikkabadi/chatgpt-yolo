@@ -19,13 +19,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          payload=.yolo-release.tar.gz.b64
-          if [[ ! -f "$payload" ]]; then
+          shopt -s nullglob
+          parts=(.yolo-release.part-*)
+          if (( ${#parts[@]} == 0 )); then
             echo "No release payload present; nothing to materialize."
             exit 0
           fi
-          base64 --decode "$payload" | tar -xzf -
-          rm -f "$payload" .github/workflows/materialize-release.yml
+          cat "${parts[@]}" | base64 --decode | tar -xzf -
+          rm -f "${parts[@]}" .github/workflows/materialize-release.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
