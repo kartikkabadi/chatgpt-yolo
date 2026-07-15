@@ -22,9 +22,13 @@
     refresh: "refreshLimitPerHour"
   });
 
+  const APPROVAL_SIGNATURE_TTL_MS = 10 * 60 * 1000;
+  const FAILED_RECOVERY_RETRY_MS = 15 * 1000;
+
   const state = {
     destroyed: false,
     loaded: false,
+    routeInFlight: false,
     pageId: Config.pageId(location.href),
     platform: Platforms.adapterForLocation(),
     settings: { ...Config.DEFAULT_SETTINGS },
@@ -41,16 +45,20 @@
     cycleInFlight: false,
     actionInFlight: false,
     scanQueued: false,
+    reloadScheduled: false,
     pageLoadedAt: Date.now(),
     observer: null,
     scanTimer: null,
     routeTimer: null,
-    activitySaveTimer: null
+    activitySaveTimer: null,
+    messageListener: null
   };
 
   const now = () => Date.now();
   const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
   const randomMs = (minSec, maxSec) => Math.round(Config.randomBetween(minSec, maxSec) * 1000);
+  const currentPageId = () => Config.pageId(location.href);
+  const routeIsCurrent = () => currentPageId() === state.pageId;
   const isContextInvalidated = (error) => /context invalidated|extension context/i.test(String(error?.message || error || ""));
 
   function disableStaleContext(error) {
@@ -113,19 +121,33 @@
     }
   }
 
+  function normalizeApprovalSignatures(raw, fallbackAt = 0) {
+    const timestamp = now();
+    return (Array.isArray(raw) ? raw : [])
+      .map((entry) => {
+        if (typeof entry === "string") return { signature: entry, at: fallbackAt || timestamp };
+        if (!entry || typeof entry.signature !== "string") return null;
+        return { signature: entry.signature, at: Number(entry.at) || fallbackAt || timestamp };
+      })
+      .filter((entry) => entry && timestamp - entry.at < APPROVAL_SIGNATURE_TTL_MS)
+      .slice(-100);
+  }
+
   function normalizeRuntime(raw) {
     const fallback = freshRuntime();
     const history = raw?.history || {};
+    const lastActionAt = Number(raw?.lastActionAt) || 0;
     return {
       ...fallback,
       ...(raw && typeof raw === "object" ? raw : {}),
+      sessionActionCount: Math.max(0, Number(raw?.sessionActionCount) || 0),
       history: {
         approval: Config.pruneHistory(history.approval),
         recovery: Config.pruneHistory(history.recovery),
         nudge: Config.pruneHistory(history.nudge),
         refresh: Config.pruneHistory(history.refresh)
       },
-      approvalSignatures: Array.isArray(raw?.approvalSignatures) ? raw.approvalSignatures.slice(-100) : []
+      approvalSignatures: normalizeApprovalSignatures(raw?.approvalSignatures, lastActionAt)
     };
   }
 
@@ -138,6 +160,7 @@
     if (!state.runtime || state.destroyed) return;
     try {
       const map = readRuntimeMap();
+      delete map[state.pageId];
       map[state.pageId] = state.runtime;
       const entries = Object.entries(map).slice(-50);
       sessionStorage.setItem(Config.STORAGE_KEYS.runtime, JSON.stringify(Object.fromEntries(entries)));
@@ -158,6 +181,7 @@
   }
 
   async function incrementCounter(key) {
+    if (!key) return;
     const stored = await storageGet([Config.STORAGE_KEYS.counters]);
     const counters = { ...(stored[Config.STORAGE_KEYS.counters] || {}) };
     counters[key] = (Number(counters[key]) || 0) + 1;
@@ -187,16 +211,22 @@
     const pageSettings = stored[Config.STORAGE_KEYS.pages]?.[state.pageId] || {};
     state.settings = Config.mergeSettings(Config.DEFAULT_SETTINGS, globalSettings, pageSettings);
     state.counters = { ...state.counters, ...(stored[Config.STORAGE_KEYS.counters] || {}) };
+
     const storedLastAction = stored[Config.STORAGE_KEYS.lastAction];
-    if (typeof storedLastAction === "string") state.lastAction = { message: storedLastAction, at: now(), level: "info" };
-    else if (storedLastAction?.message) state.lastAction = storedLastAction;
-    else if (storedLastAction?.action) state.lastAction = { message: storedLastAction.action, at: storedLastAction.at || now(), level: "info" };
+    if (storedLastAction?.pageId === state.pageId && storedLastAction?.message) state.lastAction = storedLastAction;
+    else if (storedLastAction?.pageId === state.pageId && storedLastAction?.action) {
+      state.lastAction = { message: storedLastAction.action, at: storedLastAction.at || now(), level: "info" };
+    } else {
+      state.lastAction = { message: "Idle", at: now(), level: "info" };
+    }
+
     state.runtime = loadRuntime();
     scheduleNextRefresh();
     state.loaded = true;
   }
 
   async function persistSettings(nextSettings) {
+    if (!routeIsCurrent()) await handleRouteChange();
     const normalized = Config.mergeSettings(state.settings, nextSettings);
     const stored = await storageGet([Config.STORAGE_KEYS.pages]);
     const pages = { ...(stored[Config.STORAGE_KEYS.pages] || {}) };
@@ -229,13 +259,14 @@
     return status;
   }
 
-  async function recordAction(action) {
+  async function recordAction(action, counterKey = COUNTER_BY_ACTION[action]) {
     const timestamp = now();
     state.runtime.history[action] = Config.pruneHistory([...(state.runtime.history[action] || []), timestamp], timestamp);
     state.runtime.sessionActionCount += 1;
     state.runtime.lastActionAt = timestamp;
+    state.blockedReason = "";
     saveRuntime();
-    await incrementCounter(COUNTER_BY_ACTION[action]);
+    await incrementCounter(counterKey);
   }
 
   function composerHasText() {
@@ -244,11 +275,12 @@
   }
 
   function automationReady() {
-    if (!state.loaded || state.destroyed || !state.platform || !state.settings.enabled) return false;
+    if (!state.loaded || state.destroyed || !state.platform || !state.settings.enabled || !routeIsCurrent()) return false;
     return now() - state.pageLoadedAt >= state.settings.loadGraceSec * 1000;
   }
 
-  function safeForAutomaticInput() {
+  function safeForInput() {
+    if (!routeIsCurrent()) return false;
     if (state.generationActive || Platforms.isGenerating(state.platform)) return false;
     if (state.settings.pauseOnComposerText && composerHasText()) return false;
     return true;
@@ -275,8 +307,8 @@
   async function sendPrompt({ action, prompt, label, reason, delayMinSec = 0, delayMaxSec = 0, automatic = true }) {
     if (state.actionInFlight || !state.platform) return false;
     if (automatic && !automationReady()) return false;
-    if (!automatic && !state.loaded) return false;
-    if (!safeForAutomaticInput()) return false;
+    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
+    if (!safeForInput()) return false;
 
     if ((action === "recovery" || action === "nudge") && !inputActionCooldownPassed(action)) return false;
 
@@ -293,15 +325,16 @@
     try {
       const delayMs = automatic ? randomMs(delayMinSec, delayMaxSec) : 150;
       if (delayMs > 0) await sleep(delayMs);
-      if (state.destroyed || Config.pageId(location.href) !== state.pageId) return false;
+      if (state.destroyed || !routeIsCurrent()) return false;
       updateGenerationState();
-      if (!safeForAutomaticInput()) return false;
+      if (!safeForInput()) return false;
 
       composer = Platforms.findComposer(state.platform);
       if (!composer || Platforms.composerText(composer).trim()) return false;
 
       Platforms.setComposerValue(composer, prompt);
       await sleep(120);
+      if (state.destroyed || !routeIsCurrent()) return false;
       if (!Platforms.submitComposer(state.platform, composer)) return false;
 
       await recordAction(action);
@@ -321,8 +354,6 @@
       prompt: "Continue",
       label: "Continue",
       reason,
-      delayMinSec: state.settings.errorDelayMinSec,
-      delayMaxSec: state.settings.errorDelayMaxSec,
       automatic
     });
   }
@@ -342,14 +373,15 @@
     return now() - (state.runtime.lastRefreshAt || 0) >= cooldownMs;
   }
 
-  async function refreshPage(reason, automatic = true) {
-    if (state.actionInFlight || !state.platform) return false;
+  async function refreshPage(reason, automatic = true, action = "refresh") {
+    if (state.actionInFlight || !state.platform || state.reloadScheduled) return false;
     if (automatic && !automationReady()) return false;
+    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
     if (updateGenerationState()) return false;
     if (state.settings.pauseOnComposerText && composerHasText()) return false;
-    if (!refreshCooldownPassed()) return false;
+    if (action === "refresh" && !refreshCooldownPassed()) return false;
 
-    const limit = checkActionLimit("refresh");
+    const limit = checkActionLimit(action);
     if (!limit.allowed) {
       await setLastAction(`Refresh blocked: ${limit.reason}`, "warning");
       return false;
@@ -357,20 +389,22 @@
 
     state.actionInFlight = true;
     try {
+      if (!routeIsCurrent()) return false;
       state.runtime.lastRefreshAt = now();
       scheduleNextRefresh(true);
-      await recordAction("refresh");
+      await recordAction(action, "refreshesTriggered");
       await setLastAction(`Refreshing (${reason})`);
+      state.reloadScheduled = true;
       window.setTimeout(() => location.reload(), automatic ? 500 : 150);
       return true;
     } finally {
-      state.actionInFlight = false;
+      if (!state.reloadScheduled) state.actionInFlight = false;
     }
   }
 
   function errorSignature(element) {
-    const rect = element.getBoundingClientRect();
-    return `${Math.round(rect.top)}:${Math.round(rect.left)}:${Platforms.normalizedText(element).slice(0, 240)}`;
+    const text = Platforms.normalizedText(element).replace(/\s+/g, " ").trim().slice(0, 320);
+    return `${state.platform?.id || "unknown"}:${text}`;
   }
 
   async function handleErrorState() {
@@ -382,16 +416,45 @@
     const cooldownMs = state.settings.errorCooldownSec * 1000;
     if (signature === state.runtime.lastErrorSignature && now() - state.runtime.lastErrorHandledAt < cooldownMs) return false;
 
+    const limit = checkActionLimit("recovery");
+    if (!limit.allowed) {
+      await setLastAction(`Recovery blocked: ${limit.reason}`, "warning");
+      return false;
+    }
+
     state.runtime.lastErrorSignature = signature;
     state.runtime.lastErrorHandledAt = now();
     saveRuntime();
     await setLastAction("Detected error; attempting recovery");
 
+    const delayMs = randomMs(state.settings.errorDelayMinSec, state.settings.errorDelayMaxSec);
+    if (delayMs > 0) await sleep(delayMs);
+    if (state.destroyed || !routeIsCurrent()) return false;
+
     const strategy = state.settings.errorRecoveryStrategy;
-    if (strategy === "continue-only") return sendContinue("error recovery");
-    if (strategy === "refresh-only") return refreshPage("error recovery");
-    if (strategy === "refresh-first") return (await refreshPage("error recovery")) || sendContinue("error recovery fallback");
-    return (await sendContinue("error recovery")) || refreshPage("error recovery fallback");
+    let handled = false;
+    if (strategy === "continue-only") handled = await sendContinue("error recovery");
+    else if (strategy === "refresh-only") handled = await refreshPage("error recovery", true, "recovery");
+    else if (strategy === "refresh-first") {
+      handled = (await refreshPage("error recovery", true, "recovery")) || await sendContinue("error recovery fallback");
+    } else {
+      handled = (await sendContinue("error recovery")) || await refreshPage("error recovery fallback", true, "recovery");
+    }
+
+    if (!handled && state.runtime) {
+      state.runtime.lastErrorHandledAt = now() - Math.max(0, cooldownMs - FAILED_RECOVERY_RETRY_MS);
+      saveRuntime();
+    }
+    return handled;
+  }
+
+  function pruneApprovalSignatures() {
+    state.runtime.approvalSignatures = normalizeApprovalSignatures(state.runtime.approvalSignatures, state.runtime.lastActionAt);
+  }
+
+  function recentlyApproved(signature) {
+    pruneApprovalSignatures();
+    return state.runtime.approvalSignatures.some((entry) => entry.signature === signature);
   }
 
   async function handleApprovalCards() {
@@ -407,19 +470,30 @@
 
     const candidates = Platforms.findApprovalCards(state.platform, state.settings.approvalPolicy);
     for (const candidate of candidates) {
-      if (state.runtime.approvalSignatures.includes(candidate.signature)) continue;
+      if (recentlyApproved(candidate.signature)) continue;
 
       state.actionInFlight = true;
       try {
         await setLastAction(`Approval found: ${Platforms.buttonText(candidate.button) || "affirmative action"}`);
         await sleep(randomMs(state.settings.approvalDelayMinSec, state.settings.approvalDelayMaxSec));
+        if (state.destroyed || !routeIsCurrent()) return false;
         updateGenerationState();
+        if (state.generationActive) return false;
 
-        if (!candidate.button.isConnected || !Platforms.visible(candidate.button) || Platforms.isDisabled(candidate.button) || state.generationActive) return false;
-        candidate.button.click();
-        state.runtime.approvalSignatures = [...state.runtime.approvalSignatures, candidate.signature].slice(-100);
+        const refreshedCandidate = Platforms.findApprovalCards(state.platform, state.settings.approvalPolicy)
+          .find((entry) => entry.signature === candidate.signature);
+        if (!refreshedCandidate || recentlyApproved(refreshedCandidate.signature)) return false;
+        if (!refreshedCandidate.button.isConnected
+          || !Platforms.visible(refreshedCandidate.button)
+          || Platforms.isDisabled(refreshedCandidate.button)) return false;
+
+        refreshedCandidate.button.click();
+        state.runtime.approvalSignatures = [
+          ...state.runtime.approvalSignatures,
+          { signature: refreshedCandidate.signature, at: now() }
+        ].slice(-100);
         await recordAction("approval");
-        await setLastAction(`Clicked approval: ${Platforms.buttonText(candidate.button) || "affirmative action"}`);
+        await setLastAction(`Clicked approval: ${Platforms.buttonText(refreshedCandidate.button) || "affirmative action"}`);
         return true;
       } finally {
         state.actionInFlight = false;
@@ -430,7 +504,7 @@
 
   async function handleDeepNudge() {
     if (!automationReady() || !state.settings.deepNudgesEnabled || state.actionInFlight) return false;
-    if (updateGenerationState() || !safeForAutomaticInput()) return false;
+    if (updateGenerationState() || !safeForInput()) return false;
 
     const lastNudgeAt = state.runtime.history.nudge.at(-1) || 0;
     if (now() - lastNudgeAt < state.settings.deepNudgeCooldownSec * 1000) return false;
@@ -449,7 +523,7 @@
     if (!automationReady() || !state.settings.autoRefreshEnabled || state.actionInFlight) return false;
     scheduleNextRefresh();
     if (now() < state.runtime.nextRefreshAt) return false;
-    if (updateGenerationState() || !safeForAutomaticInput()) return false;
+    if (updateGenerationState() || !safeForInput()) return false;
 
     const idleBaseline = Math.max(
       state.pageLoadedAt,
@@ -462,9 +536,13 @@
   }
 
   async function runCycle() {
-    if (state.destroyed || state.cycleInFlight || !state.loaded) return;
+    if (state.destroyed || state.cycleInFlight || !state.loaded || state.reloadScheduled) return;
     state.cycleInFlight = true;
     try {
+      if (!routeIsCurrent()) {
+        await handleRouteChange();
+        return;
+      }
       if (await handleErrorState()) return;
       if (await handleApprovalCards()) return;
       if (await handleDeepNudge()) return;
@@ -477,7 +555,7 @@
   }
 
   function queueCycle() {
-    if (state.destroyed || state.scanQueued) return;
+    if (state.destroyed || state.scanQueued || state.reloadScheduled) return;
     state.scanQueued = true;
     window.setTimeout(() => {
       state.scanQueued = false;
@@ -487,26 +565,34 @@
 
   function restartScanTimer() {
     window.clearInterval(state.scanTimer);
-    if (state.destroyed) return;
+    if (state.destroyed || state.reloadScheduled) return;
     state.scanTimer = window.setInterval(runCycle, state.settings.scanIntervalSec * 1000);
   }
 
   async function handleRouteChange() {
-    const nextPageId = Config.pageId(location.href);
-    if (nextPageId === state.pageId) return;
+    const nextPageId = currentPageId();
+    if (nextPageId === state.pageId || state.routeInFlight || state.reloadScheduled) return;
 
-    state.pageId = nextPageId;
-    state.platform = Platforms.adapterForLocation();
-    state.pageLoadedAt = now();
-    state.loaded = false;
-    await loadSettings();
-    restartScanTimer();
-    await setLastAction("Loaded settings for this conversation");
-    queueCycle();
+    state.routeInFlight = true;
+    try {
+      saveRuntime();
+      state.pageId = nextPageId;
+      state.platform = Platforms.adapterForLocation();
+      state.pageLoadedAt = now();
+      state.loaded = false;
+      state.blockedReason = "";
+      state.generationActive = false;
+      await loadSettings();
+      restartScanTimer();
+      await setLastAction("Loaded settings for this conversation");
+      queueCycle();
+    } finally {
+      state.routeInFlight = false;
+    }
   }
 
-  function markUserActivity() {
-    if (!state.runtime) return;
+  function markUserActivity(event) {
+    if (!state.runtime || event?.isTrusted === false) return;
     state.runtime.lastUserActivityAt = now();
     window.clearTimeout(state.activitySaveTimer);
     state.activitySaveTimer = window.setTimeout(saveRuntime, 500);
@@ -521,7 +607,7 @@
     }
 
     restartScanTimer();
-    state.routeTimer = window.setInterval(handleRouteChange, 1000);
+    state.routeTimer = window.setInterval(handleRouteChange, 500);
   }
 
   function runtimeSummary() {
@@ -552,6 +638,7 @@
   }
 
   async function runManualAction(action) {
+    if (!routeIsCurrent()) await handleRouteChange();
     if (action === "nudge") return sendDeepNudge("manual", false);
     if (action === "continue") return sendContinue("manual", false);
     if (action === "refresh") return refreshPage("manual", false);
@@ -563,6 +650,7 @@
   }
 
   async function resetRuntime() {
+    if (!routeIsCurrent()) await handleRouteChange();
     state.runtime = freshRuntime();
     scheduleNextRefresh(true);
     saveRuntime();
@@ -571,10 +659,17 @@
   }
 
   function installMessages() {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    state.messageListener = (message, _sender, sendResponse) => {
       if (state.destroyed) return false;
 
       if (message?.type === "YOLO_GET_STATE") {
+        if (!routeIsCurrent()) {
+          handleRouteChange().then(() => {
+            updateGenerationState();
+            sendResponse(responseState());
+          });
+          return true;
+        }
         updateGenerationState();
         sendResponse(responseState());
         return true;
@@ -599,7 +694,8 @@
       }
 
       return false;
-    });
+    };
+    chrome.runtime.onMessage.addListener(state.messageListener);
   }
 
   function destroy() {
@@ -608,6 +704,7 @@
     window.clearInterval(state.scanTimer);
     window.clearInterval(state.routeTimer);
     window.clearTimeout(state.activitySaveTimer);
+    if (state.messageListener) chrome.runtime.onMessage.removeListener(state.messageListener);
     for (const eventName of ["pointerdown", "keydown", "input", "focusin"]) {
       document.removeEventListener(eventName, markUserActivity, true);
     }
