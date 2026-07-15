@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YOLO",
-  "version": "0.5.0",
-  "description": "Configurable automation controls for keeping ChatGPT and Grok sessions moving safely.",
+  "version": "0.6.0",
+  "description": "Reliable message queues and configurable automation controls for ChatGPT and Grok.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -14,21 +14,28 @@
     "https://grok.com/*",
     "https://*.grok.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_title": "YOLO",
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/icon16.svg",
-      "32": "icons/icon32.svg",
-      "48": "icons/icon48.svg",
-      "128": "icons/icon128.svg"
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
   },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "icons": {
-    "16": "icons/icon16.svg",
-    "32": "icons/icon32.svg",
-    "48": "icons/icon48.svg",
-    "128": "icons/icon128.svg"
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "content_scripts": [
     {

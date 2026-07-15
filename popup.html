@@ -8,132 +8,82 @@
   </head>
   <body>
     <main class="shell">
-      <header class="header">
+      <header class="topbar">
         <div>
-          <div class="eyebrow">AUTOMATION CONTROL</div>
+          <div class="eyebrow">AUTOMATION QUEUE</div>
           <h1>YOLO</h1>
           <p id="scope">Current conversation</p>
         </div>
-        <span id="status" class="pill">Loading</span>
+        <label class="master-switch" title="Run automation for this conversation">
+          <input id="enabled" type="checkbox" role="switch">
+          <span></span>
+        </label>
       </header>
 
-      <section class="master-card">
-        <label class="master-row">
-          <span>
-            <strong>Run automation</strong>
-            <small>Master switch for automatic actions in this conversation.</small>
-          </span>
-          <input data-setting="enabled" data-kind="boolean" type="checkbox" role="switch">
+      <section class="status-strip" aria-label="Status">
+        <span id="status" class="status-pill">Loading</span>
+        <label class="profile-control">
+          <span>Profile</span>
+          <select id="profile">
+            <option value="safe">Safe</option>
+            <option value="balanced">Balanced</option>
+            <option value="fast">Fast</option>
+            <option value="custom">Custom</option>
+          </select>
         </label>
-        <div class="quick-actions" aria-label="Manual actions">
-          <button type="button" data-action="continue">Continue now</button>
-          <button type="button" data-action="nudge">Nudge now</button>
-          <button type="button" data-action="refresh">Refresh now</button>
-        </div>
+        <span id="queueCount" class="queue-count">0 queued</span>
       </section>
 
-      <section class="activity" aria-label="Activity">
-        <div class="activity-copy">
-          <span>Last action</span>
-          <strong id="lastAction">Idle</strong>
-          <small id="lastActionTime">No activity yet</small>
+      <section class="composer-card">
+        <textarea id="message" rows="4" maxlength="8000" placeholder="Queue a message for this conversation…"></textarea>
+        <div class="template-row">
+          <select id="templateSelect" aria-label="Message template">
+            <option value="">Template…</option>
+          </select>
+          <button id="manageTemplates" class="ghost" type="button">Manage</button>
         </div>
-        <div class="metrics">
-          <p><span id="sessionActions">0</span><small>session</small></p>
-          <p><span id="hourlyActions">0</span><small>last hour</small></p>
-          <p><span id="nextRefresh">—</span><small>next refresh</small></p>
+        <div class="composer-actions">
+          <button id="addQueue" class="primary" type="button">Add to queue</button>
+          <button id="addAndSend" type="button">Add &amp; send</button>
+          <button id="cancelEdit" class="ghost" type="button" hidden>Cancel edit</button>
         </div>
-        <p id="blockedReason" class="notice" hidden></p>
+        <p id="composeStatus" class="inline-status" aria-live="polite"></p>
       </section>
 
-      <details open>
-        <summary>
-          <span><strong>GitHub approvals</strong><small>Control what permission cards may be clicked.</small></span>
-          <input data-setting="approvalsEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable GitHub approvals">
-        </summary>
-        <div class="fields">
-          <label class="field full">
-            <span>Approval policy</span>
-            <select data-setting="approvalPolicy" data-kind="string">
-              <option value="safe">Safe permissions only</option>
-              <option value="writes">Include repository writes</option>
-              <option value="all">Include destructive actions</option>
-            </select>
-          </label>
-          <label class="field"><span>Delay min</span><div><input data-setting="approvalDelayMinSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
-          <label class="field"><span>Delay max</span><div><input data-setting="approvalDelayMaxSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
-          <label class="field"><span>Cooldown</span><div><input data-setting="approvalCooldownSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
-          <label class="field"><span>Hourly limit</span><div><input data-setting="approvalLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+      <section class="queue-card" aria-label="Message queue">
+        <div class="section-heading">
+          <div>
+            <strong>Queue</strong>
+            <small>Drag to reorder. Messages send only when the chat is idle.</small>
+          </div>
+          <div class="queue-actions">
+            <button id="togglePause" class="ghost" type="button">Pause</button>
+            <button id="sendNext" class="ghost" type="button">Send next</button>
+            <button id="clearQueue" class="ghost danger" type="button">Clear</button>
+          </div>
         </div>
-      </details>
+        <div id="emptyQueue" class="empty-state">Nothing queued.</div>
+        <ol id="queueList" class="queue-list"></ol>
+      </section>
 
-      <details>
+      <details class="activity-card">
         <summary>
-          <span><strong>Error recovery</strong><small>Choose how failed chats recover.</small></span>
-          <input data-setting="errorRecoveryEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable error recovery">
+          <span><strong>Activity</strong><small id="lastAction">No activity yet</small></span>
+          <span id="blockedReason" class="warning-dot" hidden title="Automation is blocked">!</span>
         </summary>
-        <div class="fields">
-          <label class="field full">
-            <span>Recovery strategy</span>
-            <select data-setting="errorRecoveryStrategy" data-kind="string">
-              <option value="continue-first">Continue, then refresh</option>
-              <option value="refresh-first">Refresh, then Continue</option>
-              <option value="continue-only">Continue only</option>
-              <option value="refresh-only">Refresh only</option>
-            </select>
-          </label>
-          <label class="field"><span>Delay min</span><div><input data-setting="errorDelayMinSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
-          <label class="field"><span>Delay max</span><div><input data-setting="errorDelayMaxSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
-          <label class="field"><span>Cooldown</span><div><input data-setting="errorCooldownSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
-          <label class="field"><span>Hourly limit</span><div><input data-setting="errorLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
-        </div>
-      </details>
-
-      <details>
-        <summary>
-          <span><strong>Deep nudges</strong><small>Continue useful work after the model becomes idle.</small></span>
-          <input data-setting="deepNudgesEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable deep nudges">
-        </summary>
-        <div class="fields">
-          <label class="field"><span>Idle before nudge</span><div><input data-setting="deepNudgeIdleSec" data-kind="number" type="number" min="5" step="5"><em>sec</em></div></label>
-          <label class="field"><span>Cooldown</span><div><input data-setting="deepNudgeCooldownSec" data-kind="number" type="number" min="5" step="5"><em>sec</em></div></label>
-          <label class="field full"><span>Hourly limit</span><div><input data-setting="deepNudgeLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
-          <label class="field full"><span>Nudge prompt</span><textarea data-setting="deepNudgePrompt" data-kind="string" rows="5" maxlength="4000"></textarea></label>
-        </div>
-      </details>
-
-      <details>
-        <summary>
-          <span><strong>Idle refresh</strong><small>Recover stale, heavy conversations without refreshing active work.</small></span>
-          <input data-setting="autoRefreshEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable idle refresh">
-        </summary>
-        <div class="fields">
-          <label class="field"><span>Required idle</span><div><input data-setting="refreshIdleMin" data-kind="number" type="number" min="0" step="0.5"><em>min</em></div></label>
-          <label class="field"><span>Cooldown</span><div><input data-setting="refreshCooldownMin" data-kind="number" type="number" min="0" step="0.5"><em>min</em></div></label>
-          <label class="field"><span>Interval min</span><div><input data-setting="refreshIntervalMinMin" data-kind="number" type="number" min="0.25" step="0.25"><em>min</em></div></label>
-          <label class="field"><span>Interval max</span><div><input data-setting="refreshIntervalMaxMin" data-kind="number" type="number" min="0.25" step="0.25"><em>min</em></div></label>
-          <label class="field full"><span>Hourly limit</span><div><input data-setting="refreshLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>refreshes</em></div></label>
-        </div>
-      </details>
-
-      <details>
-        <summary>
-          <span><strong>Safety and engine</strong><small>Global guardrails for this conversation.</small></span>
-        </summary>
-        <div class="fields">
-          <label class="field"><span>Load grace</span><div><input data-setting="loadGraceSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
-          <label class="field"><span>Scan interval</span><div><input data-setting="scanIntervalSec" data-kind="number" type="number" min="1" step="1"><em>sec</em></div></label>
-          <label class="field full"><span>Session action limit</span><div><input data-setting="maxActionsPerSession" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
-          <label class="check-row full">
-            <span><strong>Pause when composer has text</strong><small>Never overwrite a draft you are typing.</small></span>
-            <input data-setting="pauseOnComposerText" data-kind="boolean" type="checkbox" role="switch">
-          </label>
-          <button id="resetRuntime" class="secondary full" type="button">Reset session limits and history</button>
+        <div class="activity-body">
+          <div class="metrics">
+            <p><span id="sessionActions">0</span><small>session actions</small></p>
+            <p><span id="hourlyActions">0</span><small>last hour</small></p>
+            <p><span id="nextSend">—</span><small>next queue send</small></p>
+          </div>
+          <p id="blockedText" class="notice" hidden></p>
+          <ul id="eventList" class="event-list"></ul>
         </div>
       </details>
 
       <footer>
-        <span id="saveStatus">Settings load per conversation.</span>
+        <button id="advanced" class="link-button" type="button">Advanced settings</button>
         <span id="version"></span>
       </footer>
     </main>
