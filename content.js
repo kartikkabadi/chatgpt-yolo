@@ -1,122 +1,64 @@
 (() => {
   "use strict";
 
-  const SCRIPT_VERSION = "0.4.0";
-  if (window.__YOLO_EXTENSION__?.version === SCRIPT_VERSION) return;
+  const Config = globalThis.YOLOConfig;
+  const Platforms = globalThis.YOLOPlatforms;
+  if (!Config || !Platforms) return;
+
+  if (window.__YOLO_EXTENSION__?.version === Config.VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
 
-  const STORAGE_KEY = "yoloGlobal";
-  const TAB_KEY = "yoloTabSettings";
-  const PAGE_KEY = "yoloPageSettings";
-  const COUNTERS_KEY = "yoloCounters";
-  const LAST_ACTION_KEY = "yoloLastAction";
-  const SUPPORTED_HOSTS = ["chatgpt.com", "grok.com", "www.grok.com"];
+  const COUNTER_BY_ACTION = Object.freeze({
+    approval: "approvalsClicked",
+    recovery: "continuesSent",
+    nudge: "deepNudgesSent",
+    refresh: "refreshesTriggered"
+  });
 
-  const DEFAULT_SETTINGS = {
-    enabled: false,
-    approvals: true,
-    errorContinue: true,
-    autoRefresh: true,
-    deepNudges: false
-  };
+  const LIMIT_FIELD_BY_ACTION = Object.freeze({
+    approval: "approvalLimitPerHour",
+    recovery: "errorLimitPerHour",
+    nudge: "deepNudgeLimitPerHour",
+    refresh: "refreshLimitPerHour"
+  });
+
+  const APPROVAL_SIGNATURE_TTL_MS = 10 * 60 * 1000;
+  const FAILED_RECOVERY_RETRY_MS = 15 * 1000;
 
   const state = {
-    settings: { ...DEFAULT_SETTINGS },
-    approvalsClicked: 0,
-    continuesSent: 0,
-    deepNudgesSent: 0,
-    lastAction: "Idle",
-    pageLoadedAt: Date.now(),
-    lastErrorSignature: "",
-    lastApprovalSignature: "",
-    lastContinueAt: 0,
-    lastDeepNudgeAt: 0,
-    lastApprovalAt: 0,
-    lastRefreshAt: 0,
-    nextScheduledRefreshAt: 0,
-    clickedApprovalSignatures: new Set(),
-    lastActivityAt: Date.now(),
-    lastGenerationAt: Date.now(),
-    approvalInFlight: false,
-    continueInFlight: false,
-    refreshInFlight: false,
-    clickedApprovals: new WeakSet(),
+    destroyed: false,
+    loaded: false,
+    routeInFlight: false,
+    pageId: Config.pageId(location.href),
+    platform: Platforms.adapterForLocation(),
+    settings: { ...Config.DEFAULT_SETTINGS },
+    counters: {
+      approvalsClicked: 0,
+      continuesSent: 0,
+      deepNudgesSent: 0,
+      refreshesTriggered: 0
+    },
+    runtime: null,
+    lastAction: { message: "Idle", at: Date.now(), level: "info" },
+    blockedReason: "",
+    generationActive: false,
+    cycleInFlight: false,
+    actionInFlight: false,
     scanQueued: false,
+    reloadScheduled: false,
+    pageLoadedAt: Date.now(),
     observer: null,
     scanTimer: null,
-    idleTimer: null,
-    refreshTimer: null,
-    loaded: false,
-    destroyed: false
+    routeTimer: null,
+    activitySaveTimer: null,
+    messageListener: null
   };
 
-  const MIN_DELAY_MS = 4000;
-  const MAX_DELAY_MS = 8500;
-  const LOAD_GRACE_MS = 40000;
-  const APPROVAL_COOLDOWN_MS = 12000;
-  const CONTINUE_COOLDOWN_MS = 90000;
-  const DEEP_NUDGE_COOLDOWN_MS = 60000;
-  const REFRESH_COOLDOWN_MS = 90000;
-  const ERROR_REFRESH_DELAY_MIN_MS = 12000;
-  const ERROR_REFRESH_DELAY_MAX_MS = 26000;
-  const PERIODIC_REFRESH_MIN_MS = 180000;
-  const PERIODIC_REFRESH_MAX_MS = 300000;
-  const IDLE_CONTINUE_AFTER_MS = 150000;
-  const DEEP_NUDGE_AFTER_MS = 30000;
-  const MAX_CARD_WIDTH = 900;
-  const MAX_CARD_HEIGHT = 640;
-  const DEEP_NUDGE_PROMPT = [
-    "Review where you stopped and keep going deeper.",
-    "Do not repeat the last answer.",
-    "Critically inspect your assumptions, look for gaps or edge cases, and continue the work toward my original goal with concrete next steps."
-  ].join(" ");
-
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const randomDelay = () => MIN_DELAY_MS + Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1));
-  const randomBetween = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
-
-  const visible = (el) => {
-    if (!el || !(el instanceof Element)) return false;
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-  };
-
-  const normalizedText = (el) => (el?.innerText || el?.textContent || "").replace(/\s+/g, " ").trim();
   const now = () => Date.now();
-  const isSupportedHost = () => SUPPORTED_HOSTS.some((host) => location.hostname === host || location.hostname.endsWith(`.${host}`));
-
-  const buttonText = (button) => {
-    const label = button.getAttribute("aria-label") || button.getAttribute("title") || normalizedText(button);
-    return label.toLowerCase();
-  };
-
-  const looksNegative = (button) => {
-    const text = buttonText(button);
-    return /\b(deny|decline|reject|cancel|stop|no|disallow|do not|don't)\b/i.test(text);
-  };
-
-  const looksRetry = (el) => /\bretry\b/i.test(buttonText(el) || normalizedText(el));
-  const isDisabled = (el) => el?.disabled || el?.getAttribute("aria-disabled") === "true";
-  const looksDetails = (button) => /\bdetails?\b/i.test(buttonText(button));
-  const looksAffirmative = (button) => {
-    const text = buttonText(button);
-    return /\b(allow|approve|accept|create|update|delete|merge|confirm|run|grant|authorize)\b/i.test(text);
-  };
-
-  const elementSignature = (el) => {
-    const rect = el.getBoundingClientRect();
-    return `${Math.round(rect.top)}:${Math.round(rect.left)}:${normalizedText(el).slice(0, 180)}`;
-  };
-  const approvalSignature = (card, button) => {
-    const text = normalizedText(card)
-      .replace(/\bDetails\b/gi, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 260);
-    return `${buttonText(button)}::${text}`;
-  };
-
+  const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  const randomMs = (minSec, maxSec) => Math.round(Config.randomBetween(minSec, maxSec) * 1000);
+  const currentPageId = () => Config.pageId(location.href);
+  const routeIsCurrent = () => currentPageId() === state.pageId;
   const isContextInvalidated = (error) => /context invalidated|extension context/i.test(String(error?.message || error || ""));
 
   function disableStaleContext(error) {
@@ -126,19 +68,12 @@
   }
 
   const storageGet = (keys) => new Promise((resolve) => {
-    if (state.destroyed) {
-      resolve({});
-      return;
-    }
-
+    if (state.destroyed) return resolve({});
     try {
       chrome.storage.local.get(keys, (items) => {
         const error = chrome.runtime?.lastError;
-        if (error && disableStaleContext(error)) {
-          resolve({});
-          return;
-        }
-        resolve(error ? {} : items);
+        if (error) disableStaleContext(error);
+        resolve(error ? {} : items || {});
       });
     } catch (error) {
       disableStaleContext(error);
@@ -147,11 +82,7 @@
   });
 
   const storageSet = (items) => new Promise((resolve) => {
-    if (state.destroyed) {
-      resolve(false);
-      return;
-    }
-
+    if (state.destroyed) return resolve(false);
     try {
       chrome.storage.local.set(items, () => {
         const error = chrome.runtime?.lastError;
@@ -163,475 +94,641 @@
       resolve(false);
     }
   });
-  const pageId = () => location.href.split("#")[0];
 
-  async function setLastAction(action) {
-    state.lastAction = action;
-    await storageSet({ [LAST_ACTION_KEY]: { action, at: Date.now(), url: location.href } });
+  function freshRuntime() {
+    const timestamp = now();
+    return {
+      sessionStartedAt: timestamp,
+      sessionActionCount: 0,
+      history: { approval: [], recovery: [], nudge: [], refresh: [] },
+      approvalSignatures: [],
+      lastActionAt: 0,
+      lastUserActivityAt: timestamp,
+      lastGenerationAt: timestamp,
+      lastRefreshAt: 0,
+      nextRefreshAt: 0,
+      lastErrorSignature: "",
+      lastErrorHandledAt: 0
+    };
   }
 
-  async function incrementCounter(key) {
-    const stored = await storageGet([COUNTERS_KEY]);
-    const counters = stored[COUNTERS_KEY] || {};
-    counters[key] = (counters[key] || 0) + 1;
-    counters.updatedAt = Date.now();
-    await storageSet({ [COUNTERS_KEY]: counters });
-    state[key] = counters[key];
-  }
-
-  async function loadSettings() {
-    const stored = await storageGet([STORAGE_KEY, PAGE_KEY, COUNTERS_KEY, LAST_ACTION_KEY]);
-    const globalSettings = stored[STORAGE_KEY] || {};
-    const pageSettings = stored[PAGE_KEY]?.[pageId()] || {};
-    const tabSettings = readTabSettings();
-    state.settings = { ...DEFAULT_SETTINGS, ...globalSettings, ...pageSettings, ...tabSettings };
-
-    const counters = stored[COUNTERS_KEY] || {};
-    state.approvalsClicked = counters.approvalsClicked || 0;
-    state.continuesSent = counters.continuesSent || 0;
-    state.deepNudgesSent = counters.deepNudgesSent || 0;
-    state.lastAction = stored[LAST_ACTION_KEY]?.action || "Idle";
-    state.loaded = true;
-  }
-
-  function readTabSettings() {
+  function readRuntimeMap() {
     try {
-      return JSON.parse(sessionStorage.getItem(TAB_KEY) || "{}");
+      const parsed = JSON.parse(sessionStorage.getItem(Config.STORAGE_KEYS.runtime) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
     } catch {
       return {};
     }
   }
 
-  function writeTabSettings(next) {
-    state.settings = { ...state.settings, ...next };
-    sessionStorage.setItem(TAB_KEY, JSON.stringify(state.settings));
-
-    return storageGet([PAGE_KEY]).then((stored) => {
-      const pageSettings = stored[PAGE_KEY] || {};
-      pageSettings[pageId()] = {
-        enabled: state.settings.enabled,
-        approvals: state.settings.approvals,
-        errorContinue: state.settings.errorContinue,
-        autoRefresh: state.settings.autoRefresh,
-        deepNudges: state.settings.deepNudges
-      };
-
-      return storageSet({
-        [PAGE_KEY]: pageSettings,
-        [STORAGE_KEY]: {
-          approvals: state.settings.approvals,
-          errorContinue: state.settings.errorContinue,
-          autoRefresh: state.settings.autoRefresh,
-          deepNudges: state.settings.deepNudges
-        }
-      });
-    });
+  function normalizeApprovalSignatures(raw, fallbackAt = 0) {
+    const timestamp = now();
+    return (Array.isArray(raw) ? raw : [])
+      .map((entry) => {
+        if (typeof entry === "string") return { signature: entry, at: fallbackAt || timestamp };
+        if (!entry || typeof entry.signature !== "string") return null;
+        return { signature: entry.signature, at: Number(entry.at) || fallbackAt || timestamp };
+      })
+      .filter((entry) => entry && timestamp - entry.at < APPROVAL_SIGNATURE_TTL_MS)
+      .slice(-100);
   }
 
-  function scheduleNextPeriodicRefresh() {
-    state.nextScheduledRefreshAt = now() + randomBetween(PERIODIC_REFRESH_MIN_MS, PERIODIC_REFRESH_MAX_MS);
+  function normalizeRuntime(raw) {
+    const fallback = freshRuntime();
+    const history = raw?.history || {};
+    const lastActionAt = Number(raw?.lastActionAt) || 0;
+    return {
+      ...fallback,
+      ...(raw && typeof raw === "object" ? raw : {}),
+      sessionActionCount: Math.max(0, Number(raw?.sessionActionCount) || 0),
+      history: {
+        approval: Config.pruneHistory(history.approval),
+        recovery: Config.pruneHistory(history.recovery),
+        nudge: Config.pruneHistory(history.nudge),
+        refresh: Config.pruneHistory(history.refresh)
+      },
+      approvalSignatures: normalizeApprovalSignatures(raw?.approvalSignatures, lastActionAt)
+    };
   }
 
-  function safeToRefresh() {
-    if (!state.settings.enabled || !state.settings.autoRefresh) return false;
-    if (state.refreshInFlight || state.approvalInFlight || state.continueInFlight) return false;
-    if (now() - state.pageLoadedAt < LOAD_GRACE_MS) return false;
-    if (now() - state.lastRefreshAt < REFRESH_COOLDOWN_MS) return false;
-    if (hasActiveGeneration()) return false;
-    return true;
+  function loadRuntime(pageId = state.pageId) {
+    const map = readRuntimeMap();
+    return normalizeRuntime(map[pageId]);
   }
 
-  async function refreshPage(reason, delayMs = randomDelay()) {
-    if (!safeToRefresh()) return false;
-
-    state.refreshInFlight = true;
-    state.lastRefreshAt = now();
+  function saveRuntime() {
+    if (!state.runtime || state.destroyed) return;
     try {
-      await setLastAction(`Refreshing soon (${reason})`);
-      await sleep(delayMs);
-      if (!safeToRefresh()) return false;
-      await setLastAction(`Refreshing (${reason})`);
-      location.reload();
-      return true;
-    } finally {
-      state.refreshInFlight = false;
+      const map = readRuntimeMap();
+      delete map[state.pageId];
+      map[state.pageId] = state.runtime;
+      const entries = Object.entries(map).slice(-50);
+      sessionStorage.setItem(Config.STORAGE_KEYS.runtime, JSON.stringify(Object.fromEntries(entries)));
+    } catch {
+      // Session persistence is best-effort; automation can continue in memory.
     }
   }
 
-  async function maybePeriodicRefresh() {
-    if (!state.nextScheduledRefreshAt) scheduleNextPeriodicRefresh();
-    if (now() < state.nextScheduledRefreshAt) return;
-
-    const refreshed = await refreshPage("scheduled");
-    if (!refreshed) scheduleNextPeriodicRefresh();
+  async function setLastAction(message, level = "info") {
+    state.lastAction = { message, at: now(), level };
+    await storageSet({
+      [Config.STORAGE_KEYS.lastAction]: {
+        ...state.lastAction,
+        url: location.href,
+        pageId: state.pageId
+      }
+    });
   }
 
-  function queueScan() {
-    if (state.destroyed || state.scanQueued) return;
+  async function incrementCounter(key) {
+    if (!key) return;
+    const stored = await storageGet([Config.STORAGE_KEYS.counters]);
+    const counters = { ...(stored[Config.STORAGE_KEYS.counters] || {}) };
+    counters[key] = (Number(counters[key]) || 0) + 1;
+    counters.updatedAt = now();
+    state.counters = { ...state.counters, ...counters };
+    await storageSet({ [Config.STORAGE_KEYS.counters]: counters });
+  }
+
+  function scheduleNextRefresh(force = false) {
+    if (!state.runtime) return;
+    if (!force && state.runtime.nextRefreshAt > now()) return;
+    const minMs = state.settings.refreshIntervalMinMin * 60 * 1000;
+    const maxMs = state.settings.refreshIntervalMaxMin * 60 * 1000;
+    state.runtime.nextRefreshAt = now() + Math.round(Config.randomBetween(minMs, maxMs));
+    saveRuntime();
+  }
+
+  async function loadSettings() {
+    const stored = await storageGet([
+      Config.STORAGE_KEYS.global,
+      Config.STORAGE_KEYS.pages,
+      Config.STORAGE_KEYS.counters,
+      Config.STORAGE_KEYS.lastAction
+    ]);
+
+    const globalSettings = stored[Config.STORAGE_KEYS.global] || {};
+    const pageSettings = stored[Config.STORAGE_KEYS.pages]?.[state.pageId] || {};
+    state.settings = Config.mergeSettings(Config.DEFAULT_SETTINGS, globalSettings, pageSettings);
+    state.counters = { ...state.counters, ...(stored[Config.STORAGE_KEYS.counters] || {}) };
+
+    const storedLastAction = stored[Config.STORAGE_KEYS.lastAction];
+    if (storedLastAction?.pageId === state.pageId && storedLastAction?.message) state.lastAction = storedLastAction;
+    else if (storedLastAction?.pageId === state.pageId && storedLastAction?.action) {
+      state.lastAction = { message: storedLastAction.action, at: storedLastAction.at || now(), level: "info" };
+    } else {
+      state.lastAction = { message: "Idle", at: now(), level: "info" };
+    }
+
+    state.runtime = loadRuntime();
+    scheduleNextRefresh();
+    state.loaded = true;
+  }
+
+  async function persistSettings(nextSettings) {
+    if (!routeIsCurrent()) await handleRouteChange();
+    const normalized = Config.mergeSettings(state.settings, nextSettings);
+    const stored = await storageGet([Config.STORAGE_KEYS.pages]);
+    const pages = { ...(stored[Config.STORAGE_KEYS.pages] || {}) };
+    pages[state.pageId] = normalized;
+
+    state.settings = normalized;
+    scheduleNextRefresh(true);
+    await storageSet({
+      [Config.STORAGE_KEYS.global]: Config.globalDefaultsFromSettings(normalized),
+      [Config.STORAGE_KEYS.pages]: pages
+    });
+    restartScanTimer();
+    return normalized;
+  }
+
+  function actionLimit(action) {
+    return Number(state.settings[LIMIT_FIELD_BY_ACTION[action]]) || 0;
+  }
+
+  function checkActionLimit(action) {
+    const status = Config.limitStatus(
+      state.runtime?.history?.[action],
+      actionLimit(action),
+      state.runtime?.sessionActionCount || 0,
+      state.settings.maxActionsPerSession,
+      now()
+    );
+    if (state.runtime) state.runtime.history[action] = status.recent;
+    state.blockedReason = status.allowed ? "" : status.reason;
+    return status;
+  }
+
+  async function recordAction(action, counterKey = COUNTER_BY_ACTION[action]) {
+    const timestamp = now();
+    state.runtime.history[action] = Config.pruneHistory([...(state.runtime.history[action] || []), timestamp], timestamp);
+    state.runtime.sessionActionCount += 1;
+    state.runtime.lastActionAt = timestamp;
+    state.blockedReason = "";
+    saveRuntime();
+    await incrementCounter(counterKey);
+  }
+
+  function composerHasText() {
+    const composer = Platforms.findComposer(state.platform);
+    return Boolean(Platforms.composerText(composer).trim());
+  }
+
+  function automationReady() {
+    if (!state.loaded || state.destroyed || !state.platform || !state.settings.enabled || !routeIsCurrent()) return false;
+    return now() - state.pageLoadedAt >= state.settings.loadGraceSec * 1000;
+  }
+
+  function safeForInput() {
+    if (!routeIsCurrent()) return false;
+    if (state.generationActive || Platforms.isGenerating(state.platform)) return false;
+    if (state.settings.pauseOnComposerText && composerHasText()) return false;
+    return true;
+  }
+
+  function updateGenerationState() {
+    const active = Platforms.isGenerating(state.platform);
+    const timestamp = now();
+    if (state.runtime) {
+      if (active) state.runtime.lastGenerationAt = timestamp;
+      if (state.generationActive && !active) state.runtime.lastGenerationAt = timestamp;
+      saveRuntime();
+    }
+    state.generationActive = active;
+    return active;
+  }
+
+  function inputActionCooldownPassed(action) {
+    const lastAt = state.runtime?.history?.[action]?.at(-1) || 0;
+    const cooldownSec = action === "recovery" ? state.settings.errorCooldownSec : state.settings.deepNudgeCooldownSec;
+    return now() - lastAt >= cooldownSec * 1000;
+  }
+
+  async function sendPrompt({ action, prompt, label, reason, delayMinSec = 0, delayMaxSec = 0, automatic = true }) {
+    if (state.actionInFlight || !state.platform) return false;
+    const actionPageId = state.pageId;
+    if (automatic && !automationReady()) return false;
+    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
+    if (!safeForInput()) return false;
+
+    if ((action === "recovery" || action === "nudge") && !inputActionCooldownPassed(action)) return false;
+
+    const limit = checkActionLimit(action);
+    if (!limit.allowed) {
+      await setLastAction(`${label} blocked: ${limit.reason}`, "warning");
+      return false;
+    }
+
+    let composer = Platforms.findComposer(state.platform);
+    if (!composer || Platforms.composerText(composer).trim()) return false;
+
+    state.actionInFlight = true;
+    try {
+      const delayMs = automatic ? randomMs(delayMinSec, delayMaxSec) : 150;
+      if (delayMs > 0) await sleep(delayMs);
+      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
+      updateGenerationState();
+      if (!safeForInput()) return false;
+
+      composer = Platforms.findComposer(state.platform);
+      if (!composer || Platforms.composerText(composer).trim()) return false;
+
+      Platforms.setComposerValue(composer, prompt);
+      await sleep(120);
+      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
+      if (!Platforms.submitComposer(state.platform, composer)) return false;
+
+      await recordAction(action);
+      await setLastAction(`Sent ${label} (${reason})`);
+      return true;
+    } catch (error) {
+      await setLastAction(`${label} failed: ${String(error?.message || error)}`, "error");
+      return false;
+    } finally {
+      state.actionInFlight = false;
+    }
+  }
+
+  async function sendContinue(reason, automatic = true) {
+    return sendPrompt({
+      action: "recovery",
+      prompt: "Continue",
+      label: "Continue",
+      reason,
+      automatic
+    });
+  }
+
+  async function sendDeepNudge(reason, automatic = true) {
+    return sendPrompt({
+      action: "nudge",
+      prompt: state.settings.deepNudgePrompt,
+      label: "deep nudge",
+      reason,
+      automatic
+    });
+  }
+
+  function refreshCooldownPassed() {
+    const cooldownMs = state.settings.refreshCooldownMin * 60 * 1000;
+    return now() - (state.runtime.lastRefreshAt || 0) >= cooldownMs;
+  }
+
+  async function refreshPage(reason, automatic = true, action = "refresh") {
+    if (state.actionInFlight || !state.platform || state.reloadScheduled) return false;
+    const actionPageId = state.pageId;
+    if (automatic && !automationReady()) return false;
+    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
+    if (updateGenerationState()) return false;
+    if (state.settings.pauseOnComposerText && composerHasText()) return false;
+    if (action === "refresh" && !refreshCooldownPassed()) return false;
+
+    const limit = checkActionLimit(action);
+    if (!limit.allowed) {
+      await setLastAction(`Refresh blocked: ${limit.reason}`, "warning");
+      return false;
+    }
+
+    state.actionInFlight = true;
+    try {
+      if (state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
+      state.runtime.lastRefreshAt = now();
+      scheduleNextRefresh(true);
+      await recordAction(action, "refreshesTriggered");
+      await setLastAction(`Refreshing (${reason})`);
+      state.reloadScheduled = true;
+      window.setTimeout(() => {
+        if (currentPageId() === actionPageId) location.reload();
+        else {
+          state.reloadScheduled = false;
+          state.actionInFlight = false;
+          queueCycle();
+        }
+      }, automatic ? 500 : 150);
+      return true;
+    } finally {
+      if (!state.reloadScheduled) state.actionInFlight = false;
+    }
+  }
+
+  function errorSignature(element) {
+    const text = Platforms.normalizedText(element).replace(/\s+/g, " ").trim().slice(0, 320);
+    return `${state.platform?.id || "unknown"}:${text}`;
+  }
+
+  async function handleErrorState() {
+    if (!automationReady() || !state.settings.errorRecoveryEnabled || state.actionInFlight) return false;
+    const error = Platforms.findErrorState(state.platform);
+    if (!error) return false;
+
+    const signature = errorSignature(error);
+    const cooldownMs = state.settings.errorCooldownSec * 1000;
+    if (signature === state.runtime.lastErrorSignature && now() - state.runtime.lastErrorHandledAt < cooldownMs) return false;
+
+    const limit = checkActionLimit("recovery");
+    if (!limit.allowed) {
+      await setLastAction(`Recovery blocked: ${limit.reason}`, "warning");
+      return false;
+    }
+
+    const errorPageId = state.pageId;
+    state.runtime.lastErrorSignature = signature;
+    state.runtime.lastErrorHandledAt = now();
+    saveRuntime();
+    await setLastAction("Detected error; attempting recovery");
+
+    const delayMs = randomMs(state.settings.errorDelayMinSec, state.settings.errorDelayMaxSec);
+    if (delayMs > 0) await sleep(delayMs);
+    if (state.destroyed || state.pageId !== errorPageId || currentPageId() !== errorPageId) return false;
+
+    const strategy = state.settings.errorRecoveryStrategy;
+    let handled = false;
+    if (strategy === "continue-only") handled = await sendContinue("error recovery");
+    else if (strategy === "refresh-only") handled = await refreshPage("error recovery", true, "recovery");
+    else if (strategy === "refresh-first") {
+      handled = (await refreshPage("error recovery", true, "recovery")) || await sendContinue("error recovery fallback");
+    } else {
+      handled = (await sendContinue("error recovery")) || await refreshPage("error recovery fallback", true, "recovery");
+    }
+
+    if (!handled && state.runtime) {
+      state.runtime.lastErrorHandledAt = now() - Math.max(0, cooldownMs - FAILED_RECOVERY_RETRY_MS);
+      saveRuntime();
+    }
+    return handled;
+  }
+
+  function pruneApprovalSignatures() {
+    state.runtime.approvalSignatures = normalizeApprovalSignatures(state.runtime.approvalSignatures, state.runtime.lastActionAt);
+  }
+
+  function recentlyApproved(signature) {
+    pruneApprovalSignatures();
+    return state.runtime.approvalSignatures.some((entry) => entry.signature === signature);
+  }
+
+  async function handleApprovalCards() {
+    if (!automationReady() || !state.settings.approvalsEnabled || state.actionInFlight || !state.platform?.supportsApprovals) return false;
+    if (updateGenerationState()) return false;
+
+    const cooldownMs = state.settings.approvalCooldownSec * 1000;
+    const lastApprovalAt = state.runtime.history.approval.at(-1) || 0;
+    if (now() - lastApprovalAt < cooldownMs) return false;
+
+    const limit = checkActionLimit("approval");
+    if (!limit.allowed) return false;
+
+    const approvalPageId = state.pageId;
+    const candidates = Platforms.findApprovalCards(state.platform, state.settings.approvalPolicy);
+    for (const candidate of candidates) {
+      if (recentlyApproved(candidate.signature)) continue;
+
+      state.actionInFlight = true;
+      try {
+        await setLastAction(`Approval found: ${Platforms.buttonText(candidate.button) || "affirmative action"}`);
+        await sleep(randomMs(state.settings.approvalDelayMinSec, state.settings.approvalDelayMaxSec));
+        if (state.destroyed || state.pageId !== approvalPageId || currentPageId() !== approvalPageId) return false;
+        updateGenerationState();
+        if (state.generationActive) return false;
+
+        const refreshedCandidate = Platforms.findApprovalCards(state.platform, state.settings.approvalPolicy)
+          .find((entry) => entry.signature === candidate.signature);
+        if (!refreshedCandidate || recentlyApproved(refreshedCandidate.signature)) return false;
+        if (!refreshedCandidate.button.isConnected
+          || !Platforms.visible(refreshedCandidate.button)
+          || Platforms.isDisabled(refreshedCandidate.button)) return false;
+
+        refreshedCandidate.button.click();
+        state.runtime.approvalSignatures = [
+          ...state.runtime.approvalSignatures,
+          { signature: refreshedCandidate.signature, at: now() }
+        ].slice(-100);
+        await recordAction("approval");
+        await setLastAction(`Clicked approval: ${Platforms.buttonText(refreshedCandidate.button) || "affirmative action"}`);
+        return true;
+      } finally {
+        state.actionInFlight = false;
+      }
+    }
+    return false;
+  }
+
+  async function handleDeepNudge() {
+    if (!automationReady() || !state.settings.deepNudgesEnabled || state.actionInFlight) return false;
+    if (updateGenerationState() || !safeForInput()) return false;
+
+    const lastNudgeAt = state.runtime.history.nudge.at(-1) || 0;
+    if (now() - lastNudgeAt < state.settings.deepNudgeCooldownSec * 1000) return false;
+
+    const idleBaseline = Math.max(
+      state.pageLoadedAt,
+      state.runtime.lastUserActivityAt,
+      state.runtime.lastGenerationAt,
+      state.runtime.lastActionAt
+    );
+    if (now() - idleBaseline < state.settings.deepNudgeIdleSec * 1000) return false;
+    return sendDeepNudge("idle");
+  }
+
+  async function handlePeriodicRefresh() {
+    if (!automationReady() || !state.settings.autoRefreshEnabled || state.actionInFlight) return false;
+    scheduleNextRefresh();
+    if (now() < state.runtime.nextRefreshAt) return false;
+    if (updateGenerationState() || !safeForInput()) return false;
+
+    const idleBaseline = Math.max(
+      state.pageLoadedAt,
+      state.runtime.lastUserActivityAt,
+      state.runtime.lastGenerationAt,
+      state.runtime.lastActionAt
+    );
+    if (now() - idleBaseline < state.settings.refreshIdleMin * 60 * 1000) return false;
+    return refreshPage("scheduled idle refresh");
+  }
+
+  async function runCycle() {
+    if (state.destroyed || state.cycleInFlight || !state.loaded || state.reloadScheduled) return;
+    state.cycleInFlight = true;
+    try {
+      if (!routeIsCurrent()) {
+        await handleRouteChange();
+        return;
+      }
+      if (await handleErrorState()) return;
+      if (await handleApprovalCards()) return;
+      if (await handleDeepNudge()) return;
+      await handlePeriodicRefresh();
+    } catch (error) {
+      if (!disableStaleContext(error)) await setLastAction(`Automation error: ${String(error?.message || error)}`, "error");
+    } finally {
+      state.cycleInFlight = false;
+    }
+  }
+
+  function queueCycle() {
+    if (state.destroyed || state.scanQueued || state.reloadScheduled) return;
     state.scanQueued = true;
     window.setTimeout(() => {
-      if (state.destroyed) return;
       state.scanQueued = false;
-      scan();
-    }, 1000);
+      runCycle();
+    }, 500);
+  }
+
+  function restartScanTimer() {
+    window.clearInterval(state.scanTimer);
+    if (state.destroyed || state.reloadScheduled) return;
+    state.scanTimer = window.setInterval(runCycle, state.settings.scanIntervalSec * 1000);
+  }
+
+  async function handleRouteChange() {
+    const nextPageId = currentPageId();
+    if (nextPageId === state.pageId || state.routeInFlight || state.reloadScheduled) return;
+
+    state.routeInFlight = true;
+    try {
+      saveRuntime();
+      state.pageId = nextPageId;
+      state.platform = Platforms.adapterForLocation();
+      state.pageLoadedAt = now();
+      state.loaded = false;
+      state.blockedReason = "";
+      state.generationActive = false;
+      await loadSettings();
+      restartScanTimer();
+      await setLastAction("Loaded settings for this conversation");
+      queueCycle();
+    } finally {
+      state.routeInFlight = false;
+    }
+  }
+
+  function markUserActivity(event) {
+    if (!state.runtime || event?.isTrusted === false) return;
+    state.runtime.lastUserActivityAt = now();
+    window.clearTimeout(state.activitySaveTimer);
+    state.activitySaveTimer = window.setTimeout(saveRuntime, 500);
+  }
+
+  function installObservers() {
+    state.observer = new MutationObserver(queueCycle);
+    state.observer.observe(document.documentElement, { childList: true, subtree: true });
+
+    for (const eventName of ["pointerdown", "keydown", "input", "focusin"]) {
+      document.addEventListener(eventName, markUserActivity, true);
+    }
+
+    restartScanTimer();
+    state.routeTimer = window.setInterval(handleRouteChange, 500);
+  }
+
+  function runtimeSummary() {
+    const history = state.runtime?.history || {};
+    return {
+      sessionStartedAt: state.runtime?.sessionStartedAt || 0,
+      sessionActionCount: state.runtime?.sessionActionCount || 0,
+      approvalCountLastHour: Config.pruneHistory(history.approval).length,
+      recoveryCountLastHour: Config.pruneHistory(history.recovery).length,
+      nudgeCountLastHour: Config.pruneHistory(history.nudge).length,
+      refreshCountLastHour: Config.pruneHistory(history.refresh).length,
+      nextRefreshAt: state.runtime?.nextRefreshAt || 0,
+      blockedReason: state.blockedReason
+    };
+  }
+
+  function responseState() {
+    return {
+      version: Config.VERSION,
+      settings: state.settings,
+      counters: state.counters,
+      lastAction: state.lastAction,
+      runtime: runtimeSummary(),
+      pageId: state.pageId,
+      platform: state.platform?.label || "Unsupported",
+      generating: state.generationActive
+    };
+  }
+
+  async function runManualAction(action) {
+    if (!routeIsCurrent()) await handleRouteChange();
+    if (action === "nudge") return sendDeepNudge("manual", false);
+    if (action === "continue") return sendContinue("manual", false);
+    if (action === "refresh") return refreshPage("manual", false);
+    if (action === "scan") {
+      await runCycle();
+      return true;
+    }
+    return false;
+  }
+
+  async function resetRuntime() {
+    if (!routeIsCurrent()) await handleRouteChange();
+    state.runtime = freshRuntime();
+    scheduleNextRefresh(true);
+    saveRuntime();
+    state.blockedReason = "";
+    await setLastAction("Reset session limits and action history");
+  }
+
+  function installMessages() {
+    state.messageListener = (message, _sender, sendResponse) => {
+      if (state.destroyed) return false;
+
+      if (message?.type === "YOLO_GET_STATE") {
+        if (!routeIsCurrent()) {
+          handleRouteChange().then(() => {
+            updateGenerationState();
+            sendResponse(responseState());
+          });
+          return true;
+        }
+        updateGenerationState();
+        sendResponse(responseState());
+        return true;
+      }
+
+      if (message?.type === "YOLO_SET_SETTINGS" || message?.type === "YOLO_SET_TAB_SETTINGS") {
+        persistSettings(message.settings || {}).then((settings) => {
+          sendResponse({ ok: true, settings, state: responseState() });
+          queueCycle();
+        });
+        return true;
+      }
+
+      if (message?.type === "YOLO_RUN_ACTION") {
+        runManualAction(message.action).then((ok) => sendResponse({ ok, state: responseState() }));
+        return true;
+      }
+
+      if (message?.type === "YOLO_RESET_RUNTIME") {
+        resetRuntime().then(() => sendResponse({ ok: true, state: responseState() }));
+        return true;
+      }
+
+      return false;
+    };
+    chrome.runtime.onMessage.addListener(state.messageListener);
   }
 
   function destroy() {
     state.destroyed = true;
     state.observer?.disconnect();
     window.clearInterval(state.scanTimer);
-    window.clearInterval(state.idleTimer);
-    window.clearInterval(state.refreshTimer);
-  }
-
-  window.__YOLO_EXTENSION__ = {
-    destroy,
-    version: SCRIPT_VERSION
-  };
-
-  function findComposer() {
-    const selectors = [
-      "#prompt-textarea",
-      "textarea[data-testid='prompt-textarea']",
-      "textarea[placeholder*='Ask']",
-      "textarea[placeholder*='Message']",
-      "textarea[aria-label*='Ask']",
-      "textarea[aria-label*='Message']",
-      "div[contenteditable='true'][data-testid='prompt-textarea']",
-      "div[contenteditable='true'][aria-label*='Ask']",
-      "div[contenteditable='true'][aria-label*='Message']",
-      "div[contenteditable='true'][role='textbox']",
-      "[contenteditable='true']",
-      "textarea"
-    ];
-
-    return selectors
-      .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
-      .filter(visible)
-      .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom)[0] || null;
-  }
-
-  function findSendButton() {
-    const composer = findComposer();
-    const form = composer?.closest("form");
-    const scoped = form ? Array.from(form.querySelectorAll("button")) : [];
-    const candidates = [
-      "button[data-testid='send-button']",
-      "button[data-testid*='send' i]",
-      "button[type='submit']",
-      "button[aria-label*='Send']",
-      "button[aria-label*='Submit']",
-      "button[title*='Send']",
-      "button[title*='Submit']"
-    ].flatMap((selector) => Array.from(document.querySelectorAll(selector)));
-
-    return [...scoped, ...candidates].find((button) => {
-      const text = buttonText(button);
-      const testId = button.getAttribute("data-testid") || "";
-      const hasSendSignal = /send|submit/i.test(text) || /send|submit/i.test(testId) || button.type === "submit";
-      return hasSendSignal && visible(button) && !isDisabled(button);
-    }) || null;
-  }
-
-  function hasActiveGeneration() {
-    const stopButton = Array.from(document.querySelectorAll("button")).find((button) => {
-      const text = buttonText(button);
-      return visible(button) && /\b(stop|interrupt|cancel generation)\b/i.test(text);
-    });
-
-    const busy = Array.from(document.querySelectorAll("[aria-busy='true'], [data-testid*='stop']")).some(visible);
-    const active = Boolean(stopButton || busy);
-    if (active) state.lastGenerationAt = now();
-    return active;
-  }
-
-  function setComposerValue(composer, value) {
-    composer.focus();
-
-    if (composer.tagName === "TEXTAREA" || composer.tagName === "INPUT") {
-      composer.value = value;
-      composer.dispatchEvent(new Event("input", { bubbles: true }));
-      composer.dispatchEvent(new Event("change", { bubbles: true }));
-      return;
-    }
-
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(composer);
-    selection.removeAllRanges();
-    selection.addRange(range);
-
-    document.execCommand("insertText", false, value);
-    composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
-  }
-
-  function composerText(composer) {
-    if (!composer) return "";
-    if (composer.tagName === "TEXTAREA" || composer.tagName === "INPUT") return composer.value || "";
-    return normalizedText(composer);
-  }
-
-  async function sendPrompt(reason, prompt, options = {}) {
-    const {
-      counterKey = "continuesSent",
-      lastAtKey = "lastContinueAt",
-      cooldownMs = CONTINUE_COOLDOWN_MS,
-      actionLabel = "Continue"
-    } = options;
-
-    if (!state.settings.enabled) return false;
-    if (state.continueInFlight) return false;
-    if (now() - state[lastAtKey] < cooldownMs) return false;
-    if (hasActiveGeneration()) return false;
-
-    const composer = findComposer();
-    if (!composer) return false;
-    if (composerText(composer).trim()) return false;
-
-    state.continueInFlight = true;
-    try {
-      await sleep(randomDelay());
-
-      if (hasActiveGeneration()) return false;
-      if (composerText(composer).trim()) return false;
-
-      setComposerValue(composer, prompt);
-      await sleep(150);
-
-      const sendButton = findSendButton();
-      if (sendButton) {
-        sendButton.click();
-      } else {
-        composer.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
-        composer.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
-      }
-
-      state[lastAtKey] = now();
-      await incrementCounter(counterKey);
-      await setLastAction(`Sent ${actionLabel} (${reason})`);
-      return true;
-    } finally {
-      state.continueInFlight = false;
+    window.clearInterval(state.routeTimer);
+    window.clearTimeout(state.activitySaveTimer);
+    if (state.messageListener) chrome.runtime.onMessage.removeListener(state.messageListener);
+    for (const eventName of ["pointerdown", "keydown", "input", "focusin"]) {
+      document.removeEventListener(eventName, markUserActivity, true);
     }
   }
 
-  async function sendContinue(reason) {
-    if (!state.settings.errorContinue) return false;
-    return sendPrompt(reason, "Continue", {
-      counterKey: "continuesSent",
-      lastAtKey: "lastContinueAt",
-      cooldownMs: CONTINUE_COOLDOWN_MS,
-      actionLabel: "Continue"
-    });
-  }
+  window.__YOLO_EXTENSION__ = { version: Config.VERSION, destroy };
 
-  async function sendDeepNudge(reason) {
-    if (!state.settings.deepNudges) return false;
-    return sendPrompt(reason, DEEP_NUDGE_PROMPT, {
-      counterKey: "deepNudgesSent",
-      lastAtKey: "lastDeepNudgeAt",
-      cooldownMs: DEEP_NUDGE_COOLDOWN_MS,
-      actionLabel: "deep nudge"
-    });
-  }
-
-  function findErrorState() {
-    const retryButton = Array.from(document.querySelectorAll("button")).find((button) => {
-      const text = normalizedText(button.closest("[role='alert']") || button.parentElement || button);
-      return visible(button) && looksRetry(button) && /error|went wrong|try again|retry/i.test(text);
-    });
-    const redBox = Array.from(document.querySelectorAll("[role='alert'], .text-red-500, .text-red-600, .border-red-500, .border-red-600, [class*='error']"))
-      .find((el) => visible(el) && /error|went wrong|try again|retry/i.test(normalizedText(el)));
-
-    return retryButton || redBox || null;
-  }
-
-  async function handleErrorState() {
-    const errorEl = findErrorState();
-    if (!errorEl) return;
-
-    const signature = elementSignature(errorEl);
-    if (signature === state.lastErrorSignature) return;
-
-    await setLastAction("Detected error; refreshing soon");
-    const refreshed = await refreshPage("error recovery", randomBetween(ERROR_REFRESH_DELAY_MIN_MS, ERROR_REFRESH_DELAY_MAX_MS));
-    const sent = refreshed || await sendContinue("error recovery");
-    if (sent) state.lastErrorSignature = signature;
-  }
-
-  function githubCardCandidates() {
-    const buttons = Array.from(document.querySelectorAll("button")).filter(visible);
-    const cards = new Set();
-
-    for (const button of buttons) {
-      let node = button.parentElement;
-      for (let depth = 0; node && depth < 7; depth += 1, node = node.parentElement) {
-        const rect = node.getBoundingClientRect();
-        if (rect.width > MAX_CARD_WIDTH || rect.height > MAX_CARD_HEIGHT) continue;
-
-        const text = normalizedText(node);
-        const localButtons = Array.from(node.querySelectorAll("button")).filter(visible);
-        const hasGithubSignal = /github|repository|pull request|branch|commit|file|workspace|permissions?/i.test(text);
-        const hasApprovalPair = localButtons.length >= 2 && localButtons.some(looksNegative);
-        const hasAffirmativeSignal = localButtons.some((localButton) => looksAffirmative(localButton) && !looksDetails(localButton));
-
-        if (hasGithubSignal && hasApprovalPair && hasAffirmativeSignal) {
-          cards.add(node);
-          break;
-        }
-      }
-    }
-
-    return Array.from(cards).filter(visible);
-  }
-
-  function rightmostAffirmativeButton(card) {
-    const buttons = Array.from(card.querySelectorAll("button"))
-      .filter((button) => visible(button) && !isDisabled(button) && !looksRetry(button) && !looksDetails(button));
-
-    if (buttons.length < 2) return null;
-
-    const pairs = [];
-    for (const negativeButton of buttons.filter(looksNegative)) {
-      const negativeRect = negativeButton.getBoundingClientRect();
-      const rowButtons = buttons
-        .filter((button) => {
-          if (button === negativeButton || looksNegative(button) || !looksAffirmative(button)) return false;
-          const rect = button.getBoundingClientRect();
-          const sameRow = Math.abs(rect.top - negativeRect.top) <= 18 || Math.abs(rect.bottom - negativeRect.bottom) <= 18;
-          return sameRow && rect.left > negativeRect.right;
-        })
-        .sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
-
-      if (rowButtons[0]) pairs.push(rowButtons[0]);
-    }
-
-    return pairs.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left)[0] || null;
-  }
-
-  async function handleApprovalCards() {
-    if (!state.settings.enabled || !state.settings.approvals) return;
-    if (state.approvalInFlight) return;
-    if (now() - state.lastApprovalAt < APPROVAL_COOLDOWN_MS) return;
-    if (now() - state.pageLoadedAt < LOAD_GRACE_MS) return;
-    if (hasActiveGeneration()) return;
-
-    for (const card of githubCardCandidates()) {
-      const button = rightmostAffirmativeButton(card);
-      if (!button) continue;
-      if (state.clickedApprovals.has(button)) continue;
-
-      const signature = approvalSignature(card, button);
-      if (signature === state.lastApprovalSignature || state.clickedApprovalSignatures.has(signature)) continue;
-
-      state.approvalInFlight = true;
-      state.lastApprovalSignature = signature;
-      state.lastApprovalAt = now();
-      try {
-        await setLastAction(`Approval found: ${normalizedText(button) || "right button"}`);
-        await sleep(randomDelay());
-
-        if (!visible(button) || isDisabled(button) || looksNegative(button) || hasActiveGeneration()) return;
-
-        state.clickedApprovals.add(button);
-        state.clickedApprovalSignatures.add(signature);
-        button.click();
-        await incrementCounter("approvalsClicked");
-        await setLastAction(`Clicked approval: ${normalizedText(button) || "right button"}`);
-        return;
-      } finally {
-        state.approvalInFlight = false;
-      }
-    }
-  }
-
-  async function handleIdleContinue() {
-    if (!state.settings.enabled || (!state.settings.errorContinue && !state.settings.deepNudges)) return;
-    if (hasActiveGeneration()) {
-      state.lastActivityAt = now();
-      return;
-    }
-
-    const idleSince = Math.max(state.lastGenerationAt, state.lastContinueAt, state.lastDeepNudgeAt, state.lastApprovalAt, state.pageLoadedAt);
-    const deepIdleLongEnough = now() - idleSince > DEEP_NUDGE_AFTER_MS;
-    if (state.settings.deepNudges && deepIdleLongEnough) {
-      await sendDeepNudge("idle");
-      return;
-    }
-
-    const continueIdleLongEnough = now() - idleSince > IDLE_CONTINUE_AFTER_MS;
-    if (!state.settings.deepNudges && state.settings.errorContinue && continueIdleLongEnough) {
-      await sendContinue("idle");
-    }
-  }
-
-  async function scan() {
-    if (state.destroyed || !state.loaded || !isSupportedHost()) return;
-    await handleErrorState();
-    await handleApprovalCards();
-  }
-
-  function installObserver() {
-    if (state.destroyed) return;
-    state.observer = new MutationObserver(() => {
-      if (state.destroyed) return;
-      if (hasActiveGeneration()) state.lastActivityAt = now();
-      queueScan();
-    });
-    state.observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-    state.scanTimer = window.setInterval(scan, 5000);
-    state.idleTimer = window.setInterval(handleIdleContinue, 10000);
-    state.refreshTimer = window.setInterval(maybePeriodicRefresh, 15000);
-  }
-
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (state.destroyed) return false;
-    if (message?.type === "YOLO_GET_STATE") {
-      sendResponse({
-        settings: state.settings,
-        approvalsClicked: state.approvalsClicked,
-        continuesSent: state.continuesSent,
-        deepNudgesSent: state.deepNudgesSent,
-        lastAction: state.lastAction,
-        nextRefreshAt: state.nextScheduledRefreshAt
-      });
-      return true;
-    }
-
-    if (message?.type === "YOLO_SET_TAB_SETTINGS") {
-      writeTabSettings(message.settings || {}).then(() => {
-        if (state.destroyed) return;
-        sendResponse({ ok: true, settings: state.settings });
-        scan();
-      });
-      return true;
-    }
-
-    return false;
-  });
-
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (state.destroyed) return;
-    if (areaName !== "local") return;
-    if (changes[STORAGE_KEY]) {
-      state.settings = { ...state.settings, ...(changes[STORAGE_KEY].newValue || {}), ...readTabSettings() };
-    }
-    if (changes[PAGE_KEY]) {
-      const pageSettings = changes[PAGE_KEY].newValue?.[pageId()] || {};
-      state.settings = { ...state.settings, ...pageSettings, ...readTabSettings() };
-    }
-    if (changes[COUNTERS_KEY]) {
-      const counters = changes[COUNTERS_KEY].newValue || {};
-      state.approvalsClicked = counters.approvalsClicked || 0;
-      state.continuesSent = counters.continuesSent || 0;
-      state.deepNudgesSent = counters.deepNudgesSent || 0;
-    }
-  });
-
+  installMessages();
   loadSettings().then(() => {
     if (state.destroyed) return;
-    scheduleNextPeriodicRefresh();
-    installObserver();
-    scan();
-  }).catch(disableStaleContext);
+    installObservers();
+    runCycle();
+  }).catch((error) => {
+    if (!disableStaleContext(error)) setLastAction(`Startup failed: ${String(error?.message || error)}`, "error");
+  });
 })();

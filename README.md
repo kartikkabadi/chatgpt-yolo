@@ -1,32 +1,73 @@
 # YOLO
 
-YOLO is a personal-use Manifest V3 Chromium extension for `chatgpt.com` and `grok.com`.
+YOLO is a personal Chromium extension that keeps long-running ChatGPT and Grok conversations moving while giving you explicit control over timing, limits, and risk.
 
-It keeps ChatGPT and Grok sessions moving by:
+The original MVP proved the concept, but it coupled DOM detection, policy, timing, persistence, and UI into one hard-coded script. Version `0.5.0` turns it into a configurable automation engine instead of another pile of selectors and timers.
 
-- Auto-approving GitHub permission/action cards by clicking the right-side affirmative button.
-- Recovering from ChatGPT error states by refreshing first, then typing `Continue` if refresh is not safe.
-- Nudging normal ChatGPT chats after 30 seconds of idle time to review their last answer, go deeper, inspect gaps, and keep working without repeating themselves. Deep nudges use a short cooldown so follow-up nudges can happen after later stops.
-- Periodically refreshing enabled idle tabs every 3-5 minutes so heavyweight conversations can recover from stale React/error states.
-- Waiting 40 seconds after page load before approval or refresh automation starts, which gives large conversations time to settle.
-- Keeping settings per conversation URL, which makes split-view sessions safer.
-- Self-injecting from the popup when possible, so an extension reload does not always require a manual page refresh.
+## What it can do
 
-## Load Unpacked
+- Approve supported GitHub action and permission cards in ChatGPT.
+- Recover failed conversations with configurable Continue/refresh strategies.
+- Send a custom deep-work nudge after a conversation becomes idle.
+- Refresh genuinely idle, stale conversations on a bounded schedule.
+- Run Continue, nudge, or refresh manually from the popup.
+- Keep settings isolated per conversation while reusing your latest defaults for new conversations.
 
-1. Open `chrome://extensions` or `helium://extensions`.
-2. Enable Developer mode.
-3. Click Load unpacked.
-4. Select this folder: `/Users/user/Documents/Projects/chatgpt-github-continue`.
-5. Open or refresh a `https://chatgpt.com/` or `https://grok.com/` tab, then use the YOLO popup.
+## Controls and guardrails
 
-## MVP Test Plan
+Every automatic action has user-configurable delays, cooldowns, and rolling hourly limits. YOLO also has a total per-session action cap and pauses input actions whenever the composer contains a draft.
 
-- Test two ChatGPT/Grok tabs side by side and confirm YOLO mode is independent per tab.
-- Confirm GitHub approval cards click only the right affirmative button.
-- Confirm left negative buttons such as Deny, Reject, or Cancel are never clicked.
-- Confirm red error or Retry states send `Continue` through the input box and do not click Retry.
-- Confirm red error or Retry states prefer a slow refresh and reveal pending approval cards when ChatGPT reloads.
-- Confirm Grok idle chats can receive Deep nudges and do not fire while Grok is generating.
-- Confirm Deep nudges only send after an idle period and do not fire while ChatGPT is generating.
-- Confirm active generation is not interrupted.
+GitHub approvals have three policies:
+
+- **Safe:** permission-style actions such as Allow, Approve, Run, or Confirm.
+- **Writes:** safe actions plus Create, Update, Commit, Push, and similar repository writes.
+- **All:** includes destructive actions such as Merge, Delete, Remove, Close, Force, Reset, or Revert.
+
+`Safe` is the default. Destructive approvals are never silently enabled during migration.
+
+## Architecture
+
+- `config.js` owns defaults, validation, migration, URL scoping, and rate-limit primitives.
+- `platforms.js` isolates ChatGPT/Grok DOM adapters and approval classification.
+- `content.js` runs the state machine, action limits, persistence, route changes, and automation.
+- `popup.html`, `popup.js`, and `styles.css` provide the control surface.
+- `tests/` covers pure configuration and limiting behavior with Node's built-in test runner.
+
+The extension deliberately has no build step and no runtime dependencies. Chromium loads the source files directly.
+
+## Install locally
+
+1. Clone or download this repository.
+2. Open `chrome://extensions` (or your Chromium browser's extension page).
+3. Enable Developer mode.
+4. Select **Load unpacked** and choose the repository folder.
+5. Open or refresh a ChatGPT or Grok conversation.
+6. Open the YOLO popup and configure that conversation.
+
+After pulling a new version, reload the extension from the extensions page and refresh any already-open chat tabs.
+
+## Validate changes
+
+Requires Node.js 20 or newer.
+
+```bash
+npm run validate
+```
+
+This performs syntax checks for every JavaScript entry point and runs the test suite.
+
+## Manual acceptance checklist
+
+- Settings persist independently across two different conversation URLs.
+- Existing v0.4 boolean settings migrate to the new controls.
+- Automatic actions never overwrite non-empty composer text.
+- Safe approval mode does not click Merge, Delete, Remove, Close, Reset, or Revert actions.
+- Hourly and session limits visibly block additional actions.
+- Deep nudges wait for generation to stop and for the configured idle interval.
+- Idle refresh never runs while generation is active or a draft is present.
+- SPA navigation to another conversation loads that conversation's settings.
+- ChatGPT approvals and ChatGPT/Grok prompt submission still work after an extension reload.
+
+## Next work
+
+The highest-value follow-ups are fixture-based DOM adapter tests, an options page for global presets, import/export, an event log, and a browser-driven smoke-test harness against saved ChatGPT/Grok DOM fixtures.
