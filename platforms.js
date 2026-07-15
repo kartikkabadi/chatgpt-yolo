@@ -8,8 +8,8 @@
   const NEGATIVE_RE = /\b(deny|decline|reject|cancel|stop|no|disallow|do not|don't|dismiss)\b/i;
   const DETAILS_RE = /\b(details?|learn more|view)\b/i;
   const SAFE_APPROVAL_RE = /\b(allow|approve|accept|continue|run|grant|authorize|confirm)\b/i;
-  const WRITE_APPROVAL_RE = /\b(create|update|edit|commit|push|open|apply|write)\b/i;
-  const DESTRUCTIVE_APPROVAL_RE = /\b(merge|delete|remove|close|force|overwrite|reset|revert|discard)\b/i;
+  const WRITE_APPROVAL_RE = /\b(create|update|edit|commit|push|open|apply|write|modify|change)\b/i;
+  const DESTRUCTIVE_APPROVAL_RE = /\b(merge|delete|remove|close|force|overwrite|reset|revert|discard|drop|destroy)\b/i;
   const GITHUB_CONTEXT_RE = /\b(github|repository|pull request|issue|branch|commit|workflow|workspace|permission|tool call)\b/i;
 
   const ADAPTERS = Object.freeze({
@@ -85,10 +85,16 @@
   }
 
   function visible(element) {
-    if (!element || typeof Element === "undefined" || !(element instanceof Element)) return false;
+    if (!element || element.nodeType !== 1 || typeof element.getBoundingClientRect !== "function") return false;
     const rect = element.getBoundingClientRect();
-    const style = globalThis.getComputedStyle(element);
-    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0";
+    const view = element.ownerDocument?.defaultView || globalThis;
+    const style = view.getComputedStyle?.(element);
+    if (!style) return rect.width > 0 && rect.height > 0;
+    return rect.width > 0
+      && rect.height > 0
+      && style.visibility !== "hidden"
+      && style.display !== "none"
+      && Number(style.opacity || 1) !== 0;
   }
 
   function normalizedText(element) {
@@ -115,20 +121,33 @@
       .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom)[0] || null;
   }
 
+  function sendSignal(button, form) {
+    if (!visible(button) || isDisabled(button)) return false;
+    const text = buttonText(button);
+    const testId = String(button.getAttribute?.("data-testid") || "");
+    const signal = /\b(send|submit)\b/i.test(text) || /send|submit/i.test(testId) || (form && button.type === "submit");
+    return signal && !NEGATIVE_RE.test(text);
+  }
+
+  function distanceBetween(element, target) {
+    const rect = element.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const x = (rect.left + rect.right) / 2 - (targetRect.left + targetRect.right) / 2;
+    const y = (rect.top + rect.bottom) / 2 - (targetRect.top + targetRect.bottom) / 2;
+    return Math.hypot(x, y);
+  }
+
   function findSendButton(adapter, composer, documentLike = document) {
     if (!adapter || !composer) return null;
     const form = composer.closest?.("form");
     const scoped = form ? Array.from(form.querySelectorAll("button")) : [];
-    const explicit = adapter.sendSelectors.flatMap((selector) => Array.from(documentLike.querySelectorAll(selector)));
-    const candidates = uniqueElements([...scoped, ...explicit]);
+    const scopedMatch = scoped.find((button) => sendSignal(button, form));
+    if (scopedMatch) return scopedMatch;
 
-    return candidates.find((button) => {
-      if (!visible(button) || isDisabled(button)) return false;
-      const text = buttonText(button);
-      const testId = String(button.getAttribute?.("data-testid") || "");
-      const signal = /\b(send|submit)\b/i.test(text) || /send|submit/i.test(testId) || (form && button.type === "submit");
-      return signal && !NEGATIVE_RE.test(text);
-    }) || null;
+    const explicit = uniqueElements(adapter.sendSelectors.flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    return explicit
+      .filter((button) => sendSignal(button, form))
+      .sort((a, b) => distanceBetween(a, composer) - distanceBetween(b, composer))[0] || null;
   }
 
   function isGenerating(adapter, documentLike = document) {
@@ -155,37 +174,48 @@
     }) || null;
   }
 
+  function isTextControl(element) {
+    const tag = String(element?.tagName || "").toUpperCase();
+    return tag === "TEXTAREA" || tag === "INPUT";
+  }
+
   function composerText(composer) {
     if (!composer) return "";
-    if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) return composer.value || "";
+    if (isTextControl(composer)) return composer.value || "";
     return normalizedText(composer);
   }
 
   function setNativeValue(input, value) {
-    const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-    const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+    const view = input.ownerDocument?.defaultView || globalThis;
+    const prototype = String(input.tagName || "").toUpperCase() === "TEXTAREA"
+      ? view.HTMLTextAreaElement?.prototype
+      : view.HTMLInputElement?.prototype;
+    const setter = prototype ? Object.getOwnPropertyDescriptor(prototype, "value")?.set : null;
     if (setter) setter.call(input, value);
     else input.value = value;
   }
 
   function setComposerValue(composer, value) {
     composer.focus();
-    if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
+    const ownerDocument = composer.ownerDocument || document;
+    const view = ownerDocument.defaultView || globalThis;
+
+    if (isTextControl(composer)) {
       setNativeValue(composer, value);
-      composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
-      composer.dispatchEvent(new Event("change", { bubbles: true }));
+      composer.dispatchEvent(new view.InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+      composer.dispatchEvent(new view.Event("change", { bubbles: true }));
       return;
     }
 
-    const selection = globalThis.getSelection?.();
-    const range = document.createRange();
+    const selection = view.getSelection?.();
+    const range = ownerDocument.createRange();
     range.selectNodeContents(composer);
     selection?.removeAllRanges();
     selection?.addRange(range);
 
-    if (document.execCommand) document.execCommand("insertText", false, value);
+    if (ownerDocument.execCommand) ownerDocument.execCommand("insertText", false, value);
     else composer.textContent = value;
-    composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+    composer.dispatchEvent(new view.InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
   }
 
   function submitComposer(adapter, composer, documentLike = document) {
@@ -195,18 +225,28 @@
       return true;
     }
 
+    const form = composer.closest?.("form");
+    if (form?.requestSubmit) {
+      form.requestSubmit();
+      return true;
+    }
+
+    const view = composer.ownerDocument?.defaultView || globalThis;
     const options = { key: "Enter", code: "Enter", bubbles: true, cancelable: true };
-    composer.dispatchEvent(new KeyboardEvent("keydown", options));
-    composer.dispatchEvent(new KeyboardEvent("keyup", options));
+    composer.dispatchEvent(new view.KeyboardEvent("keydown", options));
+    composer.dispatchEvent(new view.KeyboardEvent("keyup", options));
     return true;
   }
 
-  function approvalVerbAllowed(text, policy) {
-    if (NEGATIVE_RE.test(text) || DETAILS_RE.test(text)) return false;
-    if (SAFE_APPROVAL_RE.test(text)) return true;
-    if (policy === "writes" && WRITE_APPROVAL_RE.test(text)) return true;
-    if (policy === "all" && (WRITE_APPROVAL_RE.test(text) || DESTRUCTIVE_APPROVAL_RE.test(text))) return true;
-    return false;
+  function approvalVerbAllowed(text, policy, contextText = "") {
+    const button = String(text || "");
+    const context = String(contextText || "");
+    if (NEGATIVE_RE.test(button) || DETAILS_RE.test(button)) return false;
+
+    const riskText = `${button} ${context}`;
+    if (DESTRUCTIVE_APPROVAL_RE.test(riskText)) return policy === "all";
+    if (WRITE_APPROVAL_RE.test(riskText)) return policy === "writes" || policy === "all";
+    return SAFE_APPROVAL_RE.test(button);
   }
 
   function approvalSignature(card, button) {
@@ -233,7 +273,7 @@
 
         const localButtons = Array.from(node.querySelectorAll("button")).filter((candidate) => visible(candidate) && !isDisabled(candidate));
         const hasNegative = localButtons.some((candidate) => NEGATIVE_RE.test(buttonText(candidate)));
-        const hasAllowed = localButtons.some((candidate) => approvalVerbAllowed(buttonText(candidate), policy));
+        const hasAllowed = localButtons.some((candidate) => approvalVerbAllowed(buttonText(candidate), policy, text));
         if (hasNegative && hasAllowed) {
           cards.add(node);
           break;
@@ -242,6 +282,7 @@
     }
 
     return Array.from(cards).map((card) => {
+      const cardText = normalizedText(card);
       const buttons = Array.from(card.querySelectorAll("button")).filter((button) => visible(button) && !isDisabled(button));
       const candidates = [];
 
@@ -249,7 +290,7 @@
         const negativeRect = negative.getBoundingClientRect();
         const rowCandidates = buttons
           .filter((button) => {
-            if (button === negative || !approvalVerbAllowed(buttonText(button), policy)) return false;
+            if (button === negative || !approvalVerbAllowed(buttonText(button), policy, cardText)) return false;
             const rect = button.getBoundingClientRect();
             const sameRow = Math.abs(rect.top - negativeRect.top) <= 20 || Math.abs(rect.bottom - negativeRect.bottom) <= 20;
             return sameRow && rect.left > negativeRect.right;
@@ -277,6 +318,7 @@
     composerText,
     setComposerValue,
     submitComposer,
+    approvalVerbAllowed,
     findApprovalCards,
     approvalSignature
   });
