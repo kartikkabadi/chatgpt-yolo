@@ -145,7 +145,10 @@
     if (!activeTab?.id) return false;
     if (busy && !force) {
       window.clearTimeout(saveTimer);
-      saveTimer = window.setTimeout(() => saveSettings(), 150);
+      saveTimer = window.setTimeout(() => {
+        saveTimer = null;
+        saveSettings();
+      }, 150);
       return false;
     }
 
@@ -171,7 +174,10 @@
   function scheduleSave(event) {
     if (event?.target?.closest("summary")) event.stopPropagation();
     window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => saveSettings(), event?.type === "input" ? 350 : 0);
+    saveTimer = window.setTimeout(() => {
+      saveTimer = null;
+      saveSettings();
+    }, event?.type === "input" ? 350 : 0);
   }
 
   async function flushScheduledSave() {
@@ -183,7 +189,8 @@
 
   async function runAction(action) {
     if (!activeTab?.id || busy) return;
-    await flushScheduledSave();
+    const saved = await flushScheduledSave();
+    if (!saved) return;
     setBusy(true);
     els.saveStatus.textContent = `Running ${action}…`;
     try {
@@ -197,7 +204,8 @@
 
   async function resetRuntime() {
     if (!activeTab?.id || busy) return;
-    await flushScheduledSave();
+    const saved = await flushScheduledSave();
+    if (!saved) return;
     setBusy(true);
     try {
       const response = await sendMessageWithInject(activeTab.id, { type: "YOLO_RESET_RUNTIME" });
