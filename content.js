@@ -306,6 +306,7 @@
 
   async function sendPrompt({ action, prompt, label, reason, delayMinSec = 0, delayMaxSec = 0, automatic = true }) {
     if (state.actionInFlight || !state.platform) return false;
+    const actionPageId = state.pageId;
     if (automatic && !automationReady()) return false;
     if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
     if (!safeForInput()) return false;
@@ -325,7 +326,7 @@
     try {
       const delayMs = automatic ? randomMs(delayMinSec, delayMaxSec) : 150;
       if (delayMs > 0) await sleep(delayMs);
-      if (state.destroyed || !routeIsCurrent()) return false;
+      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
       updateGenerationState();
       if (!safeForInput()) return false;
 
@@ -334,7 +335,7 @@
 
       Platforms.setComposerValue(composer, prompt);
       await sleep(120);
-      if (state.destroyed || !routeIsCurrent()) return false;
+      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
       if (!Platforms.submitComposer(state.platform, composer)) return false;
 
       await recordAction(action);
@@ -375,6 +376,7 @@
 
   async function refreshPage(reason, automatic = true, action = "refresh") {
     if (state.actionInFlight || !state.platform || state.reloadScheduled) return false;
+    const actionPageId = state.pageId;
     if (automatic && !automationReady()) return false;
     if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
     if (updateGenerationState()) return false;
@@ -389,13 +391,20 @@
 
     state.actionInFlight = true;
     try {
-      if (!routeIsCurrent()) return false;
+      if (state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
       state.runtime.lastRefreshAt = now();
       scheduleNextRefresh(true);
       await recordAction(action, "refreshesTriggered");
       await setLastAction(`Refreshing (${reason})`);
       state.reloadScheduled = true;
-      window.setTimeout(() => location.reload(), automatic ? 500 : 150);
+      window.setTimeout(() => {
+        if (currentPageId() === actionPageId) location.reload();
+        else {
+          state.reloadScheduled = false;
+          state.actionInFlight = false;
+          queueCycle();
+        }
+      }, automatic ? 500 : 150);
       return true;
     } finally {
       if (!state.reloadScheduled) state.actionInFlight = false;
@@ -422,6 +431,7 @@
       return false;
     }
 
+    const errorPageId = state.pageId;
     state.runtime.lastErrorSignature = signature;
     state.runtime.lastErrorHandledAt = now();
     saveRuntime();
@@ -429,7 +439,7 @@
 
     const delayMs = randomMs(state.settings.errorDelayMinSec, state.settings.errorDelayMaxSec);
     if (delayMs > 0) await sleep(delayMs);
-    if (state.destroyed || !routeIsCurrent()) return false;
+    if (state.destroyed || state.pageId !== errorPageId || currentPageId() !== errorPageId) return false;
 
     const strategy = state.settings.errorRecoveryStrategy;
     let handled = false;
@@ -468,6 +478,7 @@
     const limit = checkActionLimit("approval");
     if (!limit.allowed) return false;
 
+    const approvalPageId = state.pageId;
     const candidates = Platforms.findApprovalCards(state.platform, state.settings.approvalPolicy);
     for (const candidate of candidates) {
       if (recentlyApproved(candidate.signature)) continue;
@@ -476,7 +487,7 @@
       try {
         await setLastAction(`Approval found: ${Platforms.buttonText(candidate.button) || "affirmative action"}`);
         await sleep(randomMs(state.settings.approvalDelayMinSec, state.settings.approvalDelayMaxSec));
-        if (state.destroyed || !routeIsCurrent()) return false;
+        if (state.destroyed || state.pageId !== approvalPageId || currentPageId() !== approvalPageId) return false;
         updateGenerationState();
         if (state.generationActive) return false;
 
