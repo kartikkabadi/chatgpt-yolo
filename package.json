@@ -11,8 +11,8 @@
   "homepage": "https://github.com/kartikkabadi/chatgpt-yolo#readme",
   "bugs": "https://github.com/kartikkabadi/chatgpt-yolo/issues",
   "scripts": {
-    "check": "node --check config.js && node --check queue.js && node --check commands.js && node --check background.js && node --check background-wrapper.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs",
-    "test": "node --test",
+    "check": "node --check config.js && node --check queue.js && node --check commands.js && node --check command-viability.js && node --check background.js && node --check background-wrapper.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check command-ui-routing.js && node --check command-injection-routing.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs",
+    "test": "node --test --test-reporter=dot",
     "package": "node scripts/package.mjs",
     "validate": "npm run check && npm test && node scripts/package.mjs --check"
   },
