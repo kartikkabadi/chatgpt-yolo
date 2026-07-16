@@ -96,7 +96,7 @@ Prompt shortcuts do not activate hidden model modes, grant tools, change the con
 | `/stop` | Stop and clear the active YOLO workflow after confirmation. |
 | `/settings`, `/help` | Open settings or the command palette. |
 
-`/compact`, `/queue`, and `/clear` are intentionally not public commands: `/compact` claimed a capability YOLO does not have, `/queue` duplicated `/status`, and `/clear` was ambiguous about what it removed. See [docs/COMMAND_VIABILITY.md](docs/COMMAND_VIABILITY.md).
+`/compact`, `/queue`, and `/clear` are intentionally not public commands: `/compact` claimed a capability YOLO does not have, `/queue` duplicated `/status`, and `/clear` was ambiguous about what it removed. See the [command viability contract](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/COMMAND_VIABILITY.md).
 
 ## Queue reliability
 
@@ -131,7 +131,7 @@ YOLO requests only:
 - `scripting` — restore the extension’s packaged content scripts in matching ChatGPT tabs after installation or update.
 - Host access to `https://chatgpt.com/*` and its subdomains — no other website is supported.
 
-YOLO does not request `activeTab`, `tabs`, broad web access, or access to browser history. See [PRIVACY.md](PRIVACY.md) and [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for the precise data and permission model.
+YOLO does not request `activeTab`, `tabs`, broad web access, or access to browser history. See [PRIVACY.md](PRIVACY.md) and the [permissions contract](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/PERMISSIONS.md) for the precise data and permission model.
 
 ## Development
 
@@ -146,20 +146,20 @@ npm run package
 
 `npm run package` creates a clean, allowlisted extension directory at `dist/yolo`. It packages only runtime files plus the README, MIT license, notice, and privacy policy; it excludes tests, repository metadata, review scripts, and contributor-only documentation.
 
-Architecture and invariants are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Contributions must preserve fail-closed delivery, conversation scoping, bounded automation, and the content-script order in `manifest.json`.
+Architecture and invariants are documented in the [architecture contract](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/ARCHITECTURE.md). Contributions must preserve fail-closed delivery, conversation scoping, bounded automation, and the content-script order in `manifest.json`.
 
 ## Release verification
 
 Every release must pass automated validation and a manual unpacked-extension smoke pass against the current live ChatGPT interface. ChatGPT does not expose a stable public DOM contract, so selector compatibility cannot be guaranteed by unit tests alone.
 
-See [docs/RELEASING.md](docs/RELEASING.md) and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+See the [release guide](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/RELEASING.md) and [troubleshooting guide](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/TROUBLESHOOTING.md).
 
 ## Contributing and security
 
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [SECURITY.md](SECURITY.md)
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- [SUPPORT.md](SUPPORT.md)
+- [Contributing](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/CONTRIBUTING.md)
+- [Security policy](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/SECURITY.md)
+- [Code of conduct](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/CODE_OF_CONDUCT.md)
+- [Support](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/SUPPORT.md)
 
 ## License
 
