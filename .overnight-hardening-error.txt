@@ -1,0 +1,7 @@
+Failed stage: patch
+Traceback (most recent call last):
+  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.overnight-hardening.py", line 867, in <module>
+    replace_once(
+  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.overnight-hardening.py", line 18, in replace_once
+    raise RuntimeError(f"Expected one match in {path}, found {count}: {old[:180]!r}")
+RuntimeError: Expected one match in tests/portability-integration.test.js, found 0: '  assert.equal(read("background-wrapper.js").trim(), \'"use strict";\n\nimportScripts("background.js", "portability.js", "data-background.js");\');'
