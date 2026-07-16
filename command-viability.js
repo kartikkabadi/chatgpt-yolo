@@ -87,13 +87,16 @@
 
   function decideWorkflowResponse(raw, responseText, options = {}) {
     const current = Base.normalizeWorkflow(raw, options.at);
-    const outcome = Base.evaluateResponse(responseText);
-    if (current.kind === "loop" && outcome === "missing") {
+    const text = String(responseText || "").trim();
+    const outcome = Base.evaluateResponse(text);
+    const ownershipMatches = Boolean(current.promptFingerprint)
+      && String(options.userFingerprint || "") === current.promptFingerprint;
+    if (current.status === "running" && current.awaitingResponse && ownershipMatches && text && outcome === "missing") {
       return {
         workflow: current,
         action: "paused",
-        reason: "Loop response omitted the required terminal control marker",
-        code: "command.loop.marker_missing"
+        reason: `${current.kind === "goal" ? "Goal" : "Loop"} response omitted the required terminal control marker`,
+        code: `command.${current.kind}.marker_missing`
       };
     }
     return Base.decideWorkflowResponse(current, responseText, options);
