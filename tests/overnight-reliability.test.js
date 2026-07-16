@@ -53,3 +53,51 @@ test("background supervision adds only the narrow alarms permission", () => {
   assert.equal(manifest.permissions.includes("tabs"), false);
   assert.equal(manifest.permissions.includes("activeTab"), false);
 });
+
+test("workflow ownership survives hidden-tab timer throttling", () => {
+  const background = read("background.js");
+  assert.match(background, /WORKFLOW_LEASE_MS = 2 \* 60 \* 1000/);
+  assert.match(background, /WORKFLOW_RENEW_WINDOW_MS = 30 \* 1000/);
+});
+
+test("the workflow queue can send its own pending prompt while awaiting responses still block input", () => {
+  const content = read("content.js");
+  const safeStart = content.indexOf("function safeForInput");
+  const safeEnd = content.indexOf("function updateGenerationState", safeStart);
+  const block = content.slice(safeStart, safeEnd);
+  assert.match(block, /workflow\.awaitingResponse/);
+  assert.doesNotMatch(block, /workflow\.pendingItemId/);
+});
+
+test("same-route hydration loss fails closed and long generation persistence is throttled", () => {
+  const content = read("content.js");
+  assert.match(content, /document\.readyState === "loading" \|\| !composerPresent/);
+  assert.match(content, /state\.hydrated = false/);
+  assert.match(content, /timestamp - state\.lastGenerationPersistAt >= 30_000/);
+});
+
+test("adaptive loops self-heal and the command UI has no independent position interval", () => {
+  const content = read("content.js");
+  const runtime = read("command-runtime.js");
+  const ui = read("command-ui.js");
+  assert.match(content, /finally \{\s*restartScanTimer\(\)/);
+  assert.match(content, /finally \{\s*restartRouteTimer\(\)/);
+  assert.match(runtime, /finally \{\s*schedulePoll\(\)/);
+  assert.doesNotMatch(ui, /setInterval\(position/);
+});
+
+test("tab discard protection is derived from durable settings and workflow state", () => {
+  const supervisor = read("tab-supervisor.js");
+  assert.match(supervisor, /async function readProtection/);
+  assert.match(supervisor, /Config\.workflowKey\(pageId\)/);
+  assert.match(supervisor, /Config\.mergeSettings/);
+  assert.doesNotMatch(supervisor, /health\.workflow\?\.status/);
+});
+
+test("the lifecycle release increments the content-script version", () => {
+  const manifest = JSON.parse(read("manifest.json"));
+  const pkg = JSON.parse(read("package.json"));
+  assert.equal(manifest.version, "1.1.0");
+  assert.equal(pkg.version, "1.1.0");
+  assert.match(read("config.js"), /const VERSION = "1\.1\.0"/);
+});

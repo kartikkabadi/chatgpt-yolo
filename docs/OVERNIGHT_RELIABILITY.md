@@ -7,9 +7,9 @@ YOLO is designed to survive many long-running ChatGPT conversations without trea
 - Visible tabs use the normal configured scan cadence.
 - Hidden tabs back off automation scans, route checks, workflow polling, and mutation-triggered work.
 - A page is not considered ready until the document is loaded, the composer exists, and the DOM has been quiet long enough to indicate hydration has settled.
-- Goal and Loop responses with a valid terminal marker require a short stability window. Responses without a marker are not declared malformed until five quiet minutes have passed.
+- Goal and Loop responses with a valid terminal marker require fifteen quiet seconds. Responses without a marker are not declared malformed until three quiet hours have passed, so long reasoning/tool turns are not mistaken for finished answers.
 - Scheduled idle refresh is blocked whenever a workflow is running, ChatGPT appears to be generating, the composer contains a draft, the page is not hydrated, or the DOM changed within the last minute.
-- A one-minute background alarm checks loaded ChatGPT tabs, restores missing packaged content scripts at a bounded rate, and updates the tab discard hint. It never activates or reloads a tab.
+- A one-minute background alarm checks loaded ChatGPT tabs, restores missing versioned packaged content scripts at a bounded rate, and updates the tab discard hint from durable settings/workflow state. It never activates or reloads a tab.
 
 ## Memory behavior
 

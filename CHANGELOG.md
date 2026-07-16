@@ -2,6 +2,14 @@
 
 All notable changes are documented here.
 
+## 1.1.0 - overnight reliability
+
+- Added adaptive visible/hidden/generating tab scheduling for large multi-tab ChatGPT sessions.
+- Added hydration and long-turn quiet-state guards before automation, response interpretation, or refresh.
+- Added an alarm-driven tab supervisor with bounded packaged-script restoration and optional active-workflow discard protection.
+- Added lifecycle recovery for page visibility, freeze/resume, extension updates, and same-route React rehydration.
+- Reduced extension CPU and storage churn across long-running hidden conversations.
+
 ## 1.0.0 - release candidate
 
 - Added a persistent, queue-backed slash-action palette with explicit workflow, prompt-shortcut, and YOLO-control categories.

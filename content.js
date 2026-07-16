@@ -58,6 +58,7 @@
     hydrationCandidateSince: 0,
     lastDomActivityAt: Date.now(),
     generationHoldUntil: 0,
+    lastGenerationPersistAt: 0,
     observer: null,
     scanTimer: null,
     routeTimer: null,
@@ -385,8 +386,14 @@
   }
 
   function probeHydration() {
-    if (state.hydrated) return true;
     const composerPresent = Boolean(Platforms.findComposer(state.platform));
+    if (document.readyState === "loading" || !composerPresent) {
+      state.hydrated = false;
+      state.hydratedAt = 0;
+      state.hydrationCandidateSince = 0;
+      return false;
+    }
+    if (state.hydrated) return true;
     const candidate = Lifecycle.hydrationCandidate({
       documentReadyState: document.readyState,
       composerPresent,
@@ -413,7 +420,7 @@
   function safeForInput() {
     if (!routeIsCurrent() || !Config.isDurablePageId(state.pageId) || !probeHydration()) return false;
     const workflow = workflowHealth();
-    if (workflow.awaitingResponse || workflow.pendingItemId) return false;
+    if (workflow.awaitingResponse) return false;
     if (state.generationActive || Platforms.isGenerating(state.platform) || now() < state.generationHoldUntil) return false;
     if (now() - state.lastDomActivityAt < 1_500) return false;
     if (composerHasText()) return false;
@@ -423,6 +430,7 @@
   function updateGenerationState() {
     const active = Platforms.isGenerating(state.platform);
     const timestamp = now();
+    const transitioned = state.generationActive !== active;
     if (state.runtime) {
       if (active) {
         state.runtime.lastGenerationAt = timestamp;
@@ -432,7 +440,10 @@
         state.runtime.lastGenerationAt = timestamp;
         state.generationHoldUntil = Math.max(state.generationHoldUntil, timestamp + 15_000);
       }
-      saveRuntime();
+      if (transitioned || (active && timestamp - state.lastGenerationPersistAt >= 30_000)) {
+        state.lastGenerationPersistAt = timestamp;
+        saveRuntime();
+      }
     }
     state.generationActive = active;
     return active;
@@ -928,8 +939,11 @@
       configuredSec: state.settings.scanIntervalSec
     });
     state.scanTimer = window.setTimeout(async () => {
-      await runCycle();
-      restartScanTimer();
+      try {
+        await runCycle();
+      } finally {
+        restartScanTimer();
+      }
     }, delay);
   }
 
@@ -937,8 +951,13 @@
     window.clearTimeout(state.routeTimer);
     if (state.destroyed || state.reloadScheduled) return;
     state.routeTimer = window.setTimeout(async () => {
-      await handleRouteChange();
-      restartRouteTimer();
+      try {
+        await handleRouteChange();
+      } catch (error) {
+        if (!disableStaleContext(error)) await setLastAction(`Route synchronization failed: ${String(error?.message || error)}`, "error", "route.sync_failed", true);
+      } finally {
+        restartRouteTimer();
+      }
     }, Lifecycle.routeDelay({ hidden: document.hidden }));
   }
 
@@ -958,6 +977,7 @@
       state.hydrationCandidateSince = 0;
       state.lastDomActivityAt = now();
       state.generationHoldUntil = 0;
+      state.lastGenerationPersistAt = 0;
       clearBlocked();
       state.generationActive = false;
       await loadSettings();

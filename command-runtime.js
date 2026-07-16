@@ -538,8 +538,13 @@
       generating: Boolean(apiState.generating)
     });
     state.pollTimer = window.setTimeout(async () => {
-      await tick();
-      schedulePoll();
+      try {
+        await tick();
+      } catch (error) {
+        await record(`Workflow poll failed: ${String(error?.message || error)}`, "error", "command.workflow.poll_failed").catch(() => {});
+      } finally {
+        schedulePoll();
+      }
     }, delay);
   }
 

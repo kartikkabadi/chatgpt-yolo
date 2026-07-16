@@ -14,8 +14,8 @@
   const HIDDEN_MUTATION_DEBOUNCE_MS = 1_500;
   const HIDDEN_GENERATING_MUTATION_DEBOUNCE_MS = 5_000;
   const HYDRATION_QUIET_MS = 1_500;
-  const MARKER_RESPONSE_STABLE_MS = 5_000;
-  const MISSING_MARKER_RESPONSE_STABLE_MS = 5 * 60 * 1_000;
+  const MARKER_RESPONSE_STABLE_MS = 15_000;
+  const MISSING_MARKER_RESPONSE_STABLE_MS = 3 * 60 * 60 * 1_000;
   const REFRESH_QUIET_MS = 60_000;
 
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;

@@ -430,7 +430,6 @@
     document.addEventListener("keydown", keydown, true);
     window.addEventListener("resize", position);
     window.addEventListener("scroll", position, true);
-    const positionTimer = window.setInterval(position, 1000);
     renderList();
     position();
 
@@ -440,7 +439,6 @@
       document.removeEventListener("keydown", keydown, true);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
-      window.clearInterval(positionTimer);
       host.remove();
     }
 

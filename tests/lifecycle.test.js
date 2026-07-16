@@ -19,9 +19,9 @@ test("hydration waits for a real composer and a quiet DOM", () => {
 });
 
 test("missing workflow markers require a long quiet window", () => {
-  assert.equal(Lifecycle.responseStableMs("continue"), 5000);
-  assert.equal(Lifecycle.responseStableMs("done"), 5000);
-  assert.equal(Lifecycle.responseStableMs("missing"), 5 * 60 * 1000);
+  assert.equal(Lifecycle.responseStableMs("continue"), 15000);
+  assert.equal(Lifecycle.responseStableMs("done"), 15000);
+  assert.equal(Lifecycle.responseStableMs("missing"), 3 * 60 * 60 * 1000);
 });
 
 test("scheduled refresh fails closed around work and recent activity", () => {

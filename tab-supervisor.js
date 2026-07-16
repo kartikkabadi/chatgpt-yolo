@@ -27,6 +27,10 @@
     chrome.tabs.get(tabId, (tab) => resolve(chrome.runtime.lastError ? null : tab || null));
   });
 
+  const storageGet = (keys) => new Promise((resolve) => {
+    chrome.storage.local.get(keys, (items) => resolve(chrome.runtime.lastError ? {} : items || {}));
+  });
+
   const tabsUpdate = (tabId, updateProperties) => new Promise((resolve) => {
     chrome.tabs.update(tabId, updateProperties, (tab) => resolve(chrome.runtime.lastError ? null : tab || null));
   });
@@ -57,8 +61,31 @@
       && tab.status !== "loading");
   }
 
+  async function readProtection(tab) {
+    const pageId = Config.pageId(tab.url || tab.pendingUrl || "");
+    if (!Config.isDurablePageId(pageId)) return false;
+    const pageKey = Config.pageSettingsKey(pageId);
+    const workflowKey = Config.workflowKey(pageId);
+    const stored = await storageGet([Config.STORAGE_KEYS.global, Config.STORAGE_KEYS.pages, pageKey, workflowKey]);
+    const settings = Config.mergeSettings(
+      Config.DEFAULT_SETTINGS,
+      stored[Config.STORAGE_KEYS.global] || {},
+      stored[pageKey] || stored[Config.STORAGE_KEYS.pages]?.[pageId] || {}
+    );
+    return Lifecycle.shouldProtectTab({
+      enabled: settings.protectActiveWorkflowTabs,
+      workflowStatus: stored[workflowKey]?.status
+    });
+  }
+
   async function inspect(tab, { allowInjection = true } = {}) {
     if (!canInspect(tab)) return { inspected: false, injected: false };
+    const protect = await readProtection(tab);
+    const desiredAutoDiscardable = !protect;
+    if (tab.autoDiscardable !== desiredAutoDiscardable) {
+      await tabsUpdate(tab.id, { autoDiscardable: desiredAutoDiscardable });
+    }
+
     let health = await sendHealth(tab.id);
     let injected = false;
 
@@ -74,16 +101,7 @@
       }
     }
 
-    if (!health?.ok) return { inspected: true, injected };
-    const protect = Lifecycle.shouldProtectTab({
-      enabled: health.settings?.protectActiveWorkflowTabs,
-      workflowStatus: health.workflow?.status
-    });
-    const desiredAutoDiscardable = !protect;
-    if (tab.autoDiscardable !== desiredAutoDiscardable) {
-      await tabsUpdate(tab.id, { autoDiscardable: desiredAutoDiscardable });
-    }
-    return { inspected: true, injected };
+    return { inspected: true, injected, healthy: Boolean(health?.ok) };
   }
 
   async function sweep() {
