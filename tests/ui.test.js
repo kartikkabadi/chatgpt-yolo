@@ -102,10 +102,12 @@ test("command palette supports slash and Codex-style command shortcuts", () => {
 
 test("command workflows reuse the reliable queue and fail closed", () => {
   const runtime = read("command-runtime.js");
+  const commands = read("commands.js");
   assert.match(runtime, /type: "YOLO_QUEUE_ADD"/);
   assert.match(runtime, /runAction\("queue-next"\)/);
-  assert.match(runtime, /Goal response omitted the required terminal control marker/);
-  assert.match(runtime, /Reached the \$\{workflow\.maxIterations\}-iteration safety cap/);
+  assert.match(runtime, /Commands\.decideWorkflowResponse/);
+  assert.match(commands, /Goal response omitted the required terminal control marker/);
+  assert.match(commands, /Reached the \$\{workflow\.maxIterations\}-iteration safety cap/);
 });
 
 test("content exposes only a narrow lifecycle-safe command API", () => {
@@ -120,8 +122,8 @@ test("command workflow runtime enforces ownership, CAS, and a single runner", ()
   const runtime = read("command-runtime.js");
   assert.match(runtime, /expectedRevision: normalized\.revision/);
   assert.match(runtime, /YOLO_WORKFLOW_CLAIM/);
-  assert.match(runtime, /latestUserFingerprint\(\) !== workflow\.promptFingerprint/);
-  assert.match(runtime, /lastCompletedItemId === workflow\.pendingItemId/);
+  assert.match(runtime, /Commands\.decideWorkflowResponse/);
+  assert.match(runtime, /queue\.state\.completions\.some/);
   assert.doesNotMatch(runtime, /lastSentAt >= workflow\.lastPromptAt/);
 });
 
