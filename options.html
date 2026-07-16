@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YOLO Advanced Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <div>
+          <div class="eyebrow">YOLO CONTROL CENTER</div>
+          <h1>Advanced settings</h1>
+          <p id="scope">Loading conversation…</p>
+        </div>
+        <div class="header-actions">
+          <span id="saveStatus" role="status">Loading…</span>
+          <button id="resetDefaults" type="button">Reset defaults</button>
+        </div>
+      </header>
+
+      <section class="summary-card">
+        <label>
+          <span><strong>Profile</strong><small>Presets provide a safe starting point; editing any field switches to Custom.</small></span>
+          <select data-setting="profile" data-kind="string" id="profile">
+            <option value="safe">Safe</option>
+            <option value="balanced">Balanced</option>
+            <option value="fast">Fast</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label>
+          <span><strong>Run automation</strong><small>Master switch for the selected conversation.</small></span>
+          <input data-setting="enabled" data-kind="boolean" type="checkbox" role="switch">
+        </label>
+      </section>
+
+      <nav class="section-nav" aria-label="Settings sections">
+        <a href="#queue">Queue</a><a href="#approvals">Approvals</a><a href="#recovery">Recovery</a>
+        <a href="#nudges">Nudges</a><a href="#refresh">Refresh</a><a href="#safety">Safety</a><a href="#templates">Templates</a>
+      </nav>
+
+      <section id="queue" class="settings-card">
+        <div class="section-title"><div><h2>Queue</h2><p>Control automatic queued-message delivery, retries, and failure handling.</p></div><input data-setting="queueAutoRunEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable queue auto-run"></div>
+        <div class="fields">
+          <label><span>Interval minimum</span><div><input data-setting="queueIntervalMinSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label><span>Interval maximum</span><div><input data-setting="queueIntervalMaxSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label><span>Idle before send</span><div><input data-setting="queueIdleSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label><span>Hourly limit</span><div><input data-setting="queueLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>messages</em></div></label>
+          <label><span>Automatic retries</span><div><input data-setting="queueMaxRetries" data-kind="number" type="number" min="0" step="1"><em>retries</em></div></label>
+          <label><span>Retry backoff</span><div><input data-setting="queueRetryBackoffSec" data-kind="number" type="number" min="1" step="1"><em>sec</em></div></label>
+          <label class="check full"><span><strong>Pause after final failure</strong><small>Stop the queue instead of continuing past a failed message.</small></span><input data-setting="queuePauseOnFailure" data-kind="boolean" type="checkbox" role="switch"></label>
+        </div>
+      </section>
+
+      <section id="approvals" class="settings-card">
+        <div class="section-title"><div><h2>GitHub approvals</h2><p>Define what permission and action cards may be clicked.</p></div><input data-setting="approvalsEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable approvals"></div>
+        <div class="fields">
+          <label class="full"><span>Approval policy</span><select data-setting="approvalPolicy" data-kind="string"><option value="safe">Safe permissions only</option><option value="writes">Include repository writes</option><option value="all">Include destructive actions</option></select></label>
+          <label><span>Delay minimum</span><div><input data-setting="approvalDelayMinSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label><span>Delay maximum</span><div><input data-setting="approvalDelayMaxSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label><span>Cooldown</span><div><input data-setting="approvalCooldownSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label><span>Hourly limit</span><div><input data-setting="approvalLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+        </div>
+      </section>
+
+      <section id="recovery" class="settings-card">
+        <div class="section-title"><div><h2>Error recovery</h2><p>Choose how failed conversations recover.</p></div><input data-setting="errorRecoveryEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable recovery"></div>
+        <div class="fields">
+          <label class="full"><span>Strategy</span><select data-setting="errorRecoveryStrategy" data-kind="string"><option value="continue-first">Continue, then refresh</option><option value="refresh-first">Refresh, then Continue</option><option value="continue-only">Continue only</option><option value="refresh-only">Refresh only</option></select></label>
+          <label><span>Delay minimum</span><div><input data-setting="errorDelayMinSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label><span>Delay maximum</span><div><input data-setting="errorDelayMaxSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label>
+          <label><span>Cooldown</span><div><input data-setting="errorCooldownSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label><span>Hourly limit</span><div><input data-setting="errorLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+        </div>
+      </section>
+
+      <section id="nudges" class="settings-card">
+        <div class="section-title"><div><h2>Deep nudges</h2><p>Prompt the model to continue useful work after it becomes idle.</p></div><input data-setting="deepNudgesEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable nudges"></div>
+        <div class="fields">
+          <label><span>Idle before nudge</span><div><input data-setting="deepNudgeIdleSec" data-kind="number" type="number" min="5" step="5"><em>sec</em></div></label>
+          <label><span>Cooldown</span><div><input data-setting="deepNudgeCooldownSec" data-kind="number" type="number" min="5" step="5"><em>sec</em></div></label>
+          <label><span>Hourly limit</span><div><input data-setting="deepNudgeLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+          <label class="full"><span>Nudge prompt</span><textarea data-setting="deepNudgePrompt" data-kind="string" rows="5" maxlength="4000"></textarea></label>
+        </div>
+      </section>
+
+      <section id="refresh" class="settings-card">
+        <div class="section-title"><div><h2>Idle refresh</h2><p>Recover stale, heavy conversations without interrupting active work.</p></div><input data-setting="autoRefreshEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable refresh"></div>
+        <div class="fields">
+          <label><span>Required idle</span><div><input data-setting="refreshIdleMin" data-kind="number" type="number" min="0" step="0.5"><em>min</em></div></label>
+          <label><span>Cooldown</span><div><input data-setting="refreshCooldownMin" data-kind="number" type="number" min="0" step="0.5"><em>min</em></div></label>
+          <label><span>Interval minimum</span><div><input data-setting="refreshIntervalMinMin" data-kind="number" type="number" min="0.25" step="0.25"><em>min</em></div></label>
+          <label><span>Interval maximum</span><div><input data-setting="refreshIntervalMaxMin" data-kind="number" type="number" min="0.25" step="0.25"><em>min</em></div></label>
+          <label><span>Hourly limit</span><div><input data-setting="refreshLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>refreshes</em></div></label>
+        </div>
+      </section>
+
+      <section id="safety" class="settings-card">
+        <div class="section-title"><div><h2>Safety and engine</h2><p>Global guardrails for this conversation.</p></div></div>
+        <div class="fields">
+          <label><span>Load grace</span><div><input data-setting="loadGraceSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+          <label><span>Scan interval</span><div><input data-setting="scanIntervalSec" data-kind="number" type="number" min="1" step="1"><em>sec</em></div></label>
+          <label><span>Session action limit</span><div><input data-setting="maxActionsPerSession" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+          <label class="check full"><span><strong>Pause when composer has text</strong><small>Never overwrite a draft you are typing.</small></span><input data-setting="pauseOnComposerText" data-kind="boolean" type="checkbox" role="switch"></label>
+          <button id="resetRuntime" class="secondary full" type="button">Reset session limits and history</button>
+        </div>
+      </section>
+
+      <section id="templates" class="settings-card">
+        <div class="section-title"><div><h2>Templates</h2><p>Reusable queue messages. Supports <code>{{date}}</code>, <code>{{time}}</code>, <code>{{platform}}</code>, and <code>{{conversation}}</code>.</p></div><button id="resetTemplates" type="button">Restore defaults</button></div>
+        <div class="template-editor">
+          <input id="templateName" type="text" maxlength="80" placeholder="Template name">
+          <textarea id="templateText" rows="5" maxlength="8000" placeholder="Template message"></textarea>
+          <div><button id="saveTemplate" class="primary" type="button">Add template</button><button id="cancelTemplate" type="button" hidden>Cancel edit</button></div>
+          <p id="templateStatus" role="status"></p>
+        </div>
+        <ol id="templateList" class="template-list"></ol>
+      </section>
+    </main>
+    <script src="config.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

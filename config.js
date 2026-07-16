@@ -5,14 +5,16 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, () => {
   "use strict";
 
-  const VERSION = "0.5.0";
+  const VERSION = "0.6.0";
   const HOUR_MS = 60 * 60 * 1000;
   const STORAGE_KEYS = Object.freeze({
     global: "yoloGlobal",
     pages: "yoloPageSettings",
     counters: "yoloCounters",
     lastAction: "yoloLastAction",
-    runtime: "yoloRuntimeV1"
+    runtime: "yoloRuntimeV1",
+    queues: "yoloQueuesV1",
+    templates: "yoloTemplatesV1"
   });
 
   const DEEP_NUDGE_PROMPT = [
@@ -21,8 +23,45 @@
     "Critically inspect your assumptions, look for gaps or edge cases, and continue the work toward my original goal with concrete next steps."
   ].join(" ");
 
+  const DEFAULT_TEMPLATES = Object.freeze([
+    Object.freeze({
+      id: "continue-deeper",
+      name: "Continue deeper",
+      text: DEEP_NUDGE_PROMPT,
+      builtIn: true
+    }),
+    Object.freeze({
+      id: "review-fix",
+      name: "Review and fix",
+      text: "Review the work completed so far from first principles. Find concrete defects, weak assumptions, missing edge cases, and unfinished parts. Fix what you can, validate the result, and continue toward the original goal without repeating prior commentary.",
+      builtIn: true
+    }),
+    Object.freeze({
+      id: "finish-task",
+      name: "Finish the task",
+      text: "Continue from the current state and finish the original task completely. Do not stop at a plan or partial result. Validate the final result and clearly surface any blocker that genuinely cannot be resolved.",
+      builtIn: true
+    }),
+    Object.freeze({
+      id: "progress-summary",
+      name: "Progress summary",
+      text: "Summarize the current state of the work: what is complete, what remains, the most important risks, and the exact next actions. Keep it concise and grounded in the actual work completed.",
+      builtIn: true
+    })
+  ]);
+
   const DEFAULT_SETTINGS = Object.freeze({
     enabled: false,
+    profile: "balanced",
+
+    queueAutoRunEnabled: true,
+    queueIntervalMinSec: 20,
+    queueIntervalMaxSec: 45,
+    queueIdleSec: 5,
+    queueLimitPerHour: 30,
+    queueMaxRetries: 2,
+    queueRetryBackoffSec: 30,
+    queuePauseOnFailure: true,
 
     approvalsEnabled: true,
     approvalPolicy: "safe",
@@ -51,14 +90,80 @@
     refreshCooldownMin: 5,
     refreshLimitPerHour: 2,
 
-    loadGraceSec: 15,
-    scanIntervalSec: 5,
-    maxActionsPerSession: 30,
+    loadGraceSec: 10,
+    scanIntervalSec: 3,
+    maxActionsPerSession: 100,
     pauseOnComposerText: true
+  });
+
+  const PRESETS = Object.freeze({
+    safe: Object.freeze({
+      profile: "safe",
+      queueAutoRunEnabled: true,
+      queueIntervalMinSec: 45,
+      queueIntervalMaxSec: 90,
+      queueIdleSec: 10,
+      queueLimitPerHour: 12,
+      queueMaxRetries: 1,
+      queuePauseOnFailure: true,
+      approvalsEnabled: true,
+      approvalPolicy: "safe",
+      errorRecoveryEnabled: true,
+      errorRecoveryStrategy: "continue-first",
+      deepNudgesEnabled: false,
+      autoRefreshEnabled: false,
+      maxActionsPerSession: 50
+    }),
+    balanced: Object.freeze({
+      profile: "balanced",
+      queueAutoRunEnabled: true,
+      queueIntervalMinSec: 20,
+      queueIntervalMaxSec: 45,
+      queueIdleSec: 5,
+      queueLimitPerHour: 30,
+      queueMaxRetries: 2,
+      queuePauseOnFailure: true,
+      approvalsEnabled: true,
+      approvalPolicy: "safe",
+      errorRecoveryEnabled: true,
+      errorRecoveryStrategy: "continue-first",
+      deepNudgesEnabled: false,
+      autoRefreshEnabled: false,
+      maxActionsPerSession: 100
+    }),
+    fast: Object.freeze({
+      profile: "fast",
+      queueAutoRunEnabled: true,
+      queueIntervalMinSec: 8,
+      queueIntervalMaxSec: 15,
+      queueIdleSec: 3,
+      queueLimitPerHour: 60,
+      queueMaxRetries: 2,
+      queuePauseOnFailure: true,
+      approvalsEnabled: true,
+      approvalPolicy: "safe",
+      errorRecoveryEnabled: true,
+      errorRecoveryStrategy: "continue-first",
+      deepNudgesEnabled: true,
+      deepNudgeIdleSec: 120,
+      deepNudgeCooldownSec: 300,
+      autoRefreshEnabled: false,
+      maxActionsPerSession: 200
+    })
   });
 
   const SCHEMA = Object.freeze({
     enabled: { type: "boolean" },
+    profile: { type: "enum", values: ["safe", "balanced", "fast", "custom"] },
+
+    queueAutoRunEnabled: { type: "boolean" },
+    queueIntervalMinSec: { type: "number", min: 0, max: 86400, integer: false },
+    queueIntervalMaxSec: { type: "number", min: 0, max: 86400, integer: false },
+    queueIdleSec: { type: "number", min: 0, max: 3600, integer: false },
+    queueLimitPerHour: { type: "number", min: 0, max: 1000, integer: true },
+    queueMaxRetries: { type: "number", min: 0, max: 20, integer: true },
+    queueRetryBackoffSec: { type: "number", min: 1, max: 86400, integer: false },
+    queuePauseOnFailure: { type: "boolean" },
 
     approvalsEnabled: { type: "boolean" },
     approvalPolicy: { type: "enum", values: ["safe", "writes", "all"] },
@@ -144,6 +249,7 @@
       normalized[key] = normalizeField(key, migrated[key] ?? DEFAULT_SETTINGS[key]);
     }
 
+    normalized.queueIntervalMaxSec = Math.max(normalized.queueIntervalMinSec, normalized.queueIntervalMaxSec);
     normalized.approvalDelayMaxSec = Math.max(normalized.approvalDelayMinSec, normalized.approvalDelayMaxSec);
     normalized.errorDelayMaxSec = Math.max(normalized.errorDelayMinSec, normalized.errorDelayMaxSec);
     normalized.refreshIntervalMaxMin = Math.max(normalized.refreshIntervalMinMin, normalized.refreshIntervalMaxMin);
@@ -158,6 +264,20 @@
     const normalized = normalizeSettings(settings);
     const { enabled: _enabled, ...globalDefaults } = normalized;
     return globalDefaults;
+  }
+
+  function applyPreset(settings, presetName) {
+    const preset = PRESETS[presetName];
+    if (!preset) return normalizeSettings({ ...settings, profile: "custom" });
+    return normalizeSettings({ ...settings, ...preset });
+  }
+
+  function pageSettingsKey(id) {
+    return `yoloPage:${encodeURIComponent(String(id || ""))}`;
+  }
+
+  function lastActionKey(id) {
+    return `yoloLastAction:${encodeURIComponent(String(id || ""))}`;
   }
 
   function pageId(url) {
@@ -175,7 +295,7 @@
   function isSupportedUrl(url) {
     try {
       const host = new URL(url).hostname.toLowerCase();
-      return host === "chatgpt.com" || host.endsWith(".chatgpt.com") || host === "grok.com" || host.endsWith(".grok.com");
+      return host === "chatgpt.com" || host.endsWith(".chatgpt.com");
     } catch {
       return false;
     }
@@ -195,17 +315,18 @@
   function limitStatus(history, perHourLimit, sessionActionCount, sessionLimit, at = Date.now()) {
     const recent = pruneHistory(history, at);
     if (sessionLimit > 0 && sessionActionCount >= sessionLimit) {
-      return { allowed: false, reason: "Session action limit reached", recent, nextAllowedAt: null };
+      return { allowed: false, reason: "Session action limit reached", code: "limit.session", recent, nextAllowedAt: null };
     }
     if (perHourLimit > 0 && recent.length >= perHourLimit) {
       return {
         allowed: false,
         reason: "Hourly action limit reached",
+        code: "limit.hourly",
         recent,
         nextAllowedAt: recent[0] + HOUR_MS
       };
     }
-    return { allowed: true, reason: "", recent, nextAllowedAt: null };
+    return { allowed: true, reason: "", code: "", recent, nextAllowedAt: null };
   }
 
   function formatDuration(ms) {
@@ -218,22 +339,39 @@
     return `${hours}h`;
   }
 
+  function renderTemplate(text, context = {}) {
+    const date = context.date || new Date();
+    const values = {
+      date: date.toLocaleDateString(),
+      time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      platform: context.platform || "chat",
+      conversation: context.conversation || "current conversation"
+    };
+    return String(text || "").replace(/\{\{\s*(date|time|platform|conversation)\s*\}\}/gi, (_match, key) => values[key.toLowerCase()]);
+  }
+
   return Object.freeze({
     VERSION,
     HOUR_MS,
     STORAGE_KEYS,
     DEFAULT_SETTINGS,
+    DEFAULT_TEMPLATES,
+    PRESETS,
     SCHEMA,
     DEEP_NUDGE_PROMPT,
     migrateLegacySettings,
     normalizeSettings,
     mergeSettings,
     globalDefaultsFromSettings,
+    applyPreset,
+    pageSettingsKey,
+    lastActionKey,
     pageId,
     isSupportedUrl,
     randomBetween,
     pruneHistory,
     limitStatus,
-    formatDuration
+    formatDuration,
+    renderTemplate
   });
 });

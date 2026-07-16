@@ -42,45 +42,12 @@
         ".border-red-500",
         ".border-red-600"
       ]
-    }),
-    grok: Object.freeze({
-      id: "grok",
-      label: "Grok",
-      supportsApprovals: false,
-      composerSelectors: [
-        "textarea[placeholder*='Ask' i]",
-        "textarea[placeholder*='Message' i]",
-        "textarea[aria-label*='Ask' i]",
-        "textarea[aria-label*='Message' i]",
-        "form textarea",
-        "form div[contenteditable='true'][role='textbox']",
-        "div[contenteditable='true'][aria-label*='Ask' i]",
-        "div[contenteditable='true'][aria-label*='Message' i]"
-      ],
-      sendSelectors: [
-        "button[data-testid*='send' i]",
-        "button[aria-label*='Send' i]",
-        "button[aria-label*='Submit' i]",
-        "button[title*='Send' i]",
-        "button[type='submit']"
-      ],
-      generationSelectors: [
-        "button[aria-label*='Stop' i]",
-        "button[title*='Stop' i]",
-        "button[data-testid*='stop' i]"
-      ],
-      errorSelectors: [
-        "[role='alert']",
-        "[data-testid*='error' i]",
-        "[class*='error' i]"
-      ]
     })
   });
 
   function adapterForLocation(locationLike = globalThis.location) {
     const host = String(locationLike?.hostname || "").toLowerCase();
     if (host === "chatgpt.com" || host.endsWith(".chatgpt.com")) return ADAPTERS.chatgpt;
-    if (host === "grok.com" || host.endsWith(".grok.com")) return ADAPTERS.grok;
     return null;
   }
 
@@ -238,15 +205,31 @@
     return true;
   }
 
-  function approvalVerbAllowed(text, policy, contextText = "") {
+  function approvalRisk(text, contextText = "") {
     const button = String(text || "");
     const context = String(contextText || "");
-    if (NEGATIVE_RE.test(button) || DETAILS_RE.test(button)) return false;
-
+    if (NEGATIVE_RE.test(button) || DETAILS_RE.test(button)) return "blocked";
     const riskText = `${button} ${context}`;
-    if (DESTRUCTIVE_APPROVAL_RE.test(riskText)) return policy === "all";
-    if (WRITE_APPROVAL_RE.test(riskText)) return policy === "writes" || policy === "all";
-    return SAFE_APPROVAL_RE.test(button);
+    if (DESTRUCTIVE_APPROVAL_RE.test(riskText)) return "destructive";
+    if (WRITE_APPROVAL_RE.test(riskText)) return "write";
+    if (SAFE_APPROVAL_RE.test(button)) return "safe";
+    return "unknown";
+  }
+
+
+  function submissionObserved(adapter, documentLike = document) {
+    if (!adapter) return false;
+    if (isGenerating(adapter, documentLike)) return true;
+    const composer = findComposer(adapter, documentLike);
+    return Boolean(composer) && composerText(composer).trim() === "";
+  }
+
+  function approvalVerbAllowed(text, policy, contextText = "") {
+    const risk = approvalRisk(text, contextText);
+    if (risk === "safe") return true;
+    if (risk === "write") return policy === "writes" || policy === "all";
+    if (risk === "destructive") return policy === "all";
+    return false;
   }
 
   function approvalSignature(card, button) {
@@ -300,7 +283,12 @@
       }
 
       const approvalButton = candidates.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left)[0] || null;
-      return approvalButton ? { card, button: approvalButton, signature: approvalSignature(card, approvalButton) } : null;
+      return approvalButton ? {
+        card,
+        button: approvalButton,
+        signature: approvalSignature(card, approvalButton),
+        risk: approvalRisk(buttonText(approvalButton), cardText)
+      } : null;
     }).filter(Boolean);
   }
 
@@ -318,6 +306,8 @@
     composerText,
     setComposerValue,
     submitComposer,
+    submissionObserved,
+    approvalRisk,
     approvalVerbAllowed,
     findApprovalCards,
     approvalSignature
