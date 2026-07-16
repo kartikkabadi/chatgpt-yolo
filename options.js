@@ -83,7 +83,9 @@
   function setBusy(nextBusy) {
     busy = nextBusy;
     for (const control of controls) control.disabled = nextBusy || !contentState;
-    for (const button of document.querySelectorAll("button")) button.disabled = nextBusy;
+    for (const button of document.querySelectorAll("button:not([data-section-link]):not(#clearSearch)")) {
+      button.disabled = nextBusy;
+    }
     els.resetDefaults.disabled = nextBusy || !contentState;
     els.resetRuntime.disabled = nextBusy || !contentState;
   }
@@ -164,7 +166,7 @@
 
   function setTemplateStatus(message = "", error = false) {
     els.templateStatus.textContent = message;
-    els.templateStatus.style.color = error ? "var(--danger)" : "var(--muted)";
+    els.templateStatus.dataset.level = error ? "error" : "info";
   }
 
   function compact(text, max = 180) {
@@ -174,6 +176,13 @@
 
   function renderTemplates() {
     els.templateList.replaceChildren();
+    if (!templates.length) {
+      const empty = document.createElement("li");
+      empty.className = "template-empty";
+      empty.textContent = "No templates yet. Create one from the editor.";
+      els.templateList.append(empty);
+      return;
+    }
     for (const template of templates) {
       const li = document.createElement("li");
       const copy = document.createElement("div");

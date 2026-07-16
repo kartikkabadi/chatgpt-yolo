@@ -86,7 +86,8 @@ h1 { font-size: 25px; line-height: 1.15; letter-spacing: -.035em; }
 .save-state { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-soft); font-size: 11px; font-weight: 650; box-shadow: 0 1px 2px rgba(0,0,0,.025); }
 .save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-faint) 13%, transparent); }
 .save-state[data-state="saved"] .save-dot { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 13%, transparent); }
-.save-state[data-state="saving"] .save-dot { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 13%, transparent); }
+.save-state[data-state="saving"] .save-dot,
+.save-state[data-state="limited"] .save-dot { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 13%, transparent); }
 .save-state[data-state="error"] .save-dot { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 13%, transparent); }
 
 .settings-section { display: grid; gap: 12px; margin-bottom: 48px; scroll-margin-top: 112px; }
@@ -144,6 +145,7 @@ input[type="checkbox"]:checked::after { transform: translateX(17px); background:
 .template-editor input, .template-editor textarea { width: 100%; background: var(--surface); }
 .template-editor-actions { display: flex; gap: 7px; }
 #templateStatus { min-height: 18px; color: var(--text-faint); font-size: 11px; }
+#templateStatus[data-level="error"] { color: var(--danger); }
 .template-library { min-width: 0; }
 .library-heading { min-height: 55px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 15px; border-bottom: 1px solid var(--border); }
 .library-heading { font-size: 12px; }
@@ -151,6 +153,7 @@ input[type="checkbox"]:checked::after { transform: translateX(17px); background:
 .template-list { margin: 0; padding: 0; list-style: none; }
 .template-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; padding: 13px 15px; border-top: 1px solid var(--border); }
 .template-list li:first-child { border-top: 0; }
+.template-list .template-empty { display: block; padding: 28px 18px; color: var(--text-faint); text-align: center; font-size: 11px; }
 .template-copy { min-width: 0; display: grid; gap: 3px; }
 .template-copy strong { font-size: 12px; }
 .template-copy p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); font-size: 11px; }

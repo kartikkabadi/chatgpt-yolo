@@ -23,7 +23,8 @@
     const text = normalizeSearch(message);
     if (!text || text.includes("loading")) return "loading";
     if (text.includes("saving")) return "saving";
-    if (text.includes("could not") || text.includes("failed") || text.includes("unavailable") || text.includes("no conversation")) return "error";
+    if (text.includes("no conversation")) return "limited";
+    if (text.includes("could not") || text.includes("failed") || text.includes("unavailable")) return "error";
     return "saved";
   }
 

@@ -20,5 +20,5 @@ test("maps save messages to explicit visual states", () => {
   assert.equal(UI.saveStateFor("Saved"), "saved");
   assert.equal(UI.saveStateFor("Session history reset"), "saved");
   assert.equal(UI.saveStateFor("Could not save settings."), "error");
-  assert.equal(UI.saveStateFor("No conversation selected"), "error");
+  assert.equal(UI.saveStateFor("No conversation selected"), "limited");
 });

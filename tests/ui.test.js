@@ -139,3 +139,17 @@ test("settings navigation preserves scope and respects reduced motion", () => {
   assert.match(source, /win\.location\?\.search/);
   assert.match(source, /behavior: reducedMotion \? "auto" : "smooth"/);
 });
+
+test("template feedback and empty state remain explicit", () => {
+  const source = read("options.js");
+  const css = read("options.css");
+  assert.match(source, /templateStatus\.dataset\.level/);
+  assert.match(source, /className = "template-empty"/);
+  assert.match(css, /#templateStatus\[data-level="error"\]/);
+  assert.match(css, /\.template-list \.template-empty/);
+});
+
+test("settings navigation stays available during template operations", () => {
+  const source = read("options.js");
+  assert.match(source, /button:not\(\[data-section-link\]\):not\(#clearSearch\)/);
+});
