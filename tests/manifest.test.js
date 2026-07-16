@@ -24,12 +24,14 @@ test("every manifest entry point exists", () => {
   for (const file of files) assert.equal(fs.existsSync(path.join(root, file)), true, file);
 });
 
-test("content scripts load shared configuration before the engine", () => {
+test("content scripts load the public command model before UI and runtime", () => {
   assert.deepEqual(manifest.content_scripts[0].js, [
     "config.js",
     "platforms.js",
     "commands.js",
+    "command-viability.js",
     "command-ui.js",
+    "command-ui-routing.js",
     "content.js",
     "command-runtime.js"
   ]);
