@@ -903,15 +903,16 @@
   function installStorageListener() {
     state.storageListener = (changes, areaName) => {
       if (state.destroyed || areaName !== "local") return;
-      const pageKey = Config.pageSettingsKey(state.pageId);
+      const settingsPageId = state.pageId;
+      const pageKey = Config.pageSettingsKey(settingsPageId);
       const settingsChanged = Object.prototype.hasOwnProperty.call(changes, Config.STORAGE_KEYS.global)
         || Object.prototype.hasOwnProperty.call(changes, Config.STORAGE_KEYS.pages)
         || Object.prototype.hasOwnProperty.call(changes, pageKey);
       if (settingsChanged) {
         storageGet([Config.STORAGE_KEYS.global, Config.STORAGE_KEYS.pages, pageKey]).then((stored) => {
-          if (state.destroyed) return;
+          if (state.destroyed || state.pageId !== settingsPageId || currentPageId() !== settingsPageId) return;
           const globalSettings = stored[Config.STORAGE_KEYS.global] || {};
-          const legacyPageSettings = stored[Config.STORAGE_KEYS.pages]?.[state.pageId] || {};
+          const legacyPageSettings = stored[Config.STORAGE_KEYS.pages]?.[settingsPageId] || {};
           const pageSettings = stored[pageKey] || legacyPageSettings;
           state.settings = Config.mergeSettings(Config.DEFAULT_SETTINGS, globalSettings, pageSettings);
           scheduleNextRefresh(true);

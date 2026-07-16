@@ -340,3 +340,15 @@ test("template additions are idempotent and share the portable revision", async 
   assert.equal(second.templates.filter((template) => template.id === "client-template-id").length, 1);
   assert.equal(storage.yoloPortableRevisionV1, 1);
 });
+
+test("template additions require a stable client mutation id", async () => {
+  const { invoke, storage } = loadBackground();
+  const response = await invoke({
+    type: "YOLO_TEMPLATE_ADD",
+    template: { name: "Missing id", text: "must not mutate" }
+  });
+  assert.equal(response.ok, false);
+  assert.equal(response.code, "template.id_required");
+  assert.equal(storage.yoloPortableRevisionV1, undefined);
+  assert.equal(storage.yoloTemplatesV1, undefined);
+});

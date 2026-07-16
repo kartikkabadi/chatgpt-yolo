@@ -47,3 +47,10 @@ test("all portable mutations share the background transaction service", () => {
 test("template creation carries a stable client id for idempotency", () => {
   assert.match(read("options.js"), /YOLO_TEMPLATE_ADD[\s\S]*id: crypto\.randomUUID\(\)/);
 });
+
+test("asynchronous settings reloads are bound to the route that initiated them", () => {
+  const content = read("content.js");
+  assert.match(content, /const settingsPageId = state\.pageId/);
+  assert.match(content, /state\.pageId !== settingsPageId \|\| currentPageId\(\) !== settingsPageId/);
+  assert.match(content, /legacyPageSettings = stored\[Config\.STORAGE_KEYS\.pages\]\?\.\[settingsPageId\]/);
+});

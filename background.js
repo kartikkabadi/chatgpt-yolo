@@ -176,7 +176,8 @@ function templateMutationPlan(message, stored) {
   }
   if (message.type === "YOLO_TEMPLATE_ADD") {
     if (templates.length >= 50) return { ok: false, reason: "Template limit reached" };
-    const requestedId = String(message.template?.id || Queue.makeId("template")).trim().slice(0, 180);
+    const requestedId = String(message.template?.id || "").trim().slice(0, 180);
+    if (!requestedId) return { ok: false, reason: "Template identifier is required", code: "template.id_required" };
     const existing = templates.find((template) => template.id === requestedId);
     if (existing) return { mutate: false, result: { templates, template: existing, deduplicated: true } };
     const template = normalizeTemplate({ ...message.template, id: requestedId, createdAt: now, updatedAt: now });
