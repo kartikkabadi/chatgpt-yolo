@@ -1,7 +1,10 @@
 ((root, factory) => {
   const api = factory(root.YOLOPortability);
   if (typeof module === "object" && module.exports) module.exports = api;
-  else if (typeof document !== "undefined") api.mount(document, root);
+  else {
+    root.YOLOOptionsPortability = api;
+    if (typeof document !== "undefined" && !document.querySelector("#exportBackup")) api.mount(document, root);
+  }
 })(typeof globalThis !== "undefined" ? globalThis : this, (Portability) => {
   "use strict";
 
@@ -16,7 +19,21 @@
     ].join("\n");
   }
 
+  function existingControls(doc) {
+    const exportButton = doc.querySelector("#exportBackup");
+    if (!exportButton) return null;
+    return {
+      exportButton,
+      importButton: doc.querySelector("#importBackup"),
+      importInput: doc.querySelector("#importBackupFile"),
+      diagnosticsButton: doc.querySelector("#copyDiagnostics"),
+      status: doc.querySelector("#dataPortabilityStatus")
+    };
+  }
+
   function buildControls(doc) {
+    const existing = existingControls(doc);
+    if (existing) return existing;
     const section = doc.querySelector("#data");
     if (!section) return null;
     section.dataset.searchText = `${section.dataset.searchText || ""} backup export import diagnostics privacy`.trim();
@@ -64,19 +81,15 @@
 
     const danger = section.querySelector(".danger-card");
     section.insertBefore(card, danger || null);
-    return {
-      exportButton: card.querySelector("#exportBackup"),
-      importButton: card.querySelector("#importBackup"),
-      importInput: input,
-      diagnosticsButton: card.querySelector("#copyDiagnostics"),
-      status
-    };
+    const SearchEvent = doc.defaultView?.Event;
+    if (SearchEvent) doc.querySelector("#settingsSearch")?.dispatchEvent(new SearchEvent("input", { bubbles: true }));
+    return existingControls(doc);
   }
 
   function mount(doc = document, win = window) {
     if (!Portability) return { destroy() {} };
     const controls = buildControls(doc);
-    if (!controls) return { destroy() {} };
+    if (!controls || Object.values(controls).some((value) => !value)) return { destroy() {} };
     const { exportButton, importButton, importInput, diagnosticsButton, status } = controls;
     let busy = false;
     const params = new URLSearchParams(win.location?.search || "");
@@ -100,7 +113,13 @@
     function setStatus(message = "", level = "info") {
       status.textContent = message;
       status.dataset.level = level;
-      status.style.color = level === "error" ? "var(--danger)" : level === "success" ? "var(--success)" : "var(--muted)";
+      status.style.color = level === "error"
+        ? "var(--danger)"
+        : level === "success"
+          ? "var(--success)"
+          : level === "warning"
+            ? "var(--warning)"
+            : "var(--muted)";
     }
     function setBusy(next) {
       busy = next;
@@ -151,11 +170,25 @@
       setStatus("Validating backup…");
       try {
         const text = await file.text();
+        const normalized = Portability.normalizeBackup(text);
         const preview = await backgroundSend({ type: "YOLODATA_IMPORT_PREVIEW", backup: text });
         if (!preview?.ok) throw new Error(preview?.reason || "Backup validation failed");
         if (!win.confirm(importConfirmation(preview.summary))) return setStatus("Import cancelled");
-        const response = await backgroundSend({ type: "YOLODATA_IMPORT_APPLY", backup: text });
+        const response = await backgroundSend({
+          type: "YOLODATA_IMPORT_APPLY",
+          backup: text,
+          previewToken: preview.previewToken
+        });
         if (!response?.ok) throw new Error(response?.reason || "Could not import YOLO data");
+
+        const currentSettings = normalized.pageSettings[pageId];
+        if (currentSettings && sourceTabId) {
+          const synced = await contentSend({ type: "YOLO_SET_SETTINGS", settings: currentSettings });
+          if (!synced?.ok) {
+            setStatus("Backup imported. Refresh the ChatGPT tab to apply its restored settings.", "warning");
+            return;
+          }
+        }
         setStatus(`Imported ${response.summary.conversations} conversations and ${response.summary.templates} templates`, "success");
         win.setTimeout(() => win.location.reload(), 650);
       } catch (error) { setStatus(String(error?.message || error), "error"); }
