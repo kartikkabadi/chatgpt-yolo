@@ -82,6 +82,10 @@
     });
   });
 
+  function workflowOwned(item) {
+    return Boolean(item && String(item.source || "").startsWith("workflow:") && item.sourceId);
+  }
+
   function setComposeStatus(message = "", level = "info") {
     els.composeStatus.textContent = message;
     els.composeStatus.dataset.level = level;
@@ -94,10 +98,11 @@
       els.addQueue, els.addAndSend, els.cancelEdit, els.togglePause, els.sendNext,
       els.clearQueue, els.advanced
     ]) element.disabled = nextBusy;
-    for (const button of els.queueList.querySelectorAll("button")) {
-      const locked = button.closest?.(".queue-item")?.dataset?.state === "sending";
-      button.disabled = nextBusy || locked;
+    if (!nextBusy && contentState) {
+      renderQueue();
+      return;
     }
+    for (const button of els.queueList.querySelectorAll("button")) button.disabled = true;
   }
 
   function setUnavailable(scopeMessage) {
@@ -194,21 +199,28 @@
 
   function renderQueue() {
     const items = Array.isArray(queueState.items) ? queueState.items : [];
+    const hasWorkflowItem = items.some(workflowOwned);
     els.queueCount.textContent = `${items.length} queued`;
     els.emptyQueue.hidden = items.length > 0;
     els.queueList.replaceChildren();
     els.togglePause.textContent = queueState.paused ? "Resume" : "Pause";
     els.togglePause.classList.toggle("danger", queueState.paused);
+    els.clearQueue.disabled = busy || items.length === 0 || hasWorkflowItem;
+    els.clearQueue.title = hasWorkflowItem
+      ? "Stop the active workflow before clearing its managed prompt"
+      : "Clear pending queue messages";
 
     items.forEach((item, index) => {
+      const managed = workflowOwned(item);
       const li = document.createElement("li");
       li.className = "queue-item";
       li.dataset.id = item.id;
       li.dataset.state = item.state;
-      li.draggable = item.state !== "sending" && !busy;
+      li.dataset.workflowOwned = String(managed);
+      li.draggable = !managed && item.state !== "sending" && !busy;
 
-      const drag = itemButton("⋮⋮", "Drag to reorder", () => {}, "drag-handle");
-      drag.setAttribute("aria-label", "Drag queued message");
+      const drag = itemButton("⋮⋮", managed ? "Workflow-managed message" : "Drag to reorder", () => {}, "drag-handle");
+      drag.setAttribute("aria-label", managed ? "Workflow-managed queued message" : "Drag queued message");
 
       const copy = document.createElement("div");
       copy.className = "queue-copy";
@@ -224,6 +236,12 @@
         : item.state;
       status.className = item.state;
       meta.append(position, status);
+      if (managed) {
+        const owner = document.createElement("span");
+        owner.textContent = "managed by workflow";
+        owner.title = "Pause, edit, or stop the workflow to change this prompt";
+        meta.append(owner);
+      }
       if (item.nextAttemptAt > Date.now()) {
         const retry = document.createElement("span");
         retry.textContent = `retry ${formatRelative(item.nextAttemptAt)}`;
@@ -240,49 +258,53 @@
 
       const actions = document.createElement("div");
       actions.className = "item-actions";
-      if (item.state === "failed") {
+      if (item.state === "failed" && !managed) {
         actions.append(itemButton("↻", "Retry message", () => retryItem(item.id)));
       }
       const moveUp = itemButton("↑", "Move up", () => reorderQueue(moveOrder(item.id, -1)));
       const moveDown = itemButton("↓", "Move down", () => reorderQueue(moveOrder(item.id, 1)));
-      const edit = itemButton("Edit", "Edit message", () => beginEdit(item));
-      const remove = itemButton("×", "Remove message", () => removeItem(item.id), "danger");
-      moveUp.disabled = index === 0;
-      moveDown.disabled = index === items.length - 1;
+      const edit = itemButton("Edit", managed ? "Edit the active workflow instead" : "Edit message", () => beginEdit(item));
+      const remove = itemButton("×", managed ? "Stop the active workflow instead" : "Remove message", () => removeItem(item.id), "danger");
+      moveUp.disabled = managed || index === 0;
+      moveDown.disabled = managed || index === items.length - 1;
+      edit.disabled = managed;
+      remove.disabled = managed;
       actions.append(moveUp, moveDown, edit, remove);
       if (busy || item.state === "sending") {
         for (const button of actions.querySelectorAll("button")) button.disabled = true;
         drag.disabled = true;
-      }
+      } else if (managed) drag.disabled = true;
 
       li.append(drag, copy, actions);
-      li.addEventListener("dragstart", (event) => {
-        draggedId = item.id;
-        li.classList.add("dragging");
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", item.id);
-      });
-      li.addEventListener("dragend", () => {
-        draggedId = "";
-        for (const entry of els.queueList.children) entry.classList.remove("dragging", "drop-target");
-      });
-      li.addEventListener("dragover", (event) => {
-        if (!draggedId || draggedId === item.id) return;
-        event.preventDefault();
-        li.classList.add("drop-target");
-      });
-      li.addEventListener("dragleave", () => li.classList.remove("drop-target"));
-      li.addEventListener("drop", (event) => {
-        event.preventDefault();
-        li.classList.remove("drop-target");
-        const sourceId = event.dataTransfer.getData("text/plain") || draggedId;
-        const ids = items.map((entry) => entry.id).filter((id) => id !== sourceId);
-        const targetIndex = ids.indexOf(item.id);
-        const rect = li.getBoundingClientRect();
-        const after = event.clientY > rect.top + rect.height / 2;
-        ids.splice(targetIndex + (after ? 1 : 0), 0, sourceId);
-        reorderQueue(ids);
-      });
+      if (!managed) {
+        li.addEventListener("dragstart", (event) => {
+          draggedId = item.id;
+          li.classList.add("dragging");
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", item.id);
+        });
+        li.addEventListener("dragend", () => {
+          draggedId = "";
+          for (const entry of els.queueList.children) entry.classList.remove("dragging", "drop-target");
+        });
+        li.addEventListener("dragover", (event) => {
+          if (!draggedId || draggedId === item.id || hasWorkflowItem) return;
+          event.preventDefault();
+          li.classList.add("drop-target");
+        });
+        li.addEventListener("dragleave", () => li.classList.remove("drop-target"));
+        li.addEventListener("drop", (event) => {
+          event.preventDefault();
+          li.classList.remove("drop-target");
+          const sourceId = event.dataTransfer.getData("text/plain") || draggedId;
+          const ids = items.map((entry) => entry.id).filter((id) => id !== sourceId);
+          const targetIndex = ids.indexOf(item.id);
+          const rect = li.getBoundingClientRect();
+          const after = event.clientY > rect.top + rect.height / 2;
+          ids.splice(targetIndex + (after ? 1 : 0), 0, sourceId);
+          reorderQueue(ids);
+        });
+      }
       els.queueList.append(li);
     });
     renderEvents();
@@ -354,6 +376,7 @@
   }
 
   function beginEdit(item) {
+    if (workflowOwned(item)) return;
     editingId = item.id;
     els.message.value = item.text;
     els.addQueue.textContent = "Save message";
@@ -444,7 +467,7 @@
         queueState = response.state;
         renderQueue();
         if (!queueState.paused) sendContentWithInject({ type: "YOLO_RUN_ACTION", action: "scan" });
-      }
+      } else setComposeStatus(response?.reason || "Could not change queue state.", "error");
     } finally {
       setBusy(false);
     }
@@ -482,7 +505,7 @@
         queueState = response.state;
         cancelEdit();
         renderQueue();
-      }
+      } else setComposeStatus(response?.reason || "Could not clear the queue.", "error");
     } finally {
       setBusy(false);
     }
