@@ -3,10 +3,31 @@
   if (typeof module === "object" && module.exports) module.exports = api;
   else {
     root.YOLOOptionsUI = api;
+    api.installInjectionRouting(root);
     if (typeof document !== "undefined") api.mount(document, root);
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, () => {
   "use strict";
+
+  function installInjectionRouting(root = globalThis) {
+    const scripting = root.chrome?.scripting;
+    if (!scripting?.executeScript || scripting.__YOLO_COMMAND_ROUTING__) return false;
+    const executeScript = scripting.executeScript.bind(scripting);
+    const after = (files, target, additions) => {
+      const index = files.indexOf(target);
+      if (index < 0) return;
+      files.splice(index + 1, 0, ...additions.filter((file) => !files.includes(file)));
+    };
+    scripting.executeScript = (details, callback) => {
+      if (!Array.isArray(details?.files)) return executeScript(details, callback);
+      const files = [...details.files];
+      after(files, "commands.js", ["command-viability.js"]);
+      after(files, "command-ui.js", ["command-ui-routing.js"]);
+      return executeScript({ ...details, files }, callback);
+    };
+    Object.defineProperty(scripting, "__YOLO_COMMAND_ROUTING__", { value: true });
+    return true;
+  }
 
   function normalizeSearch(value) {
     return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -161,5 +182,5 @@
     };
   }
 
-  return Object.freeze({ normalizeSearch, sectionMatches, saveStateFor, mount });
+  return Object.freeze({ installInjectionRouting, normalizeSearch, sectionMatches, saveStateFor, mount });
 });
