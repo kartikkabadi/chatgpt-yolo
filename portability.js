@@ -13,9 +13,10 @@
   const MAX_TEMPLATES = 50;
 
   function plainObject(value) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
+    return Boolean(value)
+      && typeof value === "object"
+      && !Array.isArray(value)
+      && Object.prototype.toString.call(value) === "[object Object]";
   }
 
   function failUnless(condition, message) {
