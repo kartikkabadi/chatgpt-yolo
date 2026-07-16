@@ -1,5 +1,7 @@
 [
-  {"name":"safe allow","text":"GitHub requests permission to read repository information","negative":"Deny","positive":"Allow","expected":{"safe":1,"writes":1,"all":1}},
+  {"name":"read-only action","text":"Read repository information from GitHub","negative":"Deny","positive":"Allow","expected":{"safe":1,"writes":1,"all":1}},
+  {"name":"read permission grant","text":"GitHub requests permission to read repository information","negative":"Deny","positive":"Allow","expected":{"safe":0,"writes":0,"all":1}},
+  {"name":"command execution","text":"Run command in the GitHub workspace terminal","negative":"Cancel","positive":"Allow","expected":{"safe":0,"writes":0,"all":1}},
   {"name":"write create","text":"Create a new GitHub branch in this repository","negative":"Cancel","positive":"Confirm","expected":{"safe":0,"writes":1,"all":1}},
   {"name":"destructive delete","text":"Delete the GitHub branch permanently","negative":"Cancel","positive":"Confirm","expected":{"safe":0,"writes":0,"all":1}},
   {"name":"destructive merge","text":"Merge pull request into main on GitHub","negative":"Cancel","positive":"Merge","expected":{"safe":0,"writes":0,"all":1}},
