@@ -28,6 +28,7 @@ Everything runs in your browser. Settings, queues, templates, and workflow state
 - Exact queue-delivery identity, multi-tab leases, optimistic workflow revisions, and bounded storage.
 - Draft protection: automatic input pauses when the composer contains your text.
 - Templates with `{{date}}`, `{{time}}`, `{{platform}}`, and `{{conversation}}` variables.
+- Versioned settings/template backups and privacy-safe diagnostics.
 - No runtime dependencies, no build step, no analytics, and no remote code.
 
 ## Install
@@ -102,7 +103,15 @@ Other safeguards include:
 - **Fast:** faster cadence and higher limits while retaining safe approval policy.
 - **Custom:** any manually adjusted configuration.
 
-Advanced settings expose queue timing, retries, approvals, recovery, nudges, refresh, engine limits, templates, and reset actions. Search and section navigation keep those controls out of the everyday path.
+Advanced settings expose queue timing, retries, approvals, recovery, nudges, refresh, engine limits, templates, data portability, and reset actions. Search and section navigation keep those controls out of the everyday path.
+
+## Backups and diagnostics
+
+Advanced settings can download or restore a versioned JSON backup containing global settings, per-conversation settings, and templates. The entire file is validated before confirmation and application. A one-time preview token rejects a changed file, replay, expiry, or concurrent settings/template mutation.
+
+Backups deliberately exclude active queues, queued instruction text, goals, workflow objectives, claims, retries, counters, and ChatGPT messages. Importing a backup cannot resume stale automation. If the current conversation is present in the backup, YOLO also synchronizes those restored settings into the open ChatGPT tab.
+
+Privacy-safe diagnostics contain only versions, feature toggles, counts, queue states, and error/action codes. They exclude conversation identifiers and all user-authored prompt, template, queue, workflow-objective, and message text. See [docs/DATA_PORTABILITY.md](docs/DATA_PORTABILITY.md).
 
 ## Permissions and privacy
 
