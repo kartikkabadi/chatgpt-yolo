@@ -1,0 +1,29 @@
+rt.equal(Platforms.submissionObserved(adapter, { expectedText: 'same prompt', previousSnapshot: before }, doc), false);
++  messages.push({ textContent: 'same prompt' });
++  assert.equal(Platforms.submissionObserved(adapter, { expectedText: 'same prompt', previousSnapshot: before }, doc), true);
++  messages.push({ textContent: 'different prompt' });
++  assert.equal(Platforms.submissionObserved(adapter, { expectedText: 'same prompt', previousSnapshot: before }, doc), false);
++});
++
++test('all automated text submissions use the durable queue', () => {
++  const content = read('content.js');
++  const sendPrompt = content.slice(content.indexOf('async function sendPrompt'), content.indexOf('async function sendContinue'));
++  assert.match(sendPrompt, /type: "YOLO_QUEUE_ADD"/);
++  assert.doesNotMatch(sendPrompt, /writeAndSubmit/);
++  assert.match(content, /previousSnapshot = Platforms\.userMessageSnapshot/);
++  assert.match(content, /YOLO_QUEUE_MARK_SUBMITTING/);
++});
++
++test('workflow chrome dispatches the truthful stop action', () => {
++  const ui = read('command-ui.js');
++  const runtime = read('command-runtime.js');
++  assert.match(ui, /const clearButton = element\("button", "action", "Stop"\)/);
++  assert.match(ui, /callbacks\.stop/);
++  assert.match(runtime, /stop: \(\) => executeCommand\("stop"\)/);
++  assert.doesNotMatch(runtime, /executeCommand\("clear"\)/);
++});
++
++test('package and background composition include the action coordinator', () => {
++  assert.match(read('scripts/package.mjs'), /"coordinator\.js"/);
++  assert.match(read('background.js'), /importScripts\("config\.js", "coordinator\.js", "queue\.js", "commands\.js"\)/);
++});
