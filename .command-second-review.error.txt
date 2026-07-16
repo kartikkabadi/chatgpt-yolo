@@ -15,42 +15,42 @@ TAP version 13
 # Subtest: background serializes queue mutations and claim lifecycle
 ok 1 - background serializes queue mutations and claim lifecycle
   ---
-  duration_ms: 10.666007
+  duration_ms: 16.043605
   ...
 # Subtest: background reports storage write failures instead of acknowledging lost queue data
 ok 2 - background reports storage write failures instead of acknowledging lost queue data
   ---
-  duration_ms: 2.262716
+  duration_ms: 3.246381
   ...
 # Subtest: background bounds active conversation queues and does not persist read-only visits
 ok 3 - background bounds active conversation queues and does not persist read-only visits
   ---
-  duration_ms: 12.92316
+  duration_ms: 22.073041
   ...
 # Subtest: background persists ambiguous delivery as terminal manual recovery
 ok 4 - background persists ambiguous delivery as terminal manual recovery
   ---
-  duration_ms: 5.219634
+  duration_ms: 4.52909
   ...
 # Subtest: tab-backed queue messages must match the sender conversation
 ok 5 - tab-backed queue messages must match the sender conversation
   ---
-  duration_ms: 2.891294
+  duration_ms: 4.15837
   ...
 # Subtest: install-time template initialization uses the template lock
 ok 6 - install-time template initialization uses the template lock
   ---
-  duration_ms: 0.518671
+  duration_ms: 0.523259
   ...
 # Subtest: background persists sender-bound command workflow state
 ok 7 - background persists sender-bound command workflow state
   ---
-  duration_ms: 3.807596
+  duration_ms: 3.400379
   ...
 # Subtest: background bounds active command workflows
 not ok 8 - background bounds active command workflows
   ---
-  duration_ms: 7.867378
+  duration_ms: 6.723
   location: '/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/background.test.js:226:1'
   failureType: 'testCodeFailure'
   error: |-
@@ -71,312 +71,312 @@ not ok 8 - background bounds active command workflows
 # Subtest: filters and parses the composer command catalog
 ok 9 - filters and parses the composer command catalog
   ---
-  duration_ms: 7.727974
+  duration_ms: 1.942603
   ...
 # Subtest: parses bounded loop iteration counts
 ok 10 - parses bounded loop iteration counts
   ---
-  duration_ms: 1.168789
+  duration_ms: 0.809323
   ...
 # Subtest: creates normalized persistent goal and loop workflows
 ok 11 - creates normalized persistent goal and loop workflows
   ---
-  duration_ms: 4.290999
+  duration_ms: 2.213269
   ...
 # Subtest: goal response markers are explicit and case-insensitive
 ok 12 - goal response markers are explicit and case-insensitive
   ---
-  duration_ms: 0.409894
+  duration_ms: 0.276026
   ...
 # Subtest: one-shot commands build concrete prompts
 ok 13 - one-shot commands build concrete prompts
   ---
-  duration_ms: 0.445973
+  duration_ms: 0.366686
   ...
 # Subtest: workflow normalization fails closed for malformed state
 ok 14 - workflow normalization fails closed for malformed state
   ---
-  duration_ms: 0.546593
+  duration_ms: 0.433801
   ...
 # Subtest: fingerprints are stable and content-sensitive
 ok 15 - fingerprints are stable and content-sensitive
   ---
-  duration_ms: 0.501728
+  duration_ms: 0.373338
   ...
 # Subtest: workflow revisions and runner leases normalize safely
 ok 16 - workflow revisions and runner leases normalize safely
   ---
-  duration_ms: 0.370059
+  duration_ms: 0.290584
   ...
 # Subtest: workflow response decisions enforce ownership, markers, and caps
 ok 17 - workflow response decisions enforce ownership, markers, and caps
   ---
-  duration_ms: 2.217701
+  duration_ms: 0.592018
   ...
 # Subtest: normalizes and clamps settings with interval invariants
 ok 18 - normalizes and clamps settings with interval invariants
   ---
-  duration_ms: 2.495697
+  duration_ms: 2.616774
   ...
 # Subtest: migrates legacy boolean setting names
 ok 19 - migrates legacy boolean setting names
   ---
-  duration_ms: 0.336797
+  duration_ms: 0.599141
   ...
 # Subtest: normalizes conversation URLs into stable page IDs
 ok 20 - normalizes conversation URLs into stable page IDs
   ---
-  duration_ms: 0.79915
+  duration_ms: 0.912587
   ...
 # Subtest: supports only ChatGPT URLs
 ok 21 - supports only ChatGPT URLs
   ---
-  duration_ms: 0.321858
+  duration_ms: 0.360925
   ...
 # Subtest: enforces hourly and session action limits with reason codes
 ok 22 - enforces hourly and session action limits with reason codes
   ---
-  duration_ms: 2.398603
+  duration_ms: 0.401321
   ...
 # Subtest: applies named profiles without changing the conversation master switch
 ok 23 - applies named profiles without changing the conversation master switch
   ---
-  duration_ms: 0.364439
+  duration_ms: 0.410759
   ...
 # Subtest: renders supported template variables
 ok 24 - renders supported template variables
   ---
-  duration_ms: 30.350096
+  duration_ms: 27.829366
   ...
 # Subtest: uses collision-resistant per-conversation storage keys
 ok 25 - uses collision-resistant per-conversation storage keys
   ---
-  duration_ms: 0.40221
+  duration_ms: 0.356567
   ...
 # Subtest: manifest and package versions match the runtime version
 ok 26 - manifest and package versions match the runtime version
   ---
-  duration_ms: 1.323451
+  duration_ms: 1.828961
   ...
 # Subtest: every manifest entry point exists
 ok 27 - every manifest entry point exists
   ---
-  duration_ms: 0.494475
+  duration_ms: 0.797431
   ...
 # Subtest: content scripts load shared configuration before the engine
 ok 28 - content scripts load shared configuration before the engine
   ---
-  duration_ms: 0.625433
+  duration_ms: 0.967129
   ...
 # Subtest: manifest grants host access only to ChatGPT
 ok 29 - manifest grants host access only to ChatGPT
   ---
-  duration_ms: 0.330094
+  duration_ms: 0.432018
   ...
 # Subtest: options page resolves a conversation source and fails closed when none exists
 ok 30 - options page resolves a conversation source and fails closed when none exists
   ---
-  duration_ms: 8.893608
+  duration_ms: 9.46454
   ...
 # Subtest: selects platform adapters only for supported hosts
 ok 31 - selects platform adapters only for supported hosts
   ---
-  duration_ms: 1.493673
+  duration_ms: 2.201317
   ...
 # Subtest: fixture-based approval detection respects every risk policy
 ok 32 - fixture-based approval detection respects every risk policy
   ---
-  duration_ms: 2.802516
+  duration_ms: 4.384089
   ...
 # Subtest: generic safe button labels cannot hide destructive context
 ok 33 - generic safe button labels cannot hide destructive context
   ---
-  duration_ms: 0.157358
+  duration_ms: 0.229359
   ...
 # Subtest: submission observation requires a cleared composer or active generation
 ok 34 - submission observation requires a cleared composer or active generation
   ---
-  duration_ms: 0.740099
+  duration_ms: 0.670494
   ...
 # Subtest: a missing composer is not treated as delivery confirmation
 ok 35 - a missing composer is not treated as delivery confirmation
   ---
-  duration_ms: 1.347667
+  duration_ms: 1.569335
   ...
 # Subtest: reads the latest ChatGPT assistant response for workflow markers
 ok 36 - reads the latest ChatGPT assistant response for workflow markers
   ---
-  duration_ms: 0.439952
+  duration_ms: 0.519481
   ...
 # Subtest: reads the latest ChatGPT user prompt for workflow ownership
 ok 37 - reads the latest ChatGPT user prompt for workflow ownership
   ---
-  duration_ms: 0.404815
+  duration_ms: 0.367778
   ...
 # Subtest: popup starts initialization and disables itself on unsupported pages
 ok 38 - popup starts initialization and disables itself on unsupported pages
   ---
-  duration_ms: 9.278115
+  duration_ms: 8.312996
   ...
 # Subtest: adds, edits, reorders, and removes queued messages
 ok 39 - adds, edits, reorders, and removes queued messages
   ---
-  duration_ms: 7.018584
+  duration_ms: 5.895005
   ...
 # Subtest: claims and completes exactly one queue item
 ok 40 - claims and completes exactly one queue item
   ---
-  duration_ms: 0.797868
+  duration_ms: 0.794916
   ...
 # Subtest: does not grant concurrent claims for one conversation queue
 ok 41 - does not grant concurrent claims for one conversation queue
   ---
-  duration_ms: 0.393564
+  duration_ms: 0.369762
   ...
 # Subtest: retry backoff preserves strict pending order
 ok 42 - retry backoff preserves strict pending order
   ---
-  duration_ms: 0.364459
+  duration_ms: 0.317153
   ...
 # Subtest: reordering keeps a sending item in its fixed slot
 ok 43 - reordering keeps a sending item in its fixed slot
   ---
-  duration_ms: 0.447376
+  duration_ms: 0.494685
   ...
 # Subtest: expired pre-submit claims return to pending safely
 ok 44 - expired pre-submit claims return to pending safely
   ---
-  duration_ms: 0.319253
+  duration_ms: 0.274874
   ...
 # Subtest: expired submitting claims fail closed instead of risking duplicate delivery
 ok 45 - expired submitting claims fail closed instead of risking duplicate delivery
   ---
-  duration_ms: 0.652533
+  duration_ms: 0.58771
   ...
 # Subtest: failures retry with backoff then pause after final failure
 ok 46 - failures retry with backoff then pause after final failure
   ---
-  duration_ms: 0.88359
+  duration_ms: 0.616132
   ...
 # Subtest: retrying a failed item also resumes the queue
 ok 47 - retrying a failed item also resumes the queue
   ---
-  duration_ms: 0.427718
+  duration_ms: 0.416639
   ...
 # Subtest: event history is bounded and consecutive duplicates are collapsed
 ok 48 - event history is bounded and consecutive duplicates are collapsed
   ---
-  duration_ms: 7.006792
+  duration_ms: 5.855371
   ...
 # Subtest: randomized queue operations preserve structural invariants
 ok 49 - randomized queue operations preserve structural invariants
   ---
-  duration_ms: 79.041134
+  duration_ms: 80.959568
   ...
 # Subtest: queue rejects payloads that exceed bounded text capacity
 ok 50 - queue rejects payloads that exceed bounded text capacity
   ---
-  duration_ms: 0.842732
+  duration_ms: 0.85019
   ...
 # Subtest: normalization deduplicates ids and recovers multiple sender leases
 ok 51 - normalization deduplicates ids and recovers multiple sender leases
   ---
-  duration_ms: 0.41303
+  duration_ms: 0.418292
   ...
 # Subtest: queue completion is idempotent after an acknowledgement is lost
 ok 52 - queue completion is idempotent after an acknowledgement is lost
   ---
-  duration_ms: 0.488724
+  duration_ms: 0.487762
   ...
 # Subtest: ambiguous delivery outcomes fail closed and require manual retry
 ok 53 - ambiguous delivery outcomes fail closed and require manual retry
   ---
-  duration_ms: 1.008475
+  duration_ms: 1.007975
   ...
 # Subtest: proven pre-submit failures retain automatic retry backoff
 ok 54 - proven pre-submit failures retain automatic retry backoff
   ---
-  duration_ms: 0.437187
+  duration_ms: 0.496128
   ...
 # Subtest: delivery-unknown failures remain a hard block until explicitly resolved
 ok 55 - delivery-unknown failures remain a hard block until explicitly resolved
   ---
-  duration_ms: 0.265862
+  duration_ms: 0.399127
   ...
 # Subtest: retrying one failed item does not clear a failure pause while another failure remains
 ok 56 - retrying one failed item does not clear a failure pause while another failure remains
   ---
-  duration_ms: 0.290629
+  duration_ms: 0.41143
   ...
 # Subtest: queue completion records exact command workflow identity
 ok 57 - queue completion records exact command workflow identity
   ---
-  duration_ms: 0.265201
+  duration_ms: 0.403344
   ...
 # Subtest: recent completion identity remains available after later sends
 ok 58 - recent completion identity remains available after later sends
   ---
-  duration_ms: 0.355071
+  duration_ms: 0.528398
   ...
 # Subtest: popup and advanced page have unique element identifiers
 ok 59 - popup and advanced page have unique element identifiers
   ---
-  duration_ms: 1.637444
+  duration_ms: 1.647812
   ...
 # Subtest: advanced page exposes every configurable setting while popup stays compact
 ok 60 - advanced page exposes every configurable setting while popup stays compact
   ---
-  duration_ms: 1.072768
+  duration_ms: 1.157765
   ...
 # Subtest: extension pages use external scripts only
 ok 61 - extension pages use external scripts only
   ---
-  duration_ms: 1.131298
+  duration_ms: 1.349845
   ...
 # Subtest: queue engine persists submission intent before touching the composer
 ok 62 - queue engine persists submission intent before touching the composer
   ---
-  duration_ms: 0.390017
+  duration_ms: 0.370443
   ...
 # Subtest: popup commits content and queue state atomically
 ok 63 - popup commits content and queue state atomically
   ---
-  duration_ms: 0.26487
+  duration_ms: 0.296144
   ...
 # Subtest: popup initialization and editing shortcuts fail closed
 ok 64 - popup initialization and editing shortcuts fail closed
   ---
-  duration_ms: 0.264239
+  duration_ms: 0.345496
   ...
 # Subtest: template rendering receives the current conversation
 ok 65 - template rendering receives the current conversation
   ---
-  duration_ms: 0.380209
+  duration_ms: 0.462525
   ...
 # Subtest: primary controls and dynamic option statuses are accessibly named
 ok 66 - primary controls and dynamic option statuses are accessibly named
   ---
-  duration_ms: 0.349591
+  duration_ms: 0.426288
   ...
 # Subtest: queue failures forward explicit delivery ambiguity
 ok 67 - queue failures forward explicit delivery ambiguity
   ---
-  duration_ms: 0.379036
+  duration_ms: 0.483945
   ...
 # Subtest: ChatGPT content scripts include the composer-native command system
 ok 68 - ChatGPT content scripts include the composer-native command system
   ---
-  duration_ms: 0.33392
+  duration_ms: 0.471392
   ...
 # Subtest: command palette supports slash and Codex-style command shortcuts
 ok 69 - command palette supports slash and Codex-style command shortcuts
   ---
-  duration_ms: 0.982386
+  duration_ms: 1.285565
   ...
 # Subtest: command workflows reuse the reliable queue and fail closed
 not ok 70 - command workflows reuse the reliable queue and fail closed
   ---
-  duration_ms: 2.598931
+  duration_ms: 2.783726
   location: '/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/ui.test.js:103:1'
   failureType: 'testCodeFailure'
   error: |-
@@ -1181,12 +1181,12 @@ not ok 70 - command workflows reuse the reliable queue and fail closed
 # Subtest: content exposes only a narrow lifecycle-safe command API
 ok 71 - content exposes only a narrow lifecycle-safe command API
   ---
-  duration_ms: 0.28548
+  duration_ms: 0.285103
   ...
 # Subtest: command workflow runtime enforces ownership, CAS, and a single runner
 not ok 72 - command workflow runtime enforces ownership, CAS, and a single runner
   ---
-  duration_ms: 1.525303
+  duration_ms: 1.487442
   location: '/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/ui.test.js:119:1'
   failureType: 'testCodeFailure'
   error: |-
@@ -1991,17 +1991,17 @@ not ok 72 - command workflow runtime enforces ownership, CAS, and a single runne
 # Subtest: command palette preserves failed direct commands and exposes feedback
 ok 73 - command palette preserves failed direct commands and exposes feedback
   ---
-  duration_ms: 0.353088
+  duration_ms: 0.374981
   ...
 # Subtest: command UI handles blocked resume, IME, and shortcut scope safely
 ok 74 - command UI handles blocked resume, IME, and shortcut scope safely
   ---
-  duration_ms: 0.435814
+  duration_ms: 0.389709
   ...
 # Subtest: runtime uses the pure workflow response decision and completion ring
 ok 75 - runtime uses the pure workflow response decision and completion ring
   ---
-  duration_ms: 0.33301
+  duration_ms: 0.346108
   ...
 1..75
 # tests 75
@@ -2011,4 +2011,4 @@ ok 75 - runtime uses the pure workflow response decision and completion ring
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 381.925656
+# duration_ms 404.454977
