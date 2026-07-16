@@ -1,0 +1,125 @@
+
++  return withLock(actionLock, async () => {
++    const stored = await storageGet([Config.STORAGE_KEYS.actionGuards]);
++    const current = Coordinator.normalizeState(stored[Config.STORAGE_KEYS.actionGuards]);
++    const result = await mutator(current);
++    const state = Coordinator.normalizeState(result?.state || current);
++    await storageSet({ [Config.STORAGE_KEYS.actionGuards]: state });
++    return { ...result, state };
++  });
++}
++
++async function handleActionMessage(message, sender) {
++  const pageId = message.pageId;
++  if (!validPageId(pageId)) return { ok: false, reason: "A saved ChatGPT conversation is required", code: "action.page_invalid" };
++  if (!senderMatchesPageId(sender, pageId)) {
++    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "action.page_mismatch" };
++  }
++  const actionKey = String(message.actionKey || "").trim().slice(0, 240);
++  const guardKey = `${pageId}::${actionKey}`;
++  if (message.type === "YOLO_ACTION_CLAIM") {
++    return mutateActionGuards((state) => Coordinator.claim(state, guardKey, message.ownerId, {
++      leaseMs: message.leaseMs,
++      cooldownMs: message.cooldownMs
++    }));
++  }
++  if (message.type === "YOLO_ACTION_BEGIN") {
++    return mutateActionGuards((state) => Coordinator.begin(state, guardKey, message.token));
++  }
++  if (message.type === "YOLO_ACTION_COMPLETE") {
++    return mutateActionGuards((state) => Coordinator.complete(state, guardKey, message.token));
++  }
++  if (message.type === "YOLO_ACTION_RELEASE") {
++    return mutateActionGuards((state) => Coordinator.release(state, guardKey, message.token));
++  }
++  if (message.type === "YOLO_ACTION_RESET") {
++    return mutateActionGuards((state) => Coordinator.reset(state, actionKey ? guardKey : ""));
++  }
++  return { ok: false, reason: "Unknown action guard operation", code: "action.unknown" };
++}
++
+ function normalizeTemplate(raw, fallbackId = "") {
+   if (!raw || typeof raw !== "object") return null;
+   const name = String(raw.name || "").trim().slice(0, 80);
+@@ -328,7 +370,11 @@ async function handleQueueMessage(message, sender) {
+     return readQueueState(pageId);
+   }
+   if (message.type === "YOLO_QUEUE_ADD") {
+-    return mutateQueue(pageId, async (state) => Queue.addItem(state, message.item, { front: Boolean(message.front) }));
++    return mutateQueue(pageId, async (state) => Queue.addItem(state, message.item, {
++      front: Boolean(message.front),
++      requireUnpaused: Boolean(message.requireUnpaused),
++      dedupeWindowMs: message.dedupeWindowMs
++    }));
+   }
+   if (message.type === "YOLO_QUEUE_UPDATE") {
+     return mutateQueue(pageId, async (state) => Queue.updateItem(state, message.itemId, message.text));
+@@ -385,11 +431,13 @@ chrome.runtime.onInstalled.addListener((details) => {
+ 
+ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+   if (!message?.type?.startsWith("YOLO_")) return false;
+-  const task = message.type.includes("TEMPLATE")
+-    ? handleTemplateMessage(message)
+-    : message.type.includes("WORKFLOW")
+-      ? handleWorkflowMessage(message, sender)
+-      : handleQueueMessage(message, sender);
++  const task = message.type.startsWith("YOLO_ACTION_")
++    ? handleActionMessage(message, sender)
++    : message.type.includes("TEMPLATE")
++      ? handleTemplateMessage(message)
++      : message.type.includes("WORKFLOW")
++        ? handleWorkflowMessage(message, sender)
++        : handleQueueMessage(message, sender);
+   Promise.resolve(task)
+     .then((response) => sendResponse(response))
+     .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));
+diff --git a/command-runtime.js b/command-runtime.js
+index 0c393e0..e0af2dd 100644
+--- a/command-runtime.js
++++ b/command-runtime.js
+@@ -223,7 +223,7 @@
+ 
+     if (latest.status !== "idle") {
+       if (latest.status === "running" && (latest.pendingItemId || latest.awaitingResponse || engine()?.getState?.().generating)) {
+-        return { ok: false, reason: "Pause or clear the active workflow after its current turn finishes before replacing it", keepOpen: true };
++        return { ok: false, reason: "Pause or stop the active workflow after its current turn finishes before replacing it", keepOpen: true };
+       }
+       if (!window.confirm(`Replace the active ${latest.kind} workflow?`)) {
+         return { ok: false, reason: "Existing workflow kept", keepOpen: true };
+@@ -503,7 +503,7 @@
+       execute: executeCommand,
+       pause: () => executeCommand("pause"),
+       resume: () => executeCommand("resume"),
+-      clear: () => executeCommand("clear"),
++      stop: () => executeCommand("stop"),
+       edit: editWorkflow,
+       getComposer: composer,
+       getComposerText: composerText,
+diff --git a/command-ui.js b/command-ui.js
+index 0a0196e..e98827e 100644
+--- a/command-ui.js
++++ b/command-ui.js
+@@ -21,7 +21,7 @@
+       execute: typeof options.execute === "function" ? options.execute : async () => ({ ok: false }),
+       pause: typeof options.pause === "function" ? options.pause : noop,
+       resume: typeof options.resume === "function" ? options.resume : noop,
+-      clear: typeof options.clear === "function" ? options.clear : noop,
++      stop: typeof options.stop === "function" ? options.stop : noop,
+       edit: typeof options.edit === "function" ? options.edit : noop,
+       getComposer: typeof options.getComposer === "function" ? options.getComposer : () => null,
+       getComposerText: typeof options.getComposerText === "function" ? options.getComposerText : () => "",
+@@ -137,7 +137,7 @@
+     const actions = element("div", "actions");
+     const pauseButton = element("button", "action", "Pause");
+     const editButton = element("button", "action", "Edit");
+-    const clearButton = element("button", "action", "Clear");
++    const clearButton = element("button", "action", "Stop");
+     pauseButton.type = editButton.type = clearButton.type = "button";
+     actions.append(pauseButton, editButton, clearButton);
+     workflow.append(workflowMain, actions);
+@@ -425,7 +425,7 @@
+     pauseButton.addEventListener("click", () => runWorkflowAction(() =>
+       ["paused", "blocked"].includes(currentWorkflow.status) ? callbacks.resume() : callbacks.pause()));
+     editButton.addEventListener("click", () => callbacks.edit(currentWorkflow));
+-    clearButton.addEventListener("click", () => runWorkflowAction(() => callbacks.clear(currentWorkflow)));
++    clearButton.addEventListener("click", () => runWorkf
