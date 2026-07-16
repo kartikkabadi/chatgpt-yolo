@@ -8,8 +8,8 @@ if not parts:
     raise RuntimeError("Reliability patch parts are missing")
 
 patch = b"".join(part.read_bytes() for part in parts)
-expected_size = 69_998
-expected_sha256 = "9d8cc13926f99ab3c0ee06be318d296fe0b67d03c7c7370528761b1667002643"
+expected_size = 72_013
+expected_sha256 = "b822c469bef7b51951ecf19ef0fd796a2f270665f1812e2a1691f484db506134"
 actual_sha256 = hashlib.sha256(patch).hexdigest()
 if len(patch) != expected_size or actual_sha256 != expected_sha256:
     raise RuntimeError(
