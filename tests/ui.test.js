@@ -152,13 +152,13 @@ test("runtime uses the pure workflow response decision and completion ring", () 
 test("workflow prompt creation is atomic and responses must settle", () => {
   const runtime = read("command-runtime.js");
   assert.match(runtime, /YOLO_WORKFLOW_QUEUE_ADD/);
-  assert.match(runtime, /RESPONSE_STABLE_MS/);
+  assert.match(runtime, /Lifecycle\.responseStableMs\(outcome\)/);
   assert.match(runtime, /responseCandidateFingerprint/);
   assert.doesNotMatch(runtime, /type: "YOLO_QUEUE_ADD"[\s\S]{0,900}Workflow changed before its prompt could be committed/);
 });
 
 test("fallback injection restores the full command content-script stack", () => {
-  const expected = '["config.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]';
+  const expected = '["config.js", "lifecycle.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]';
   assert.match(read("popup.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(read("options.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });

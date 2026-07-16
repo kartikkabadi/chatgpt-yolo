@@ -7,20 +7,20 @@ const root = path.join(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(root, name), "utf8");
 
 test("background composition preserves the existing engine before adding data portability", () => {
-  assert.equal(read("background-wrapper.js").trim(), '"use strict";\n\nimportScripts("background.js", "portability.js", "data-background.js");');
+  assert.equal(read("background-wrapper.js").trim(), '"use strict";\n\nimportScripts("lifecycle.js", "background.js", "portability.js", "data-background.js", "tab-supervisor.js");');
   const manifest = JSON.parse(read("manifest.json"));
   assert.equal(manifest.background.service_worker, "background-wrapper.js");
 });
 
 test("data portability adds no browser or host permissions", () => {
   const manifest = JSON.parse(read("manifest.json"));
-  assert.deepEqual(manifest.permissions, ["scripting", "storage"]);
+  assert.deepEqual(manifest.permissions, ["alarms", "scripting", "storage"]);
   assert.deepEqual(manifest.host_permissions, ["https://chatgpt.com/*", "https://*.chatgpt.com/*"]);
 });
 
 test("the release allowlist includes every portability runtime file", () => {
   const packager = read("scripts/package.mjs");
-  for (const file of ["background-wrapper.js", "portable-store.js", "data-background.js", "portability.js", "options-portability.js"]) {
+  for (const file of ["background-wrapper.js", "tab-supervisor.js", "lifecycle.js", "portable-store.js", "data-background.js", "portability.js", "options-portability.js"]) {
     assert.match(packager, new RegExp(`"${file.replace(".", "\\.")}"`), file);
   }
 });

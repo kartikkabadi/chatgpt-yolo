@@ -5,10 +5,12 @@ import { fileURLToPath } from "node:url";
 export const RUNTIME_FILES = Object.freeze([
   "manifest.json",
   "background-wrapper.js",
+  "tab-supervisor.js",
   "background.js",
   "data-background.js",
   "portability.js",
   "config.js",
+  "lifecycle.js",
   "coordinator.js",
   "portable-store.js",
   "queue.js",

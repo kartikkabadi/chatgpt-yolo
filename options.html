@@ -148,11 +148,12 @@
           </div>
         </section>
 
-        <section id="safety" class="settings-section" data-settings-section data-search-text="safety engine load grace scan interval session action limit composer draft protection">
+        <section id="safety" class="settings-section" data-settings-section data-search-text="safety engine load grace scan interval session action limit composer draft protection tabs memory saver overnight workflow">
           <header class="section-header"><div><p class="section-eyebrow">GUARDRAILS</p><h2>Safety &amp; engine</h2><p>Global timing and input protections for the selected conversation.</p></div></header>
           <div class="settings-card">
             <label class="setting-row"><span class="control-copy"><strong>Page-load grace</strong><small>Wait after navigation before automation begins scanning.</small></span><div class="number-control"><input data-setting="loadGraceSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
-            <label class="setting-row"><span class="control-copy"><strong>Scan interval</strong><small>How often the automation engine checks page state.</small></span><div class="number-control"><input data-setting="scanIntervalSec" data-kind="number" type="number" min="1" step="1"><em>sec</em></div></label>
+            <label class="setting-row"><span class="control-copy"><strong>Scan interval</strong><small>Visible-tab baseline. Hidden and generating tabs automatically back off further.</small></span><div class="number-control"><input data-setting="scanIntervalSec" data-kind="number" type="number" min="1" step="1"><em>sec</em></div></label>
+            <label class="setting-row"><span class="control-copy"><strong>Protect active workflows</strong><small>Keep running Goal/Loop tabs out of Chrome Memory Saver. Disable this when memory pressure matters more than uninterrupted overnight work.</small></span><input data-setting="protectActiveWorkflowTabs" data-kind="boolean" type="checkbox" role="switch" aria-label="Protect active workflow tabs from automatic discard"></label>
             <label class="setting-row"><span class="control-copy"><strong>Session action limit</strong><small>Hard cap across automatic actions until runtime history is reset.</small></span><div class="number-control"><input data-setting="maxActionsPerSession" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
             <label class="setting-row"><span class="control-copy"><strong>Protect composer drafts</strong><small>Always on. YOLO never replaces text already typed into ChatGPT.</small></span><input data-setting="pauseOnComposerText" data-kind="boolean" type="checkbox" role="switch" aria-label="Composer draft protection is always enabled" checked disabled></label>
           </div>
