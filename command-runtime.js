@@ -159,8 +159,6 @@
       next.baselineFingerprint = latestAssistantFingerprint();
       next.lastAssistantFingerprint = next.baselineFingerprint;
       next.promptFingerprint = Commands.fingerprint(prompt);
-      next.responseCandidateFingerprint = "";
-      next.responseCandidateSince = 0;
       next.lastPromptAt = now();
       next.reason = "Queued command prompt";
       next.updatedAt = now();
@@ -194,10 +192,6 @@
       next.pendingItemId = "";
       next.awaitingResponse = true;
       next.sawGeneration = false;
-      next.responseCandidateFingerprint = "";
-      next.responseCandidateSince = 0;
-      next.baselineFingerprint = latestAssistantFingerprint();
-      next.lastAssistantFingerprint = next.baselineFingerprint;
       next.responseCandidateFingerprint = "";
       next.responseCandidateSince = 0;
       next.reason = "Waiting for ChatGPT";
@@ -417,8 +411,6 @@
           next.sawGeneration = false;
           next.responseCandidateFingerprint = "";
           next.responseCandidateSince = 0;
-          next.baselineFingerprint = latestAssistantFingerprint();
-          next.lastAssistantFingerprint = next.baselineFingerprint;
           next.reason = "Waiting for ChatGPT";
           next.updatedAt = now();
           await writeWorkflow(next);
@@ -436,8 +428,6 @@
       next.sawGeneration = false;
       next.responseCandidateFingerprint = "";
       next.responseCandidateSince = 0;
-      next.baselineFingerprint = latestAssistantFingerprint();
-      next.lastAssistantFingerprint = next.baselineFingerprint;
       next.reason = "Waiting for ChatGPT";
       next.updatedAt = now();
       await writeWorkflow(next);

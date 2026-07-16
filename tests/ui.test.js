@@ -181,3 +181,12 @@ test("pause and clear preserve prompts that are already sending", () => {
   const guards = runtime.match(/state\.workflow\.pendingItemId && !cancelled\.removed/g) || [];
   assert.equal(guards.length, 2);
 });
+
+test("workflow response baseline is captured only before prompt delivery", () => {
+  const runtime = read("command-runtime.js");
+  const captures = runtime.match(/next\.baselineFingerprint = latestAssistantFingerprint\(\)/g) || [];
+  assert.equal(captures.length, 1);
+  const capture = runtime.indexOf("next.baselineFingerprint = latestAssistantFingerprint()");
+  const enqueue = runtime.indexOf('type: "YOLO_WORKFLOW_QUEUE_ADD"');
+  assert.ok(capture >= 0 && capture < enqueue);
+});
