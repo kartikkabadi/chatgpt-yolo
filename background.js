@@ -12,8 +12,8 @@ const workflowLock = { current: Promise.resolve() };
 const actionLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
-const WORKFLOW_LEASE_MS = 15 * 1000;
-const WORKFLOW_RENEW_WINDOW_MS = 5 * 1000;
+const WORKFLOW_LEASE_MS = 2 * 60 * 1000;
+const WORKFLOW_RENEW_WINDOW_MS = 30 * 1000;
 
 const storageGet = (keys) => new Promise((resolve, reject) => {
   chrome.storage.local.get(keys, (items) => {

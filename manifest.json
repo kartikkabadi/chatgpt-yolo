@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "YOLO for ChatGPT",
   "short_name": "YOLO",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local-first Codex-style workflows, reliable queues, and bounded automation for ChatGPT.",
   "homepage_url": "https://github.com/kartikkabadi/chatgpt-yolo",
   "minimum_chrome_version": "114",
   "permissions": [
+    "alarms",
     "scripting",
     "storage"
   ],
@@ -45,6 +46,7 @@
       ],
       "js": [
         "config.js",
+        "lifecycle.js",
         "platforms.js",
         "commands.js",
         "command-ui.js",

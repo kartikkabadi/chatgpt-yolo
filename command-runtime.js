@@ -2,17 +2,17 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
+  const Lifecycle = globalThis.YOLOLifecycle;
   const Platforms = globalThis.YOLOPlatforms;
   const Commands = globalThis.YOLOCommands;
   const CommandUI = globalThis.YOLOCommandUI;
-  if (!Config || !Platforms || !Commands || !CommandUI) return;
+  if (!Config || !Lifecycle || !Platforms || !Commands || !CommandUI) return;
 
   if (window.__YOLO_COMMAND_RUNTIME__?.version === Config.VERSION) return;
   window.__YOLO_COMMAND_RUNTIME__?.destroy?.();
 
-  const POLL_MS = 750;
+  const POLL_MS = Lifecycle.VISIBLE_WORKFLOW_POLL_MS;
   const RESPONSE_SETTLE_MS = 1200;
-  const RESPONSE_STABLE_MS = 1400;
   const state = {
     destroyed: false,
     pageId: "",
@@ -23,6 +23,7 @@
     tickInFlight: false,
     lastQueueAttemptAt: 0,
     unregisterEngineClient: null,
+    lifecycleHandlers: [],
     mutationLock: { current: Promise.resolve() },
     ownerId: `command_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
   };
@@ -446,6 +447,7 @@
     const api = engine();
     if (!api || !await api.ensureReady()) return false;
     const apiState = api.getState();
+    if (!apiState.hydrated) return false;
 
     if (workflow.pendingItemId) return handlePendingWorkflowItem(apiState);
     if (!workflow.awaitingResponse) return false;
@@ -474,7 +476,9 @@
       await writeWorkflow(workflow);
       return false;
     }
-    if (now() - workflow.responseCandidateSince < RESPONSE_STABLE_MS) return false;
+    const outcome = Commands.evaluateResponse(assistantText);
+    const quietSince = Math.max(workflow.responseCandidateSince, apiState.lastDomActivityAt || 0, apiState.lastGenerationAt || 0);
+    if (now() - quietSince < Lifecycle.responseStableMs(outcome)) return false;
     return processResponse();
   }
 
@@ -487,7 +491,7 @@
         await handleWorkflow();
       });
       syncUI();
-      state.ui?.reposition?.();
+      if (!document.hidden) state.ui?.reposition?.();
     } finally {
       state.tickInFlight = false;
     }
@@ -512,19 +516,64 @@
     syncUI();
   }
 
+  function getHealth() {
+    const workflow = Commands.normalizeWorkflow(state.workflow);
+    return {
+      status: workflow.status,
+      active: workflow.status === "running",
+      awaitingResponse: workflow.awaitingResponse,
+      pendingItemId: workflow.pendingItemId,
+      iteration: workflow.iteration,
+      lastPromptAt: workflow.lastPromptAt
+    };
+  }
+
+  function schedulePoll(immediate = false) {
+    window.clearTimeout(state.pollTimer);
+    if (state.destroyed) return;
+    const apiState = engine()?.getState?.() || {};
+    const delay = immediate ? 0 : Lifecycle.workflowPollDelay({
+      hidden: document.hidden,
+      workflowActive: getHealth().active,
+      generating: Boolean(apiState.generating)
+    });
+    state.pollTimer = window.setTimeout(async () => {
+      try {
+        await tick();
+      } catch (error) {
+        await record(`Workflow poll failed: ${String(error?.message || error)}`, "error", "command.workflow.poll_failed").catch(() => {});
+      } finally {
+        schedulePoll();
+      }
+    }, delay);
+  }
+
+  function addLifecycleHandler(target, eventName, handler) {
+    target.addEventListener(eventName, handler);
+    state.lifecycleHandlers.push({ target, eventName, handler });
+  }
+
+  function wakeRuntime() {
+    if (!state.destroyed) schedulePoll(true);
+  }
+
   function destroy() {
     if (state.destroyed) return;
     releaseWorkflow();
     state.destroyed = true;
-    window.clearInterval(state.pollTimer);
+    window.clearTimeout(state.pollTimer);
     state.unregisterEngineClient?.();
     state.ui?.destroy?.();
+    for (const { target, eventName, handler } of state.lifecycleHandlers) target.removeEventListener(eventName, handler);
+    state.lifecycleHandlers = [];
   }
 
-  window.__YOLO_COMMAND_RUNTIME__ = { version: Config.VERSION, destroy };
+  window.__YOLO_COMMAND_RUNTIME__ = { version: Config.VERSION, destroy, getHealth };
   mountUI();
   const api = engine();
   state.unregisterEngineClient = api?.registerClient?.(destroy) || null;
-  syncRoute().then(tick);
-  state.pollTimer = window.setInterval(tick, POLL_MS);
+  addLifecycleHandler(document, "visibilitychange", wakeRuntime);
+  addLifecycleHandler(window, "pageshow", wakeRuntime);
+  addLifecycleHandler(document, "resume", wakeRuntime);
+  syncRoute().then(() => schedulePoll(true));
 })();

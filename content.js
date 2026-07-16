@@ -2,9 +2,10 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
+  const Lifecycle = globalThis.YOLOLifecycle;
   const Commands = globalThis.YOLOCommands;
   const Platforms = globalThis.YOLOPlatforms;
-  if (!Config || !Commands || !Platforms) return;
+  if (!Config || !Lifecycle || !Commands || !Platforms) return;
 
   if (window.__YOLO_EXTENSION__?.version === Config.VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
@@ -52,10 +53,17 @@
     scanQueued: false,
     reloadScheduled: false,
     pageLoadedAt: Date.now(),
+    hydrated: false,
+    hydratedAt: 0,
+    hydrationCandidateSince: 0,
+    lastDomActivityAt: Date.now(),
+    generationHoldUntil: 0,
+    lastGenerationPersistAt: 0,
     observer: null,
     scanTimer: null,
     routeTimer: null,
     activitySaveTimer: null,
+    lifecycleHandlers: [],
     messageListener: null,
     storageListener: null,
     clients: new Set(),
@@ -67,6 +75,12 @@
   const randomMs = (minSec, maxSec) => Math.round(Config.randomBetween(minSec, maxSec) * 1000);
   const currentPageId = () => Config.pageId(location.href);
   const routeIsCurrent = () => currentPageId() === state.pageId;
+  const workflowHealth = () => window.__YOLO_COMMAND_RUNTIME__?.getHealth?.() || {
+    status: "idle",
+    active: false,
+    awaitingResponse: false,
+    pendingItemId: ""
+  };
   const isContextInvalidated = (error) => /context invalidated|extension context/i.test(String(error?.message || error || ""));
 
   function disableStaleContext(error) {
@@ -371,15 +385,44 @@
     return Boolean(Platforms.composerText(composer).trim());
   }
 
+  function probeHydration() {
+    const composerPresent = Boolean(Platforms.findComposer(state.platform));
+    if (document.readyState === "loading" || !composerPresent) {
+      state.hydrated = false;
+      state.hydratedAt = 0;
+      state.hydrationCandidateSince = 0;
+      return false;
+    }
+    if (state.hydrated) return true;
+    const candidate = Lifecycle.hydrationCandidate({
+      documentReadyState: document.readyState,
+      composerPresent,
+      lastDomActivityAt: state.lastDomActivityAt,
+      now: now()
+    });
+    if (!candidate) {
+      state.hydrationCandidateSince = 0;
+      return false;
+    }
+    if (!state.hydrationCandidateSince) state.hydrationCandidateSince = now();
+    if (now() - state.hydrationCandidateSince < Lifecycle.HYDRATION_QUIET_MS) return false;
+    state.hydrated = true;
+    state.hydratedAt = now();
+    return true;
+  }
+
   function automationReady() {
     if (!state.loaded || state.destroyed || !state.platform || !state.settings.enabled || !routeIsCurrent()) return false;
-    if (!Config.isDurablePageId(state.pageId)) return false;
-    return now() - state.pageLoadedAt >= state.settings.loadGraceSec * 1000;
+    if (!Config.isDurablePageId(state.pageId) || !probeHydration()) return false;
+    return now() - Math.max(state.pageLoadedAt, state.hydratedAt) >= state.settings.loadGraceSec * 1000;
   }
 
   function safeForInput() {
-    if (!routeIsCurrent() || !Config.isDurablePageId(state.pageId)) return false;
-    if (state.generationActive || Platforms.isGenerating(state.platform)) return false;
+    if (!routeIsCurrent() || !Config.isDurablePageId(state.pageId) || !probeHydration()) return false;
+    const workflow = workflowHealth();
+    if (workflow.awaitingResponse) return false;
+    if (state.generationActive || Platforms.isGenerating(state.platform) || now() < state.generationHoldUntil) return false;
+    if (now() - state.lastDomActivityAt < 1_500) return false;
     if (composerHasText()) return false;
     return true;
   }
@@ -387,10 +430,20 @@
   function updateGenerationState() {
     const active = Platforms.isGenerating(state.platform);
     const timestamp = now();
+    const transitioned = state.generationActive !== active;
     if (state.runtime) {
-      if (active) state.runtime.lastGenerationAt = timestamp;
-      if (state.generationActive && !active) state.runtime.lastGenerationAt = timestamp;
-      saveRuntime();
+      if (active) {
+        state.runtime.lastGenerationAt = timestamp;
+        state.generationHoldUntil = Math.max(state.generationHoldUntil, timestamp + 60_000);
+      }
+      if (state.generationActive && !active) {
+        state.runtime.lastGenerationAt = timestamp;
+        state.generationHoldUntil = Math.max(state.generationHoldUntil, timestamp + 15_000);
+      }
+      if (transitioned || (active && timestamp - state.lastGenerationPersistAt >= 30_000)) {
+        state.lastGenerationPersistAt = timestamp;
+        saveRuntime();
+      }
     }
     state.generationActive = active;
     return active;
@@ -524,7 +577,17 @@
     const actionPageId = state.pageId;
     if (automatic && !automationReady()) return false;
     if (!automatic && (!state.loaded || !routeIsCurrent() || !Config.isDurablePageId(state.pageId))) return false;
-    if (updateGenerationState() || composerHasText()) return false;
+    const workflow = workflowHealth();
+    const generating = updateGenerationState();
+    if (action === "refresh" && automatic && !Lifecycle.canAutomaticRefresh({
+      hydrated: state.hydrated,
+      workflowActive: workflow.active,
+      generating: generating || now() < state.generationHoldUntil,
+      composerBusy: composerHasText(),
+      lastDomActivityAt: state.lastDomActivityAt,
+      now: now()
+    })) return false;
+    if (generating || composerHasText()) return false;
     if (action === "refresh" && !refreshCooldownPassed()) return false;
 
     const limit = checkActionLimit(action);
@@ -843,6 +906,8 @@
         await handleRouteChange();
         return;
       }
+      updateGenerationState();
+      if (!probeHydration()) return;
       if (await handleErrorState()) return;
       if (await handleApprovalCards()) return;
       if (await handleQueue(true)) return;
@@ -855,19 +920,45 @@
     }
   }
 
-  function queueCycle() {
+  function queueCycle(delayMs = null) {
     if (state.destroyed || state.scanQueued || state.reloadScheduled) return;
     state.scanQueued = true;
+    const delay = delayMs == null ? Lifecycle.mutationDelay({ hidden: document.hidden, generating: state.generationActive }) : delayMs;
     window.setTimeout(() => {
       state.scanQueued = false;
       runCycle();
-    }, 300);
+    }, Math.max(0, delay));
   }
 
   function restartScanTimer() {
-    window.clearInterval(state.scanTimer);
+    window.clearTimeout(state.scanTimer);
     if (state.destroyed || state.reloadScheduled) return;
-    state.scanTimer = window.setInterval(runCycle, state.settings.scanIntervalSec * 1000);
+    const delay = Lifecycle.scanDelay({
+      hidden: document.hidden,
+      generating: state.generationActive,
+      configuredSec: state.settings.scanIntervalSec
+    });
+    state.scanTimer = window.setTimeout(async () => {
+      try {
+        await runCycle();
+      } finally {
+        restartScanTimer();
+      }
+    }, delay);
+  }
+
+  function restartRouteTimer() {
+    window.clearTimeout(state.routeTimer);
+    if (state.destroyed || state.reloadScheduled) return;
+    state.routeTimer = window.setTimeout(async () => {
+      try {
+        await handleRouteChange();
+      } catch (error) {
+        if (!disableStaleContext(error)) await setLastAction(`Route synchronization failed: ${String(error?.message || error)}`, "error", "route.sync_failed", true);
+      } finally {
+        restartRouteTimer();
+      }
+    }, Lifecycle.routeDelay({ hidden: document.hidden }));
   }
 
   async function handleRouteChange() {
@@ -881,6 +972,12 @@
       state.platform = Platforms.adapterForLocation();
       state.pageLoadedAt = now();
       state.loaded = false;
+      state.hydrated = false;
+      state.hydratedAt = 0;
+      state.hydrationCandidateSince = 0;
+      state.lastDomActivityAt = now();
+      state.generationHoldUntil = 0;
+      state.lastGenerationPersistAt = 0;
       clearBlocked();
       state.generationActive = false;
       await loadSettings();
@@ -927,16 +1024,44 @@
     chrome.storage.onChanged.addListener(state.storageListener);
   }
 
+  function handleDomMutation() {
+    state.lastDomActivityAt = now();
+    if (state.generationActive) state.generationHoldUntil = Math.max(state.generationHoldUntil, now() + 60_000);
+    queueCycle();
+  }
+
+  function addLifecycleHandler(target, eventName, handler) {
+    target.addEventListener(eventName, handler);
+    state.lifecycleHandlers.push({ target, eventName, handler });
+  }
+
+  function handleLifecycleWake() {
+    if (state.destroyed) return;
+    probeHydration();
+    restartScanTimer();
+    restartRouteTimer();
+    queueCycle(0);
+  }
+
+  function handleLifecycleSuspend() {
+    saveRuntime();
+  }
+
   function installObservers() {
-    state.observer = new MutationObserver(queueCycle);
-    state.observer.observe(document.documentElement, { childList: true, subtree: true });
+    state.observer = new MutationObserver(handleDomMutation);
+    state.observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
 
     for (const eventName of ["pointerdown", "keydown", "input", "focusin"]) {
       document.addEventListener(eventName, markUserActivity, true);
     }
+    addLifecycleHandler(document, "visibilitychange", handleLifecycleWake);
+    addLifecycleHandler(window, "pageshow", handleLifecycleWake);
+    addLifecycleHandler(window, "pagehide", handleLifecycleSuspend);
+    addLifecycleHandler(document, "freeze", handleLifecycleSuspend);
+    addLifecycleHandler(document, "resume", handleLifecycleWake);
 
     restartScanTimer();
-    state.routeTimer = window.setInterval(handleRouteChange, 500);
+    restartRouteTimer();
   }
 
   function runtimeSummary() {
@@ -965,7 +1090,10 @@
       runtime: runtimeSummary(),
       pageId: state.pageId,
       platform: state.platform?.label || "Unsupported",
-      generating: state.generationActive
+      generating: state.generationActive,
+      hydrated: state.hydrated,
+      lastDomActivityAt: state.lastDomActivityAt,
+      lastGenerationAt: state.runtime?.lastGenerationAt || 0
     };
   }
 
@@ -1011,6 +1139,23 @@
   function installMessages() {
     state.messageListener = (message, _sender, sendResponse) => {
       if (state.destroyed) return false;
+
+      if (message?.type === "YOLOTAB_HEALTH_CHECK") {
+        updateGenerationState();
+        probeHydration();
+        const workflow = workflowHealth();
+        sendResponse({
+          ok: true,
+          pageId: state.pageId,
+          hydrated: state.hydrated,
+          generating: state.generationActive,
+          visible: !document.hidden,
+          lastDomActivityAt: state.lastDomActivityAt,
+          workflow,
+          settings: { protectActiveWorkflowTabs: state.settings.protectActiveWorkflowTabs }
+        });
+        return false;
+      }
 
       if (message?.type === "YOLO_GET_STATE") {
         ensureCurrentRoute()
@@ -1069,8 +1214,8 @@
   function destroy() {
     state.destroyed = true;
     state.observer?.disconnect();
-    window.clearInterval(state.scanTimer);
-    window.clearInterval(state.routeTimer);
+    window.clearTimeout(state.scanTimer);
+    window.clearTimeout(state.routeTimer);
     window.clearTimeout(state.activitySaveTimer);
     if (state.messageListener) chrome.runtime.onMessage.removeListener(state.messageListener);
     if (state.storageListener) chrome.storage.onChanged.removeListener(state.storageListener);
@@ -1081,6 +1226,8 @@
     for (const eventName of ["pointerdown", "keydown", "input", "focusin"]) {
       document.removeEventListener(eventName, markUserActivity, true);
     }
+    for (const { target, eventName, handler } of state.lifecycleHandlers) target.removeEventListener(eventName, handler);
+    state.lifecycleHandlers = [];
   }
 
   window.__YOLO_EXTENSION__ = { version: Config.VERSION, destroy, commandApi };

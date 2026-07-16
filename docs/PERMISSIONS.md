@@ -2,6 +2,10 @@
 
 YOLO uses the smallest practical Manifest V3 permission set.
 
+## `alarms`
+
+Wakes the lightweight background tab supervisor about once per minute. The supervisor restores missing packaged content scripts and updates Chrome's `autoDiscardable` hint for active Goal/Loop tabs. It never reloads, activates, closes, or reads arbitrary tabs.
+
 ## `storage`
 
 Stores settings, queue state, templates, counters, and bounded workflow state in `chrome.storage.local`.

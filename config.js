@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, () => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const HOUR_MS = 60 * 60 * 1000;
   const STORAGE_KEYS = Object.freeze({
     global: "yoloGlobal",
@@ -94,6 +94,7 @@
 
     loadGraceSec: 10,
     scanIntervalSec: 3,
+    protectActiveWorkflowTabs: true,
     maxActionsPerSession: 100,
     pauseOnComposerText: true
   });
@@ -196,6 +197,7 @@
 
     loadGraceSec: { type: "number", min: 0, max: 600, integer: false },
     scanIntervalSec: { type: "number", min: 1, max: 60, integer: false },
+    protectActiveWorkflowTabs: { type: "boolean" },
     maxActionsPerSession: { type: "number", min: 0, max: 10000, integer: true },
     pauseOnComposerText: { type: "boolean" }
   });

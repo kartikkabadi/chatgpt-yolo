@@ -1,3 +1,3 @@
 "use strict";
 
-importScripts("background.js", "portability.js", "data-background.js");
+importScripts("lifecycle.js", "background.js", "portability.js", "data-background.js", "tab-supervisor.js");
