@@ -4,7 +4,7 @@
   "private": true,
   "description": "Reliable Chromium message queues and automation controls for ChatGPT.",
   "scripts": {
-    "check": "node --check config.js && node --check queue.js && node --check background.js && node --check platforms.js && node --check content.js && node --check popup.js && node --check options.js",
+    "check": "node --check config.js && node --check queue.js && node --check background.js && node --check platforms.js && node --check content.js && node --check popup.js && node --check options.js && node --check options-ui.js",
     "test": "node --test",
     "validate": "npm run check && npm test"
   },
