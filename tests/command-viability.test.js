@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Commands = require("../command-viability.js");
 const Routing = require("../command-ui-routing.js");
+const OptionsUI = require("../options-ui.js");
 
 const read = (name) => fs.readFileSync(path.join(__dirname, "..", name), "utf8");
 
@@ -29,14 +30,15 @@ test("prompt shortcuts are honest about their capabilities", () => {
   assert.match(Commands.oneShotPrompt("continue", "tests"), /Continue with this emphasis: tests/);
 });
 
-test("both automated workflows fail closed when ChatGPT omits the marker", () => {
+test("both automated workflows fail closed without consuming an iteration", () => {
   for (const kind of ["goal", "loop"]) {
     const workflow = Commands.normalizeWorkflow({
       kind,
       objective: "ship",
       status: "running",
       awaitingResponse: true,
-      promptFingerprint: "owned"
+      promptFingerprint: "owned",
+      iteration: 4
     }, 1000);
     const result = Commands.decideWorkflowResponse(workflow, "work without marker", {
       userFingerprint: "owned",
@@ -44,6 +46,7 @@ test("both automated workflows fail closed when ChatGPT omits the marker", () =>
     });
     assert.equal(result.action, "paused");
     assert.equal(result.code, `command.${kind}.marker_missing`);
+    assert.equal(result.workflow.iteration, 4);
   }
   const loop = Commands.startWorkflow("loop", "2 test").workflow;
   assert.match(Commands.workflowPrompt(loop), /missing or malformed marker pauses/i);
@@ -53,6 +56,29 @@ test("public semantic names route to stable internal actions", () => {
   assert.equal(Routing.routeName("handoff"), "compact");
   assert.equal(Routing.routeName("stop"), "clear");
   assert.equal(Routing.routeName("status"), "status");
+});
+
+test("settings fallback routing augments the script request exactly once", async () => {
+  let received = null;
+  const fake = {
+    chrome: {
+      scripting: {
+        executeScript(details, callback) {
+          received = details.files;
+          callback?.([]);
+        }
+      }
+    }
+  };
+  assert.equal(OptionsUI.installInjectionRouting(fake), true);
+  assert.equal(OptionsUI.installInjectionRouting(fake), false);
+  await new Promise((resolve) => fake.chrome.scripting.executeScript({
+    files: ["commands.js", "command-ui.js", "content.js", "command-runtime.js"]
+  }, resolve));
+  assert.deepEqual(received, [
+    "commands.js", "command-viability.js", "command-ui.js",
+    "command-ui-routing.js", "content.js", "command-runtime.js"
+  ]);
 });
 
 test("every injection path loads the viability layers before the runtime", () => {
