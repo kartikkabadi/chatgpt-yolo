@@ -47,7 +47,9 @@
         "config.js",
         "platforms.js",
         "commands.js",
+        "command-viability.js",
         "command-ui.js",
+        "command-ui-routing.js",
         "content.js",
         "command-runtime.js"
       ],
