@@ -20,7 +20,7 @@ jobs:
       - name: Rebuild reviewed portability delta on main
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           git fetch origin feature/data-portability main
           files=(
             CHANGELOG.md
@@ -40,20 +40,34 @@ jobs:
             tests/portability-integration.test.js
             tests/portability.test.js
           )
-          for file in "${files[@]}"; do
-            mkdir -p "$(dirname "$file")"
-            git show "origin/feature/data-portability:$file" > "$file"
-          done
-          python .yolo-portability-rebuild.py
-          npm run validate
-          npm run package
-          git diff --check
-
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm -f .yolo-portability-rebuild.py
-          git add -A
-          git diff --cached --check
+          set +e
+          (
+            set -euo pipefail
+            for file in "${files[@]}"; do
+              mkdir -p "$(dirname "$file")"
+              git show "origin/feature/data-portability:$file" > "$file"
+            done
+            python .yolo-portability-rebuild.py
+            npm run validate
+            npm run package
+            git diff --check
+          ) > /tmp/yolo-portability-rebuild.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/yolo-portability-rebuild.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ $status -ne 0 ]]; then
+            tail -n 220 /tmp/yolo-portability-rebuild.log > .yolo-portability-error.txt
+            git add .yolo-portability-error.txt
+            git commit -m "Capture portability rebuild failure" || true
+            git push origin HEAD:rebuild/data-portability-main
+            exit "$status"
+          fi
+
+          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
+          rm -f .yolo-portability-rebuild.py .yolo-portability-error.txt
+          git add -A
+          git diff --cached --check
           git commit -m "Add safe data portability with final review fixes"
           git push origin HEAD:rebuild/data-portability-main
