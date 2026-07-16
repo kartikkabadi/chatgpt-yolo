@@ -51,7 +51,7 @@
     try {
       chrome.scripting.executeScript({
         target: { tabId: sourceTabId },
-        files: ["config.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]
+        files: ["config.js", "platforms.js", "commands.js", "command-viability.js", "command-ui.js", "command-ui-routing.js", "content.js", "command-runtime.js"]
       }, () => resolve(!chrome.runtime.lastError));
     } catch {
       resolve(false);
