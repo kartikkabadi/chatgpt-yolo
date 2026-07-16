@@ -359,6 +359,12 @@
     },
     endExternalMutation() {
       setBusy(false);
+    },
+    getContext() {
+      return {
+        sourceTabId,
+        pageId: contentState?.pageId || ""
+      };
     }
   });
 
