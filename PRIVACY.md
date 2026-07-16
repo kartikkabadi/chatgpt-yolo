@@ -17,6 +17,14 @@ The extension stores the following in `chrome.storage.local`:
 
 YOLO does not intentionally persist full ChatGPT assistant responses. Queue event history is bounded and does not store full queued-message contents.
 
+## Backups and diagnostics
+
+Backup files are created only after an explicit export action and remain on your device unless you move or share them. They contain global settings, per-conversation settings, and template text, so treat them as private.
+
+Backups do not include active queues, queued instructions, workflow objectives, delivery claims, retries, runtime history, or ChatGPT messages. Imports are fully validated, require confirmation, and use an expiring one-time preview token to reject changed files, replay, and concurrent portable-data changes.
+
+Copied diagnostics contain only YOLO/browser versions, feature toggles, counts, queue states, and error/action codes. They exclude conversation identifiers and all prompt, template, queue, workflow-objective, and message text.
+
 ## Network behavior
 
 YOLO does not call a project-owned server or the OpenAI API. It interacts with the ChatGPT page already open in your browser. The onboarding page opens `https://chatgpt.com/` only after you press its button.
