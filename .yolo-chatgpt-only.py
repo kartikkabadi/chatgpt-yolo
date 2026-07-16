@@ -64,8 +64,18 @@ if platforms.count(old_host_branch) != 1:
 platforms = platforms.replace(old_host_branch, "")
 write("platforms.js", platforms)
 
-# User-facing popup copy.
+# User-facing popup and advanced-settings copy and discovery.
 replace_once("popup.js", "Open ChatGPT or Grok to use YOLO.", "Open ChatGPT to use YOLO.")
+replace_once(
+    "options.js",
+    '      url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*", "https://grok.com/*", "https://*.grok.com/*"]',
+    '      url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*"]',
+)
+replace_once(
+    "options.js",
+    "Open a ChatGPT or Grok conversation, then reopen this page from the YOLO popup.",
+    "Open a ChatGPT conversation, then reopen this page from the YOLO popup.",
+)
 
 # Product documentation: ChatGPT-only positioning and release checklist.
 readme = read("README.md")
