@@ -86,18 +86,17 @@
   }
 
   function decideWorkflowResponse(raw, responseText, options = {}) {
+    const current = Base.normalizeWorkflow(raw, options.at);
     const outcome = Base.evaluateResponse(responseText);
-    const result = Base.decideWorkflowResponse(raw, responseText, options);
-    const workflow = Base.normalizeWorkflow(result.workflow || raw, options.at);
-    if (workflow.kind === "loop" && outcome === "missing" && result.action === "continue") {
+    if (current.kind === "loop" && outcome === "missing") {
       return {
-        workflow,
+        workflow: current,
         action: "paused",
         reason: "Loop response omitted the required terminal control marker",
         code: "command.loop.marker_missing"
       };
     }
-    return result;
+    return Base.decideWorkflowResponse(current, responseText, options);
   }
 
   return Object.freeze({
