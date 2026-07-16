@@ -9,6 +9,7 @@ All notable changes are documented here.
 - Redesigned the popup and Advanced settings around a task-first Codex/ChatGPT-style interface.
 - Added searchable settings navigation, accessible queue actions, explicit template states, destructive confirmations, and reduced-motion behavior.
 - Added first-run onboarding, MIT licensing, privacy/security/contribution policy, reproducible packaging, and release automation.
+- Added safe settings/template backups and privacy-safe diagnostics; active automation state is deliberately excluded.
 - Preserved local-only operation and ChatGPT-only host access.
 
 ## 0.7.0

@@ -945,6 +945,21 @@
         return true;
       }
 
+      if (message?.type === "YOLO_APPLY_IMPORTED_SETTINGS") {
+        ensureCurrentRoute()
+          .then((ready) => {
+            if (!ready) throw new Error("Conversation navigation is still in progress");
+            state.settings = Config.normalizeSettings(message.settings || {});
+            scheduleNextRefresh(true);
+            scheduleNextQueue(true);
+            restartScanTimer();
+            queueCycle();
+            sendResponse({ ok: true, settings: state.settings, state: responseState() });
+          })
+          .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error), state: responseState() }));
+        return true;
+      }
+
       if (message?.type === "YOLO_RUN_ACTION") {
         runManualAction(message.action)
           .then((ok) => sendResponse({ ok, state: responseState() }))
