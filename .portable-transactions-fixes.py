@@ -51,3 +51,9 @@ replace_once(
   assert.doesNotMatch(source, /templateLock/);
 });'''
 )
+
+replace_once(
+    "tests/install.test.js",
+    '''  for (const file of ["config.js", "queue.js", "commands.js", "background.js"]) {''',
+    '''  for (const file of ["config.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js", "background.js"]) {'''
+)
