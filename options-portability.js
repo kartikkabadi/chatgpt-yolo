@@ -16,15 +16,68 @@
     ].join("\n");
   }
 
+  function buildControls(doc) {
+    const section = doc.querySelector("#data");
+    if (!section) return null;
+    section.dataset.searchText = `${section.dataset.searchText || ""} backup export import diagnostics privacy`.trim();
+
+    const card = doc.createElement("div");
+    card.className = "settings-card";
+    const rows = [
+      ["Export backup", "Download settings and templates. Active queues and goals are excluded.", "exportBackup", "Export JSON"],
+      ["Import backup", "Validate and restore settings and templates without touching live automation.", "importBackup", "Choose file"],
+      ["Copy diagnostics", "Copy versions, feature state, counts, and error codes—never prompt or conversation text.", "copyDiagnostics", "Copy diagnostics"]
+    ];
+
+    for (const [title, description, id, label] of rows) {
+      const row = doc.createElement("div");
+      row.className = "setting-row";
+      const copy = doc.createElement("span");
+      copy.className = "control-copy";
+      const strong = doc.createElement("strong");
+      strong.textContent = title;
+      const small = doc.createElement("small");
+      small.textContent = description;
+      copy.append(strong, small);
+      const button = doc.createElement("button");
+      button.id = id;
+      button.className = "secondary-button";
+      button.type = "button";
+      button.textContent = label;
+      row.append(copy, button);
+      card.append(row);
+    }
+
+    const input = doc.createElement("input");
+    input.id = "importBackupFile";
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.hidden = true;
+    const status = doc.createElement("p");
+    status.id = "dataPortabilityStatus";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    status.style.minHeight = "20px";
+    status.style.margin = "0";
+    status.style.padding = "10px 16px";
+    card.append(input, status);
+
+    const danger = section.querySelector(".danger-card");
+    section.insertBefore(card, danger || null);
+    return {
+      exportButton: card.querySelector("#exportBackup"),
+      importButton: card.querySelector("#importBackup"),
+      importInput: input,
+      diagnosticsButton: card.querySelector("#copyDiagnostics"),
+      status
+    };
+  }
+
   function mount(doc = document, win = window) {
     if (!Portability) return { destroy() {} };
-    const exportButton = doc.querySelector("#exportBackup");
-    const importButton = doc.querySelector("#importBackup");
-    const importInput = doc.querySelector("#importBackupFile");
-    const diagnosticsButton = doc.querySelector("#copyDiagnostics");
-    const status = doc.querySelector("#dataPortabilityStatus");
-    if (!exportButton || !importButton || !importInput || !diagnosticsButton || !status) return { destroy() {} };
-
+    const controls = buildControls(doc);
+    if (!controls) return { destroy() {} };
+    const { exportButton, importButton, importInput, diagnosticsButton, status } = controls;
     let busy = false;
     const params = new URLSearchParams(win.location?.search || "");
     const sourceTabId = Number(params.get("tabId")) || 0;
@@ -36,7 +89,6 @@
         else resolve(response || null);
       });
     });
-
     const contentSend = (message) => new Promise((resolve) => {
       if (!sourceTabId) return resolve(null);
       chrome.tabs.sendMessage(sourceTabId, message, (response) => {
@@ -48,32 +100,25 @@
     function setStatus(message = "", level = "info") {
       status.textContent = message;
       status.dataset.level = level;
+      status.style.color = level === "error" ? "var(--danger)" : level === "success" ? "var(--success)" : "var(--muted)";
     }
-
     function setBusy(next) {
       busy = next;
       exportButton.disabled = next;
       importButton.disabled = next;
       diagnosticsButton.disabled = next;
     }
-
     function downloadJson(value) {
-      const text = JSON.stringify(value, null, 2);
-      const blob = new Blob([text], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = doc.createElement("a");
-      const date = new Date().toISOString().slice(0, 10);
       link.href = url;
-      link.download = `yolo-backup-${date}.json`;
+      link.download = `yolo-backup-${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
       win.setTimeout(() => URL.revokeObjectURL(url), 0);
     }
-
     async function copyText(text) {
-      if (win.navigator?.clipboard?.writeText) {
-        await win.navigator.clipboard.writeText(text);
-        return true;
-      }
+      if (win.navigator?.clipboard?.writeText) return win.navigator.clipboard.writeText(text);
       const textarea = doc.createElement("textarea");
       textarea.value = text;
       textarea.setAttribute("readonly", "");
@@ -84,7 +129,6 @@
       const copied = Boolean(doc.execCommand?.("copy"));
       textarea.remove();
       if (!copied) throw new Error("Clipboard access is unavailable");
-      return true;
     }
 
     async function exportBackup() {
@@ -92,43 +136,30 @@
       setBusy(true);
       setStatus("Preparing backup…");
       try {
-        const response = await backgroundSend({ type: "YOLO_DATA_EXPORT" });
+        const response = await backgroundSend({ type: "YOLODATA_EXPORT" });
         if (!response?.ok) throw new Error(response?.reason || "Could not export YOLO data");
         downloadJson(response.backup);
         setStatus(`Backup downloaded · ${response.summary.conversations} conversations · ${response.summary.templates} templates`, "success");
-      } catch (error) {
-        setStatus(String(error?.message || error), "error");
-      } finally {
-        setBusy(false);
-      }
+      } catch (error) { setStatus(String(error?.message || error), "error"); }
+      finally { setBusy(false); }
     }
 
     async function importBackup(file) {
       if (!file || busy) return;
-      if (file.size > Portability.MAX_BACKUP_BYTES) {
-        setStatus("Backup file exceeds 1 MiB", "error");
-        return;
-      }
+      if (file.size > Portability.MAX_BACKUP_BYTES) return setStatus("Backup file exceeds 1 MiB", "error");
       setBusy(true);
       setStatus("Validating backup…");
       try {
         const text = await file.text();
-        const preview = await backgroundSend({ type: "YOLO_DATA_IMPORT_PREVIEW", backup: text });
+        const preview = await backgroundSend({ type: "YOLODATA_IMPORT_PREVIEW", backup: text });
         if (!preview?.ok) throw new Error(preview?.reason || "Backup validation failed");
-        if (!win.confirm(importConfirmation(preview.summary))) {
-          setStatus("Import cancelled");
-          return;
-        }
-        const response = await backgroundSend({ type: "YOLO_DATA_IMPORT_APPLY", backup: text });
+        if (!win.confirm(importConfirmation(preview.summary))) return setStatus("Import cancelled");
+        const response = await backgroundSend({ type: "YOLODATA_IMPORT_APPLY", backup: text });
         if (!response?.ok) throw new Error(response?.reason || "Could not import YOLO data");
         setStatus(`Imported ${response.summary.conversations} conversations and ${response.summary.templates} templates`, "success");
         win.setTimeout(() => win.location.reload(), 650);
-      } catch (error) {
-        setStatus(String(error?.message || error), "error");
-      } finally {
-        importInput.value = "";
-        setBusy(false);
-      }
+      } catch (error) { setStatus(String(error?.message || error), "error"); }
+      finally { importInput.value = ""; setBusy(false); }
     }
 
     async function copyDiagnostics() {
@@ -147,25 +178,16 @@
         });
         await copyText(JSON.stringify(diagnostics, null, 2));
         setStatus("Privacy-safe diagnostics copied", "success");
-      } catch (error) {
-        setStatus(String(error?.message || error), "error");
-      } finally {
-        setBusy(false);
-      }
+      } catch (error) { setStatus(String(error?.message || error), "error"); }
+      finally { setBusy(false); }
     }
 
     exportButton.addEventListener("click", exportBackup);
     importButton.addEventListener("click", () => importInput.click());
     importInput.addEventListener("change", () => importBackup(importInput.files?.[0]));
     diagnosticsButton.addEventListener("click", copyDiagnostics);
-
-    return {
-      destroy() {},
-      exportBackup,
-      importBackup,
-      copyDiagnostics
-    };
+    return { destroy() {}, exportBackup, importBackup, copyDiagnostics };
   }
 
-  return Object.freeze({ importConfirmation, mount });
+  return Object.freeze({ importConfirmation, buildControls, mount });
 });
