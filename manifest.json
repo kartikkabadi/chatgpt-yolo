@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "YOLO",
-  "version": "0.7.0",
-  "description": "Codex-inspired command workflows, reliable queues, and automation controls for ChatGPT.",
+  "name": "YOLO for ChatGPT",
+  "short_name": "YOLO",
+  "version": "1.0.0",
+  "description": "Local-first Codex-style workflows, reliable queues, and bounded automation for ChatGPT.",
+  "homepage_url": "https://github.com/kartikkabadi/chatgpt-yolo",
+  "minimum_chrome_version": "114",
   "permissions": [
     "activeTab",
     "scripting",
@@ -16,7 +19,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "YOLO",
+    "default_title": "YOLO for ChatGPT",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
