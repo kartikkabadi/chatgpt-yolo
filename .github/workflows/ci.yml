@@ -27,7 +27,7 @@ jobs:
           fail() {
             stage="$1"
             output="${2:-}"
-            git restore .github/workflows/ci.yml .overnight-hardening.py 2>/dev/null || true
+            git restore .github/workflows/ci.yml .overnight-hardening.py .overnight-fixes.py 2>/dev/null || true
             {
               echo "Failed stage: ${stage}"
               [[ -n "$output" && -f "$output" ]] && tail -n 300 "$output"
@@ -48,8 +48,9 @@ jobs:
           path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
           python .overnight-hardening.py > /tmp/patch.log 2>&1 || fail patch /tmp/patch.log
+          python .overnight-fixes.py > /tmp/fixes.log 2>&1 || fail fixes /tmp/fixes.log
           git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml || fail restore-ci
-          rm -f .overnight-hardening.py .overnight-hardening-error.txt
+          rm -f .overnight-hardening.py .overnight-fixes.py .overnight-hardening-error.txt
           npm run validate > /tmp/validate.log 2>&1 || fail validate /tmp/validate.log
           npm run package > /tmp/package.log 2>&1 || fail package /tmp/package.log
           git diff --check > /tmp/diff.log 2>&1 || fail diff-check /tmp/diff.log
