@@ -190,3 +190,83 @@ test("workflow response baseline is captured only before prompt delivery", () =>
   const enqueue = runtime.indexOf('type: "YOLO_WORKFLOW_QUEUE_ADD"');
   assert.ok(capture >= 0 && capture < enqueue);
 });
+
+test("premium popup keeps one dominant action and progressive disclosure", () => {
+  const popup = read("popup.html");
+  assert.equal((popup.match(/class="primary-button"/g) || []).length, 1);
+  assert.match(popup, /class="brand-lockup"/);
+  assert.match(popup, /class="compose-panel"/);
+  assert.match(popup, /class="queue-panel"/);
+  assert.match(popup, /class="activity-panel"/);
+  assert.match(popup, /id="advanced"[^>]*aria-label="Open Advanced settings"/);
+});
+
+test("advanced settings has searchable persistent section navigation", () => {
+  const options = read("options.html");
+  const links = [...options.matchAll(/data-section-link="([^"]+)"/g)].map((match) => match[1]);
+  const sections = [...options.matchAll(/id="([^"]+)"[^>]*data-settings-section/g)].map((match) => match[1]);
+  assert.deepEqual(links, ["overview", "queue", "approvals", "recovery", "nudges", "refresh", "safety", "templates", "data"]);
+  assert.deepEqual(sections, links);
+  assert.match(options, /id="settingsSearch"[^>]*type="search"/);
+  assert.match(options, /id="searchEmpty"/);
+  assert.match(options, /class="workspace-header"/);
+  assert.match(options, /<script src="options-ui\.js"><\/script>/);
+});
+
+test("premium visual systems include focus, reduced motion, and responsive layouts", () => {
+  const popupCss = read("styles.css");
+  const optionsCss = read("options.css");
+  for (const css of [popupCss, optionsCss]) {
+    assert.match(css, /:focus-visible/);
+    assert.match(css, /prefers-reduced-motion/);
+    assert.match(css, /--surface:/);
+  }
+  assert.match(optionsCss, /@media \(max-width: 680px\)/);
+  assert.match(optionsCss, /position: sticky/);
+});
+
+test("settings controller provides filtering, active navigation, and save-state mapping", () => {
+  const source = read("options-ui.js");
+  assert.match(source, /sectionMatches/);
+  assert.match(source, /aria-current/);
+  assert.match(source, /IntersectionObserver/);
+  assert.match(source, /MutationObserver/);
+  assert.match(source, /saveStateFor/);
+});
+
+test("queue item controls are explicitly named and respect reorder boundaries", () => {
+  const source = read("popup.js");
+  assert.match(source, /button\.setAttribute\("aria-label", title\)/);
+  assert.match(source, /moveUp\.disabled = index === 0/);
+  assert.match(source, /moveDown\.disabled = index === items\.length - 1/);
+});
+
+test("settings navigation preserves scope and respects reduced motion", () => {
+  const source = read("options-ui.js");
+  assert.match(source, /prefers-reduced-motion: reduce/);
+  assert.match(source, /win\.location\?\.search/);
+  assert.match(source, /behavior: reducedMotion \? "auto" : "smooth"/);
+});
+
+test("template feedback and empty state remain explicit", () => {
+  const source = read("options.js");
+  const css = read("options.css");
+  assert.match(source, /templateStatus\.dataset\.level/);
+  assert.match(source, /className = "template-empty"/);
+  assert.match(css, /#templateStatus\[data-level="error"\]/);
+  assert.match(css, /\.template-list \.template-empty/);
+});
+
+test("settings navigation stays available during template operations", () => {
+  const source = read("options.js");
+  assert.match(source, /button:not\(\[data-section-link\]\):not\(#clearSearch\)/);
+});
+
+test("destructive settings actions require confirmation and always report outcomes", () => {
+  const source = read("options.js");
+  assert.match(source, /Delete this template\? This cannot be undone/);
+  assert.match(source, /Replace all templates with the built-in defaults/);
+  assert.match(source, /Restore every automation setting to its default value/);
+  assert.match(source, /Template deleted\./);
+  assert.match(source, /Could not restore default templates/);
+});

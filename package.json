@@ -4,7 +4,7 @@
   "private": true,
   "description": "Codex-inspired command workflows and reliable Chromium automation for ChatGPT.",
   "scripts": {
-    "check": "node --check config.js && node --check queue.js && node --check commands.js && node --check background.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js",
+    "check": "node --check config.js && node --check queue.js && node --check commands.js && node --check background.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js",
     "test": "node --test",
     "validate": "npm run check && npm test"
   },
