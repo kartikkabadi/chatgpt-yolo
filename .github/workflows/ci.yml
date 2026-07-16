@@ -25,7 +25,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python .yolo-chatgpt-only.py
+          set +e
+          python .yolo-chatgpt-only.py > /tmp/yolo-chatgpt-only.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/yolo-chatgpt-only.log
+          if [[ $status -ne 0 ]]; then
+            cp /tmp/yolo-chatgpt-only.log .yolo-chatgpt-only.error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .yolo-chatgpt-only.error.txt
+            git commit -m "Capture ChatGPT-only scope patch failure"
+            git push origin HEAD:agent/reliability-observability
+            exit "$status"
+          fi
+
           npm run validate
           git diff --check
 
@@ -52,7 +66,7 @@ jobs:
                 - run: npm run validate
           YAML
 
-          rm -f .yolo-chatgpt-only.py .yolo-chatgpt-only.ready
+          rm -f .yolo-chatgpt-only.py .yolo-chatgpt-only.ready .yolo-chatgpt-only.error.txt
           git add -A
           git diff --cached --check
           git config user.name "github-actions[bot]"
