@@ -1,27 +1,61 @@
 name: Bug report
-description: Report a reproducible YOLO defect
-title: "[Bug]: "
-labels: [bug]
+description: Report a reproducible problem in the YOLO Chrome extension
+title: "[Bug] "
+labels:
+  - bug
 body:
   - type: markdown
     attributes:
-      value: Do not include private conversation content, credentials, or tokens.
+      value: |
+        Please remove conversation text, account details, tokens, and other sensitive data before submitting.
   - type: input
     id: version
     attributes:
-      label: YOLO version or commit
+      label: YOLO version
+      description: Find this in chrome://extensions or the About section.
+      placeholder: 1.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Google Chrome
+        - Microsoft Edge
+        - Brave
+        - Arc
+        - Other Chromium browser
     validations:
       required: true
   - type: input
-    id: browser
+    id: browser_version
     attributes:
-      label: Browser and version
+      label: Browser version
+      placeholder: 150.0.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: route
+    attributes:
+      label: ChatGPT route
+      options:
+        - Saved conversation (/c/...)
+        - New or transient chat
+        - Project or other ChatGPT route
+        - Unsure
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
       label: Reproduction steps
+      description: Include the smallest reliable sequence that triggers the problem.
+      placeholder: |
+        1. Open a saved conversation
+        2. Add an item to the queue
+        3. Enable automation
+        4. ...
     validations:
       required: true
   - type: textarea
@@ -33,15 +67,22 @@ body:
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior and visible error text
+      label: Actual behavior
     validations:
       required: true
-  - type: checkboxes
-    id: checks
+  - type: textarea
+    id: diagnostics
     attributes:
-      label: Checks
+      label: Privacy-safe diagnostics or screenshots
+      description: Use YOLO's diagnostics export where possible. Redact conversation and account content.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
       options:
-        - label: I reloaded the extension and refreshed ChatGPT.
+        - label: I reproduced this on the latest released version or current main.
           required: true
-        - label: This is not a security vulnerability.
+        - label: I removed private conversation content and credentials.
+          required: true
+        - label: This is not a security vulnerability; security reports use the private advisory flow.
           required: true
