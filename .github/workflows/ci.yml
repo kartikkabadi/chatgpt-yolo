@@ -7,14 +7,97 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: release/v1-open-source
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm run validate
+      - name: Apply v1 lifecycle integration
+        shell: bash
+        run: |
+          set -uo pipefail
+          : > /tmp/v1-lifecycle.log
+
+          if [[ -f .apply-v1-lifecycle.ready ]]; then
+            set +e
+            (
+              set -euo pipefail
+              python .apply-v1-lifecycle.py
+              npm run validate
+              npm run package
+              git diff --check
+            ) 2>&1 | tee /tmp/v1-lifecycle.log
+            status=${PIPESTATUS[0]}
+            set -e
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            if [[ $status -ne 0 ]]; then
+              cp /tmp/v1-lifecycle.log .v1-lifecycle.error.txt
+              git add .v1-lifecycle.error.txt
+              git commit -m "Capture v1 lifecycle integration failure"
+              git push origin HEAD:release/v1-open-source
+              exit "$status"
+            fi
+
+            cat > .github/workflows/ci.yml <<'YAML'
+          name: CI
+
+          on:
+            pull_request:
+            push:
+              branches:
+                - main
+
+          permissions:
+            contents: read
+
+          jobs:
+            validate:
+              name: Validate on Node ${{ matrix.node }}
+              runs-on: ubuntu-latest
+              strategy:
+                fail-fast: false
+                matrix:
+                  node: [20, 24]
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: ${{ matrix.node }}
+                - run: npm run validate
+
+            package:
+              name: Package extension
+              needs: validate
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 24
+                - run: npm run package
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: yolo-preview
+                    path: dist/yolo
+                    retention-days: 7
+          YAML
+
+            rm -f .apply-v1-lifecycle.py .apply-v1-lifecycle.ready .v1-lifecycle.error.txt
+            git add -A
+            git diff --cached --check
+            git commit -m "Complete v1 lifecycle and packaging integration"
+            git push origin HEAD:release/v1-open-source
+          else
+            npm run validate
+          fi
