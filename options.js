@@ -67,18 +67,28 @@
     return sendContent(message);
   }
 
+  function durableContentState(value) {
+    return value?.pageId && Config.isDurablePageId(value.pageId) ? value : null;
+  }
+
   async function resolveSourceTab() {
     if (sourceTabId) {
-      const state = await sendContentWithInject({ type: "YOLO_GET_STATE" });
+      const state = durableContentState(await sendContentWithInject({ type: "YOLO_GET_STATE" }));
       if (state) return state;
+      sourceTabId = 0;
     }
     const tabs = await new Promise((resolve) => chrome.tabs.query({
       url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*"]
     }, resolve));
-    const candidate = [...tabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
-    if (!candidate?.id) return null;
-    sourceTabId = candidate.id;
-    return sendContentWithInject({ type: "YOLO_GET_STATE" });
+    const candidates = [...tabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+    for (const candidate of candidates) {
+      if (!candidate?.id) continue;
+      sourceTabId = candidate.id;
+      const state = durableContentState(await sendContentWithInject({ type: "YOLO_GET_STATE" }));
+      if (state) return state;
+    }
+    sourceTabId = 0;
+    return null;
   }
 
   function setBusy(nextBusy) {
@@ -117,7 +127,7 @@
   }
 
   function saveSettings(nextSettings = collectSettings()) {
-    if (!sourceTabId) return Promise.resolve(false);
+    if (!sourceTabId || !contentState) return Promise.resolve(false);
     const requested = Config.normalizeSettings(nextSettings);
     const revision = ++saveRevision;
     settings = requested;
@@ -129,7 +139,11 @@
         if (revision === saveRevision) els.saveStatus.textContent = "Could not save settings.";
         return false;
       }
-      contentState = response.state;
+      contentState = durableContentState(response.state);
+      if (!contentState) {
+        if (revision === saveRevision) els.saveStatus.textContent = "The selected conversation is no longer saved.";
+        return false;
+      }
       if (revision === saveRevision) {
         renderControls(response.settings);
         els.scope.textContent = `${contentState.platform} · ${contentState.pageId}`;
@@ -303,8 +317,8 @@
     setBusy(true);
     contentState = await resolveSourceTab();
     if (!contentState) {
-      els.scope.textContent = "Open a ChatGPT conversation to configure automation. Templates remain available below.";
-      els.saveStatus.textContent = "No conversation selected";
+      els.scope.textContent = "Open a saved ChatGPT conversation (/c/...) to configure automation. Templates remain available below.";
+      els.saveStatus.textContent = "No saved conversation selected";
     } else {
       settings = contentState.settings;
       renderControls(settings);
@@ -362,7 +376,7 @@
     },
     getContext() {
       return {
-        sourceTabId,
+        sourceTabId: contentState ? sourceTabId : 0,
         pageId: contentState?.pageId || ""
       };
     }
@@ -370,6 +384,8 @@
 
   window.addEventListener("pagehide", () => window.clearTimeout(saveTimer));
   init().catch((error) => {
+    sourceTabId = 0;
+    contentState = null;
     els.scope.textContent = `Startup failed: ${String(error?.message || error)}`;
     els.saveStatus.textContent = "Unavailable";
     setBusy(true);
