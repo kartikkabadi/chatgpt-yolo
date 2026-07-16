@@ -71,7 +71,9 @@
         if (Config.pageSettingsKey(pageId) === key) entries.set(pageId, Config.normalizeSettings(settings));
       } catch {}
     }
-    return Object.fromEntries([...entries.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, MAX_PAGE_SETTINGS));
+    const sorted = [...entries.entries()].sort(([a], [b]) => a.localeCompare(b));
+    failUnless(sorted.length <= MAX_PAGE_SETTINGS, `Conversation setting limit of ${MAX_PAGE_SETTINGS} exceeded`);
+    return Object.fromEntries(sorted);
   }
 
   function normalizeTemplateList(source, timestamp) {
@@ -193,7 +195,8 @@
         generating: Boolean(contentState.generating),
         loaded: Boolean(contentState.loaded),
         sessionActionCount: Math.max(0, Number(runtime.sessionActionCount) || 0),
-        blockedCode: String(contentState.blockedCode || "").slice(0, 100)
+        blockedCode: String(contentState.blockedCode || "").slice(0, 100),
+        lastActionCode: String(contentState.lastAction?.code || "").slice(0, 100)
       },
       queue: {
         paused: Boolean(queueState.paused),
