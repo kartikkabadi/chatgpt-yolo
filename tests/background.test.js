@@ -9,7 +9,7 @@ function loadBackground() {
   let listener = null;
   let failNextSet = false;
   const context = {
-    console, Date, Promise, Math, JSON, setTimeout, clearTimeout,
+    console, Date, Promise, Math, JSON, URL, setTimeout, clearTimeout,
     crypto: { randomUUID: () => `id-${Math.random()}` },
     chrome: {
       runtime: {
