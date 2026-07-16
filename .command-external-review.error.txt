@@ -1,12 +1,4 @@
-/home/runner/work/chatgpt-yolo/chatgpt-yolo/.apply-command-external-review.py:35: SyntaxWarning: invalid escape sequence '\['
-  '''  const MARKER_RE = /\[YOLO:(CONTINUE|DONE|BLOCKED)\]\s*$/i;''',
-/home/runner/work/chatgpt-yolo/chatgpt-yolo/.apply-command-external-review.py:36: SyntaxWarning: invalid escape sequence '\['
-  '''  const MARKER_RE = /(?:^|\n)\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;''',
-/home/runner/work/chatgpt-yolo/chatgpt-yolo/.apply-command-external-review.py:48: SyntaxWarning: invalid escape sequence '\S'
-  '''  function normalizedMultilineText(element) {
 Traceback (most recent call last):
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.apply-command-external-review.py", line 176, in <module>
-    replace_once(
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.apply-command-external-review.py", line 20, in replace_once
-    raise RuntimeError(f"Expected one match in {path}, found {count}: {old[:140]!r}")
-RuntimeError: Expected one match in tests/commands.test.js, found 0: '  assert.equal(Commands.evaluateResponse("[YOLO:DONE]\nbut actually keep going"), "missing");\n  assert.equal(Commands.evaluateResponse("no ma'
+  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.fix-external-review-script.py", line 15, in <module>
+    raise RuntimeError(f'Expected one raw-string conversion, found {count}: {old[:80]!r}')
+RuntimeError: Expected one raw-string conversion, found 2: '    \'\'\'  assert.equal(Commands.evaluateResponse("[YOLO:DONE]\\nbut actually keep '
