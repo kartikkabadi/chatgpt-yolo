@@ -38,3 +38,16 @@ replace_once(
     '''  assert.match(read('background.js'), /importScripts\("config\.js", "coordinator\.js", "queue\.js", "commands\.js"\)/);''',
     '''  assert.match(read('background.js'), /importScripts\("config\.js", "coordinator\.js", "portable-store\.js", "queue\.js", "commands\.js"\)/);'''
 )
+
+replace_once(
+    "tests/background.test.js",
+    '''test("install-time template initialization uses the template lock", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
+  assert.match(source, /onInstalled[\s\S]*withLock\(templateLock/);
+});''',
+    '''test("install-time template initialization uses the shared portable transaction", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
+  assert.match(source, /onInstalled[\s\S]*PortableStore\.mutate/);
+  assert.doesNotMatch(source, /templateLock/);
+});'''
+)
