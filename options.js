@@ -26,6 +26,7 @@
   let settings = { ...Config.DEFAULT_SETTINGS };
   let templates = [];
   let editingTemplateId = "";
+  let pendingTemplateId = "";
   let saveTimer = null;
   let saveChain = Promise.resolve();
   let saveRevision = 0;
@@ -211,6 +212,7 @@
 
   function beginTemplateEdit(template) {
     editingTemplateId = template.id;
+    pendingTemplateId = "";
     els.templateName.value = template.name;
     els.templateText.value = template.text;
     els.saveTemplate.textContent = "Save template";
@@ -221,6 +223,7 @@
 
   function cancelTemplateEdit() {
     editingTemplateId = "";
+    pendingTemplateId = "";
     els.templateName.value = "";
     els.templateText.value = "";
     els.saveTemplate.textContent = "Add template";
@@ -235,11 +238,20 @@
       setTemplateStatus("Template name and message are required.", true);
       return;
     }
+    const adding = !editingTemplateId;
+    if (adding && !pendingTemplateId) pendingTemplateId = crypto.randomUUID();
     setBusy(true);
     try {
-      const response = await sendBackground(editingTemplateId
-        ? { type: "YOLO_TEMPLATE_UPDATE", template: { id: editingTemplateId, name, text } }
-        : { type: "YOLO_TEMPLATE_ADD", template: { name, text } });
+      let response = await sendBackground(adding
+        ? { type: "YOLO_TEMPLATE_ADD", template: { id: pendingTemplateId, name, text } }
+        : { type: "YOLO_TEMPLATE_UPDATE", template: { id: editingTemplateId, name, text } });
+      if (response?.ok && adding && response.deduplicated
+        && (response.template?.name !== name || response.template?.text !== text)) {
+        response = await sendBackground({
+          type: "YOLO_TEMPLATE_UPDATE",
+          template: { id: pendingTemplateId, name, text }
+        });
+      }
       if (!response?.ok) {
         setTemplateStatus(response?.reason || "Could not save template.", true);
         return;

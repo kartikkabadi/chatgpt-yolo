@@ -15,7 +15,8 @@
     runtime: "yoloRuntimeV1",
     queues: "yoloQueuesV1",
     templates: "yoloTemplatesV1",
-    actionGuards: "yoloActionGuardsV1"
+    actionGuards: "yoloActionGuardsV1",
+    portableRevision: "yoloPortableRevisionV1"
   });
 
   const DEEP_NUDGE_PROMPT = [

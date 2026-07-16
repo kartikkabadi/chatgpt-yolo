@@ -1,13 +1,13 @@
 "use strict";
 
-importScripts("config.js", "coordinator.js", "queue.js", "commands.js");
+importScripts("config.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js");
 
 const Config = globalThis.YOLOConfig;
 const Coordinator = globalThis.YOLOCoordinator;
+const PortableStore = globalThis.YOLOPortableStore;
 const Queue = globalThis.YOLOQueue;
 const Commands = globalThis.YOLOCommands;
 const queueLock = { current: Promise.resolve() };
-const templateLock = { current: Promise.resolve() };
 const workflowLock = { current: Promise.resolve() };
 const actionLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
@@ -161,65 +161,63 @@ function normalizeTemplate(raw, fallbackId = "") {
   };
 }
 
-async function readTemplates() {
-  const stored = await storageGet([Config.STORAGE_KEYS.templates]);
-  const raw = stored[Config.STORAGE_KEYS.templates];
-  if (Array.isArray(raw)) {
-    return raw.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
-  }
+function templatesFromStorage(stored) {
+  const raw = stored?.[Config.STORAGE_KEYS.templates];
+  if (Array.isArray(raw)) return raw.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
   return Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));
 }
 
-async function writeTemplates(templates) {
-  const normalized = templates.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
-  await storageSet({ [Config.STORAGE_KEYS.templates]: normalized });
-  return normalized;
+function templateMutationPlan(message, stored) {
+  let templates = templatesFromStorage(stored);
+  const now = Date.now();
+  if (message.type === "YOLO_TEMPLATES_RESET") {
+    templates = Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate({ ...template, createdAt: now, updatedAt: now }));
+    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };
+  }
+  if (message.type === "YOLO_TEMPLATE_ADD") {
+    if (templates.length >= 50) return { ok: false, reason: "Template limit reached" };
+    const requestedId = String(message.template?.id || "").trim().slice(0, 180);
+    if (!requestedId) return { ok: false, reason: "Template identifier is required", code: "template.id_required" };
+    const existing = templates.find((template) => template.id === requestedId);
+    if (existing) return { mutate: false, result: { templates, template: existing, deduplicated: true } };
+    const template = normalizeTemplate({ ...message.template, id: requestedId, createdAt: now, updatedAt: now });
+    if (!template) return { ok: false, reason: "Template name and text are required" };
+    templates.push(template);
+    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };
+  }
+  if (message.type === "YOLO_TEMPLATE_UPDATE") {
+    const index = templates.findIndex((template) => template.id === message.template?.id);
+    if (index < 0) return { ok: false, reason: "Template not found" };
+    const template = normalizeTemplate({ ...templates[index], ...message.template, builtIn: false, updatedAt: now });
+    if (!template) return { ok: false, reason: "Template name and text are required" };
+    templates[index] = template;
+    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };
+  }
+  if (message.type === "YOLO_TEMPLATE_REMOVE") {
+    if (!templates.some((entry) => entry.id === message.templateId)) return { ok: false, reason: "Template not found" };
+    templates = templates.filter((entry) => entry.id !== message.templateId);
+    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };
+  }
+  if (message.type === "YOLO_TEMPLATES_REORDER") {
+    const order = Array.isArray(message.orderedIds) ? message.orderedIds : [];
+    const byId = new Map(templates.map((template) => [template.id, template]));
+    const ordered = [];
+    for (const id of order) {
+      if (!byId.has(id)) continue;
+      ordered.push(byId.get(id));
+      byId.delete(id);
+    }
+    for (const template of templates) if (byId.has(template.id)) ordered.push(template);
+    return { setItems: { [Config.STORAGE_KEYS.templates]: ordered }, result: { templates: ordered } };
+  }
+  return { ok: false, reason: "Unknown template operation" };
 }
 
 async function handleTemplateMessage(message) {
-  return withLock(templateLock, async () => {
-    let templates = await readTemplates();
-    const now = Date.now();
-    if (message.type === "YOLO_TEMPLATES_GET") return { ok: true, templates };
-    if (message.type === "YOLO_TEMPLATES_RESET") {
-      templates = Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate({ ...template, createdAt: now, updatedAt: now }));
-      return { ok: true, templates: await writeTemplates(templates) };
-    }
-    if (message.type === "YOLO_TEMPLATE_ADD") {
-      if (templates.length >= 50) return { ok: false, reason: "Template limit reached" };
-      const template = normalizeTemplate({ ...message.template, id: Queue.makeId("template"), createdAt: now, updatedAt: now });
-      if (!template) return { ok: false, reason: "Template name and text are required" };
-      templates.push(template);
-      return { ok: true, templates: await writeTemplates(templates), template };
-    }
-    if (message.type === "YOLO_TEMPLATE_UPDATE") {
-      const index = templates.findIndex((template) => template.id === message.template?.id);
-      if (index < 0) return { ok: false, reason: "Template not found" };
-      const template = normalizeTemplate({ ...templates[index], ...message.template, builtIn: false, updatedAt: now });
-      if (!template) return { ok: false, reason: "Template name and text are required" };
-      templates[index] = template;
-      return { ok: true, templates: await writeTemplates(templates), template };
-    }
-    if (message.type === "YOLO_TEMPLATE_REMOVE") {
-      const template = templates.find((entry) => entry.id === message.templateId);
-      if (!template) return { ok: false, reason: "Template not found" };
-      templates = templates.filter((entry) => entry.id !== message.templateId);
-      return { ok: true, templates: await writeTemplates(templates) };
-    }
-    if (message.type === "YOLO_TEMPLATES_REORDER") {
-      const order = Array.isArray(message.orderedIds) ? message.orderedIds : [];
-      const byId = new Map(templates.map((template) => [template.id, template]));
-      const ordered = [];
-      for (const id of order) {
-        if (!byId.has(id)) continue;
-        ordered.push(byId.get(id));
-        byId.delete(id);
-      }
-      for (const template of templates) if (byId.has(template.id)) ordered.push(template);
-      return { ok: true, templates: await writeTemplates(ordered) };
-    }
-    return { ok: false, reason: "Unknown template operation" };
-  });
+  if (message.type === "YOLO_TEMPLATES_GET") {
+    return PortableStore.read(({ stored, revision }) => ({ ok: true, templates: templatesFromStorage(stored), revision }));
+  }
+  return PortableStore.mutate(({ stored }) => templateMutationPlan(message, stored));
 }
 
 async function activeWorkflowLimitError(key, current, workflow) {
@@ -428,7 +426,14 @@ async function handleQueueMessage(message, sender) {
 }
 
 chrome.runtime.onInstalled.addListener((details) => {
-  withLock(templateLock, async () => writeTemplates(await readTemplates())).catch(() => {});
+  PortableStore.mutate(({ stored }) => Array.isArray(stored[Config.STORAGE_KEYS.templates])
+    ? { mutate: false, result: { initialized: false } }
+    : {
+        setItems: {
+          [Config.STORAGE_KEYS.templates]: Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template))
+        },
+        result: { initialized: true }
+      }).catch(() => {});
   if (details?.reason === "install") {
     chrome.tabs?.create?.({ url: chrome.runtime.getURL("onboarding.html") });
   }
