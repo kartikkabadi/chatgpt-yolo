@@ -38,6 +38,15 @@ jobs:
             exit 1
           }
 
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.reliability-followup.py')
+          source = path.read_text(encoding='utf-8')
+          needle = "    '''  function actionDedupeKey"
+          if source.count(needle) != 2:
+              raise RuntimeError('Expected two actionDedupeKey source blocks')
+          path.write_text(source.replace(needle, "    r'''  function actionDedupeKey"), encoding='utf-8')
+          PY
           python .reliability-followup.py > /tmp/followup.log 2>&1 || fail followup /tmp/followup.log
           git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml || fail restore-ci
           rm -f .reliability-followup.py .reliability-followup-error.txt
