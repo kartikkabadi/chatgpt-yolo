@@ -1,0 +1,118 @@
+t first = Coordinator.claim(state, 'page::approval', 'tab-a', { at: 1000, leaseMs: 10000 });
++  assert.equal(first.ok, true);
++  state = first.state;
++  const competing = Coordinator.claim(state, 'page::approval', 'tab-b', { at: 2000, leaseMs: 10000 });
++  assert.equal(competing.ok, false);
++  assert.equal(competing.code, 'action.busy');
++  const renewed = Coordinator.claim(state, 'page::approval', 'tab-a', { at: 3000, leaseMs: 10000 });
++  assert.equal(renewed.ok, true);
++  assert.equal(renewed.renewed, true);
++  assert.equal(renewed.token, first.token);
++});
++
++test('executing action expires into unknown and cannot retry automatically', () => {
++  let result = Coordinator.claim(null, 'page::approval', 'tab-a', { at: 1000, leaseMs: 5000 });
++  const token = result.token;
++  result = Coordinator.begin(result.state, 'page::approval', token, 1100);
++  assert.equal(result.ok, true);
++  const expired = Coordinator.normalizeState(result.state, 7000);
++  assert.equal(expired.entries[0].phase, 'unknown');
++  const retry = Coordinator.claim(expired, 'page::approval', 'tab-b', { at: 7001 });
++  assert.equal(retry.ok, false);
++  assert.equal(retry.code, 'action.outcome_unknown');
++  const lateCompletion = Coordinator.complete(expired, 'page::approval', token, 7100);
++  assert.equal(lateCompletion.ok, true);
++});
++
++test('claimed action can expire safely before side effect begins', () => {
++  const claim = Coordinator.claim(null, 'page::refresh', 'tab-a', { at: 1000, leaseMs: 5000 });
++  const expired = Coordinator.normalizeState(claim.state, 7000);
++  const retry = Coordinator.claim(expired, 'page::refresh', 'tab-b', { at: 7001 });
++  assert.equal(retry.ok, true);
++});
++
++test('completion is idempotent and enforces cooldown', () => {
++  const claim = Coordinator.claim(null, 'page::refresh', 'tab-a', { at: 1000 });
++  const completed = Coordinator.complete(claim.state, 'page::refresh', claim.token, 1200);
++  assert.equal(completed.ok, true);
++  const duplicate = Coordinator.complete(completed.state, 'page::refresh', claim.token, 1300);
++  assert.equal(duplicate.ok, true);
++  assert.equal(duplicate.alreadyCompleted, true);
++  const cooled = Coordinator.claim(completed.state, 'page::refresh', 'tab-b', { at: 2000, cooldownMs: 5000 });
++  assert.equal(cooled.ok, false);
++  assert.equal(cooled.code, 'action.cooldown');
++  const later = Coordinator.claim(completed.state, 'page::refresh', 'tab-b', { at: 6300, cooldownMs: 5000 });
++  assert.equal(later.ok, true);
++});
++
++test('manual reset clears unknown outcomes', () => {
++  let result = Coordinator.claim(null, 'page::approval', 'tab-a', { at: 1000, leaseMs: 5000 });
++  result = Coordinator.begin(result.state, 'page::approval', result.token, 1100);
++  const unknown = Coordinator.normalizeState(result.state, 7000);
++  const reset = Coordinator.reset(unknown, 'page::approval', 7100);
++  assert.equal(reset.ok, true);
++  assert.equal(reset.state.entries.length, 0);
++});
+diff --git a/tests/reliability-foundation.test.js b/tests/reliability-foundation.test.js
+new file mode 100644
+index 0000000..77f35c4
+--- /dev/null
++++ b/tests/reliability-foundation.test.js
+@@ -0,0 +1,85 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const Config = require('../config.js');
++const Queue = require('../queue.js');
++const Platforms = require('../platforms.js');
++
++const read = (name) => fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
++
++test('automation is restricted to durable saved ChatGPT conversations', () => {
++  assert.equal(Config.isDurablePageId('https://chatgpt.com/c/abc123'), true);
++  assert.equal(Config.isDurablePageId(Config.pageId('https://chatgpt.com/c/abc123?temporary-chat=true')), true);
++  assert.equal(Config.isDurablePageId('https://chatgpt.com/'), false);
++  assert.equal(Config.isDurablePageId('https://chatgpt.com/g/gpt-id'), false);
++  assert.equal(Config.isDurablePageId('https://example.com/c/abc123'), false);
++});
++
++test('draft protection is invariant and approvals default off', () => {
++  assert.equal(Config.DEFAULT_SETTINGS.approvalsEnabled, false);
++  for (const preset of Object.values(Config.PRESETS)) assert.equal(preset.approvalsEnabled, false);
++  assert.equal(Config.normalizeSettings({ pauseOnComposerText: false }).pauseOnComposerText, true);
++});
++
++test('automatic queue additions deduplicate within a sliding window', () => {
++  const first = Queue.addItem(null, { text: 'Continue', dedupeKey: 'auto:recovery:x' }, { at: 1000, dedupeWindowMs: 5000 });
++  const duplicatePending = Queue.addItem(first.state, { text: 'Continue', dedupeKey: 'auto:recovery:x' }, { at: 2000, dedupeWindowMs: 5000 });
++  assert.equal(duplicatePending.deduplicated, true);
++  assert.equal(duplicatePending.state.items.length, 1);
++  const claim = Queue.claimNext(first.state, 'tab', { at: 2000 });
++  const done = Queue.completeClaim(claim.state, claim.item.id, claim.item.claimToken, 2500);
++  const duplicateCompleted = Queue.addItem(done.state, { text: 'Continue', dedupeKey: 'auto:recovery:x' }, { at: 4000, dedupeWindowMs: 5000 });
++  assert.equal(duplicateCompleted.alreadyCompleted, true);
++  const outsideWindow = Queue.addItem(done.state, { text: 'Continue', dedupeKey: 'auto:recovery:x' }, { at: 8000, dedupeWindowMs: 5000 });
++  assert.equal(outsideWindow.ok, true);
++  assert.equal(outsideWindow.deduplicated, undefined);
++});
++
++test('automatic action enqueue respects a paused queue', () => {
++  const paused = Queue.setPaused(null, true, 1000).state;
++  const rejected = Queue.addItem(paused, { text: 'Continue' }, { requireUnpaused: true, at: 1100 });
++  assert.equal(rejected.ok, false);
++  assert.equal(rejected.code, 'queue.paused');
++});
++
++test('sensitive approvals require the explicit all policy', () => {
++  assert.equal(Platforms.approvalVerbAllowed('Authorize', 'safe', 'Grant account permission access'), false);
++  assert.equal(Platforms.approvalVerbAllowed('Authorize', 'writes', 'Grant account permission access'), false);
++  assert.equal(Platforms.approvalVerbAllowed('Authorize', 'all', 'Grant account permission access'), true);
++});
++
++test('submission receipt requires a new matching user message', () => {
++  const messages = [{ textContent: 'same prompt' }];
++  const adapter = { userSelectors: ['user'] };
++  const doc = { querySelectorAll: () => messages };
++  const before = Platforms.userMessageSnapshot(adapter, doc);
++  asse
