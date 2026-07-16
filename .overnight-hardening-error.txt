@@ -2,12 +2,12 @@ Failed stage: validate
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 774.918757
+ℹ duration_ms 645.275752
 
 ✖ failing tests:
 
 test at tests/ui.test.js:152:1
-✖ workflow prompt creation is atomic and responses must settle (2.45371ms)
+✖ workflow prompt creation is atomic and responses must settle (2.065014ms)
   AssertionError [ERR_ASSERTION]: The input did not match the regular expression /RESPONSE_STABLE_MS/. Input:
   
   '(() => {\n' +
