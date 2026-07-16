@@ -20,16 +20,31 @@ jobs:
       - name: Apply, validate, and publish reliability foundation
         shell: bash
         run: |
-          set -euo pipefail
-          python .reliability-foundation.py
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm -f .reliability-foundation.py .reliability-patch.*
-          npm run validate
-          npm run package
-          git diff --check
-          git add -A
-          git diff --cached --check
+          set -uo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Harden automation delivery and cross-tab coordination"
-          git push origin HEAD:hardening/reliability-foundation
+
+          fail() {
+            stage="$1"
+            output="${2:-}"
+            git restore .github/workflows/ci.yml 2>/dev/null || true
+            {
+              echo "Failed stage: ${stage}"
+              [[ -n "$output" && -f "$output" ]] && tail -n 240 "$output"
+            } > .reliability-error.txt
+            git add .reliability-error.txt
+            git commit -m "Capture reliability failure at ${stage}" || true
+            git push origin HEAD:hardening/reliability-foundation
+            exit 1
+          }
+
+          python .reliability-foundation.py > /tmp/apply.log 2>&1 || fail apply /tmp/apply.log
+          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml || fail restore-ci
+          rm -f .reliability-foundation.py .reliability-patch.* .reliability-error.txt
+          npm run validate > /tmp/validate.log 2>&1 || fail validate /tmp/validate.log
+          npm run package > /tmp/package.log 2>&1 || fail package /tmp/package.log
+          git diff --check > /tmp/diff.log 2>&1 || fail diff-check /tmp/diff.log
+          git add -A
+          git diff --cached --check || fail staged-diff
+          git commit -m "Harden automation delivery and cross-tab coordination" || fail commit
+          git push origin HEAD:hardening/reliability-foundation || fail push
