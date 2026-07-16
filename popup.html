@@ -40,7 +40,7 @@
           </select>
         </label>
         <span class="control-divider" aria-hidden="true"></span>
-        <span id="queueCount" class="queue-count">0 queued</span>
+        <span id="queueCount" class="queue-count" aria-live="polite">0 queued</span>
         <span class="control-spacer"></span>
         <span class="shortcut-hint">⌘/Ctrl ↵ queue</span>
       </section>
@@ -81,7 +81,7 @@
             <button id="clearQueue" class="compact-button danger" type="button">Clear</button>
           </div>
         </div>
-        <div id="emptyQueue" class="empty-state">
+        <div id="emptyQueue" class="empty-state" role="status">
           <span class="empty-icon" aria-hidden="true">＋</span>
           <strong>No queued work</strong>
           <span>Add an instruction above. You can reorder, edit, retry, or send it manually.</span>

@@ -84,9 +84,10 @@ h1, h2, p { margin: 0; }
 h1 { font-size: 25px; line-height: 1.15; letter-spacing: -.035em; }
 .workspace-heading > p:last-child { max-width: 630px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); font-size: 11px; }
 .save-state { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-soft); font-size: 11px; font-weight: 650; box-shadow: 0 1px 2px rgba(0,0,0,.025); }
-.save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 13%, transparent); }
-.save-state[data-state="saving"] .save-dot { background: var(--warning); }
-.save-state[data-state="error"] .save-dot { background: var(--danger); }
+.save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-faint) 13%, transparent); }
+.save-state[data-state="saved"] .save-dot { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 13%, transparent); }
+.save-state[data-state="saving"] .save-dot { background: var(--warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 13%, transparent); }
+.save-state[data-state="error"] .save-dot { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 13%, transparent); }
 
 .settings-section { display: grid; gap: 12px; margin-bottom: 48px; scroll-margin-top: 112px; }
 .settings-section[hidden] { display: none; }

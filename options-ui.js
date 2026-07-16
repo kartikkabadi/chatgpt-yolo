@@ -34,6 +34,7 @@
     const sectionCount = doc.querySelector("#sectionCount");
     const saveStatus = doc.querySelector("#saveStatus");
     const saveState = doc.querySelector(".save-state");
+    const reducedMotion = Boolean(win.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
     const links = Array.from(doc.querySelectorAll("[data-section-link]"));
     const sections = Array.from(doc.querySelectorAll("[data-settings-section]"));
     if (!search || !clearSearch || !searchEmpty || !links.length || !sections.length) return { destroy() {} };
@@ -82,8 +83,12 @@
       const section = sections.find((entry) => entry.id === id && !entry.hidden);
       if (!section) return false;
       setActive(id);
-      section.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (updateHash && win.history?.replaceState) win.history.replaceState(null, "", `#${id}`);
+      section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      if (updateHash && win.history?.replaceState) {
+        const path = win.location?.pathname || "options.html";
+        const query = win.location?.search || "";
+        win.history.replaceState(null, "", `${path}${query}#${id}`);
+      }
       return true;
     }
 

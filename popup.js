@@ -176,6 +176,7 @@
     button.type = "button";
     button.textContent = label;
     button.title = title;
+    button.setAttribute("aria-label", title);
     button.className = className;
     button.addEventListener("click", handler);
     return button;
@@ -232,12 +233,13 @@
       if (item.state === "failed") {
         actions.append(itemButton("↻", "Retry message", () => retryItem(item.id)));
       }
-      actions.append(
-        itemButton("↑", "Move up", () => reorderQueue(moveOrder(item.id, -1))),
-        itemButton("↓", "Move down", () => reorderQueue(moveOrder(item.id, 1))),
-        itemButton("Edit", "Edit message", () => beginEdit(item)),
-        itemButton("×", "Remove message", () => removeItem(item.id), "danger")
-      );
+      const moveUp = itemButton("↑", "Move up", () => reorderQueue(moveOrder(item.id, -1)));
+      const moveDown = itemButton("↓", "Move down", () => reorderQueue(moveOrder(item.id, 1)));
+      const edit = itemButton("Edit", "Edit message", () => beginEdit(item));
+      const remove = itemButton("×", "Remove message", () => removeItem(item.id), "danger");
+      moveUp.disabled = index === 0;
+      moveDown.disabled = index === items.length - 1;
+      actions.append(moveUp, moveDown, edit, remove);
       if (busy || item.state === "sending") {
         for (const button of actions.querySelectorAll("button")) button.disabled = true;
         drag.disabled = true;

@@ -7,75 +7,14 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: design/codex-premium-ui
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Apply first premium UI review pass
-        shell: bash
-        run: |
-          set -uo pipefail
-          : > /tmp/ui-first-review.log
-
-          if [[ -f .apply-ui-first-review.ready ]]; then
-            set +e
-            (
-              set -euo pipefail
-              python .apply-ui-first-review.py
-              npm run validate
-              git diff --check
-            ) 2>&1 | tee /tmp/ui-first-review.log
-            status=${PIPESTATUS[0]}
-            set -e
-
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-            if [[ $status -ne 0 ]]; then
-              cp /tmp/ui-first-review.log .ui-first-review.error.txt
-              git add .ui-first-review.error.txt
-              git commit -m "Capture first premium UI review failure"
-              git push origin HEAD:design/codex-premium-ui
-              exit "$status"
-            fi
-
-            cat > .github/workflows/ci.yml <<'YAML'
-          name: CI
-
-          on:
-            pull_request:
-            push:
-              branches:
-                - main
-
-          permissions:
-            contents: read
-
-          jobs:
-            validate:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 20
-                - run: npm run validate
-          YAML
-
-            rm -f .apply-ui-first-review.py .apply-ui-first-review.ready .ui-first-review.error.txt
-            git add -A
-            git diff --cached --check
-            git commit -m "Resolve first premium UI review findings"
-            git push origin HEAD:design/codex-premium-ui
-          else
-            npm run validate
-          fi
+      - run: npm run validate

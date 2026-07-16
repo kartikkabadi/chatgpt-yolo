@@ -125,3 +125,17 @@ test("settings controller provides filtering, active navigation, and save-state 
   assert.match(source, /MutationObserver/);
   assert.match(source, /saveStateFor/);
 });
+
+test("queue item controls are explicitly named and respect reorder boundaries", () => {
+  const source = read("popup.js");
+  assert.match(source, /button\.setAttribute\("aria-label", title\)/);
+  assert.match(source, /moveUp\.disabled = index === 0/);
+  assert.match(source, /moveDown\.disabled = index === items\.length - 1/);
+});
+
+test("settings navigation preserves scope and respects reduced motion", () => {
+  const source = read("options-ui.js");
+  assert.match(source, /prefers-reduced-motion: reduce/);
+  assert.match(source, /win\.location\?\.search/);
+  assert.match(source, /behavior: reducedMotion \? "auto" : "smooth"/);
+});
