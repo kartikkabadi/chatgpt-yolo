@@ -62,6 +62,13 @@ test("backup validation normalizes settings and enforces size and collection lim
   }));
   assert.throws(() => Portability.normalizeBackup(tooManyTemplates), /Template limit/);
   assert.throws(() => Portability.normalizeBackup("x".repeat(Portability.MAX_BACKUP_BYTES + 1)), /1 MiB/);
+
+  const tooManyPages = { [Config.STORAGE_KEYS.templates]: [] };
+  for (let index = 0; index <= Portability.MAX_PAGE_SETTINGS; index += 1) {
+    const id = `https://chatgpt.com/c/export-${index}`;
+    tooManyPages[Config.pageSettingsKey(id)] = { enabled: false };
+  }
+  assert.throws(() => Portability.createBackup(tooManyPages), /Conversation setting limit/);
 });
 
 test("import payload targets only portable storage keys", () => {
@@ -84,7 +91,7 @@ test("privacy-safe diagnostics redact identifiers and all user-authored text", (
       pageId,
       blockedCode: "queue.delivery_unknown",
       blockedReason: "BLOCKED-SECRET",
-      lastAction: { message: "ACTION-SECRET" },
+      lastAction: { code: "queue.failed", message: "ACTION-SECRET" },
       workflow: { objective: "OBJECTIVE-SECRET" },
       settings: { ...Config.DEFAULT_SETTINGS, profile: "safe", enabled: true },
       runtime: { sessionActionCount: 7 }
@@ -98,5 +105,6 @@ test("privacy-safe diagnostics redact identifiers and all user-authored text", (
   assert.equal(diagnostics.queue.total, 1);
   assert.equal(diagnostics.queue.stateCounts.failed, 1);
   assert.deepEqual(diagnostics.queue.errorCodes, ["queue.delivery_unknown"]);
-  assert.doesNotMatch(serialized, /portable|SECRET|objective|pageId|lastAction|blockedReason/i);
+  assert.equal(diagnostics.runtime.lastActionCode, "queue.failed");
+  assert.doesNotMatch(serialized, /portable|SECRET|objective|pageId|blockedReason/i);
 });
