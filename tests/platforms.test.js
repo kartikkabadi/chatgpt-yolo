@@ -93,10 +93,13 @@ test("fixture-based approval detection respects every risk policy", () => {
   }
 });
 
-test("generic safe button labels cannot hide destructive context", () => {
+test("generic safe labels cannot hide destructive or sensitive context", () => {
   assert.equal(Platforms.approvalVerbAllowed("Confirm", "safe", "Delete the GitHub branch"), false);
   assert.equal(Platforms.approvalVerbAllowed("Confirm", "writes", "Merge pull request"), false);
   assert.equal(Platforms.approvalVerbAllowed("Confirm", "all", "Delete the GitHub branch"), true);
+  assert.equal(Platforms.approvalVerbAllowed("Allow", "safe", "GitHub requests permission to read a private repository"), false);
+  assert.equal(Platforms.approvalVerbAllowed("Allow", "writes", "Run command in the workspace terminal"), false);
+  assert.equal(Platforms.approvalVerbAllowed("Allow", "all", "Run command in the workspace terminal"), true);
 });
 
 test("submission observation requires a new matching user message", () => {
