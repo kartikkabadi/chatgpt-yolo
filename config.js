@@ -295,7 +295,7 @@
   function isSupportedUrl(url) {
     try {
       const host = new URL(url).hostname.toLowerCase();
-      return host === "chatgpt.com" || host.endsWith(".chatgpt.com") || host === "grok.com" || host.endsWith(".grok.com");
+      return host === "chatgpt.com" || host.endsWith(".chatgpt.com");
     } catch {
       return false;
     }

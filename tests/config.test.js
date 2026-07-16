@@ -27,7 +27,14 @@ test("migrates legacy boolean setting names", () => {
 
 test("normalizes conversation URLs into stable page IDs", () => {
   assert.equal(Config.pageId("https://chatgpt.com/c/abc?temporary-chat=true#bottom"), "https://chatgpt.com/c/abc");
-  assert.equal(Config.pageId("https://grok.com/"), "https://grok.com/");
+  assert.equal(Config.pageId("https://chatgpt.com/"), "https://chatgpt.com/");
+});
+
+test("supports only ChatGPT URLs", () => {
+  assert.equal(Config.isSupportedUrl("https://chatgpt.com/c/one"), true);
+  assert.equal(Config.isSupportedUrl("https://team.chatgpt.com/c/one"), true);
+  assert.equal(Config.isSupportedUrl("https://grok.com/"), false);
+  assert.equal(Config.isSupportedUrl("https://example.com/"), false);
 });
 
 test("enforces hourly and session action limits with reason codes", () => {
@@ -62,5 +69,5 @@ test("uses collision-resistant per-conversation storage keys", () => {
   const second = Config.pageSettingsKey("https://chatgpt.com/c/two");
   assert.notEqual(first, second);
   assert.match(first, /^yoloPage:/);
-  assert.match(Config.lastActionKey("https://grok.com/c/one"), /^yoloLastAction:/);
+  assert.match(Config.lastActionKey("https://chatgpt.com/c/one"), /^yoloLastAction:/);
 });

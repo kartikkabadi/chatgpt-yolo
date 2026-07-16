@@ -27,3 +27,11 @@ test("every manifest entry point exists", () => {
 test("content scripts load shared configuration before the engine", () => {
   assert.deepEqual(manifest.content_scripts[0].js, ["config.js", "platforms.js", "content.js"]);
 });
+
+test("manifest grants host access only to ChatGPT", () => {
+  const hosts = ["https://chatgpt.com/*", "https://*.chatgpt.com/*"];
+  assert.deepEqual(manifest.host_permissions, hosts);
+  assert.deepEqual(manifest.content_scripts[0].matches, hosts);
+  assert.doesNotMatch(manifest.description, /grok/i);
+  assert.doesNotMatch(pkg.description, /grok/i);
+});

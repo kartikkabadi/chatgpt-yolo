@@ -1,12 +1,12 @@
 # YOLO
 
-YOLO is a personal Chromium extension for reliably continuing long-running ChatGPT and Grok work. It combines a persistent message queue with bounded automation for approvals, error recovery, deep nudges, and stale-tab refreshes.
+YOLO is a personal Chromium extension for reliably continuing long-running ChatGPT work. It combines a persistent message queue with bounded automation for approvals, error recovery, deep nudges, and stale-tab refreshes.
 
 Version `0.6.0` replaces the original hard-coded extension with a queue-first architecture designed for real daily use: a small primary interface, advanced controls when needed, central queue ownership, per-conversation state, retries, limits, templates, diagnostics, and automated validation.
 
 ## Core workflow
 
-1. Open a ChatGPT or Grok conversation.
+1. Open a ChatGPT conversation.
 2. Add one or more messages to the YOLO queue.
 3. Drag messages into the order you want.
 4. Leave the queue running or manually send the next item.
@@ -117,7 +117,7 @@ A destructive card whose button merely says `Confirm` is still destructive. `Saf
 - `config.js` — schema, defaults, profiles, migration, URL scoping, limits, template rendering
 - `queue.js` — pure queue state machine, claims, retries, pause reasons, events
 - `background.js` — serialized persistent queue and template ownership
-- `platforms.js` — ChatGPT/Grok DOM adapters and approval risk classification
+- `platforms.js` — ChatGPT DOM adapter and approval risk classification
 - `content.js` — route-safe automation engine and DOM execution
 - `popup.*` — compact everyday queue interface
 - `options.*` — advanced controls and template management
@@ -132,7 +132,7 @@ There is no build step and no runtime dependency.
 2. Open `chrome://extensions` or the extension page in your Chromium browser.
 3. Enable Developer mode.
 4. Select **Load unpacked** and choose this repository folder.
-5. Open or refresh a ChatGPT or Grok conversation.
+5. Open or refresh a ChatGPT conversation.
 6. Open YOLO and configure the conversation.
 
 After updating the source, reload the extension and refresh already-open chat tabs.
@@ -156,7 +156,7 @@ Validation performs syntax checks for every extension entry point and runs the c
 
 ## Manual release checklist
 
-- Popup opens on ChatGPT and Grok and stays unavailable elsewhere.
+- Popup opens on ChatGPT and stays unavailable elsewhere.
 - Safe, Balanced, and Fast profiles save and reload correctly.
 - Two conversation URLs maintain independent settings and queues.
 - Two tabs on the same conversation cannot send queue items concurrently.
@@ -177,4 +177,4 @@ Validation performs syntax checks for every extension entry point and runs the c
 
 ## Known external dependency
 
-ChatGPT and Grok do not provide a stable public DOM contract for browser extensions. The adapters are isolated and fixture-tested, but every release still requires one unpacked-extension smoke pass against the current live interfaces.
+ChatGPT does not provide a stable public DOM contract for browser extensions. The adapter is isolated and fixture-tested, but every release still requires one unpacked-extension smoke pass against the current live interface.

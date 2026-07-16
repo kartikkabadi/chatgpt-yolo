@@ -46,7 +46,7 @@ function createFixtureDocument(fixture) {
 
 test("selects platform adapters only for supported hosts", () => {
   assert.equal(Platforms.adapterForLocation({ hostname: "chatgpt.com" }).id, "chatgpt");
-  assert.equal(Platforms.adapterForLocation({ hostname: "www.grok.com" }).id, "grok");
+  assert.equal(Platforms.adapterForLocation({ hostname: "www.grok.com" }), null);
   assert.equal(Platforms.adapterForLocation({ hostname: "example.com" }), null);
 });
 

@@ -486,7 +486,7 @@
     activeTab = await queryActiveTab();
     if (!Config.isSupportedUrl(activeTab?.url)) {
       els.status.textContent = "Unavailable";
-      els.scope.textContent = "Open ChatGPT or Grok to use YOLO.";
+      els.scope.textContent = "Open ChatGPT to use YOLO.";
       setBusy(true);
       return;
     }

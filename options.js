@@ -72,7 +72,7 @@
       if (state) return state;
     }
     const tabs = await new Promise((resolve) => chrome.tabs.query({
-      url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*", "https://grok.com/*", "https://*.grok.com/*"]
+      url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*"]
     }, resolve));
     const candidate = [...tabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
     if (!candidate?.id) return null;
@@ -274,7 +274,7 @@
   async function init() {
     contentState = await resolveSourceTab();
     if (!contentState) {
-      els.scope.textContent = "Open a ChatGPT or Grok conversation, then reopen this page from the YOLO popup.";
+      els.scope.textContent = "Open a ChatGPT conversation, then reopen this page from the YOLO popup.";
       els.saveStatus.textContent = "No conversation selected";
       setBusy(true);
       return;

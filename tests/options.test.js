@@ -48,5 +48,5 @@ test("options page resolves a conversation source and fails closed when none exi
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "options.js"), "utf8"), context, { filename: "options.js" });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(queried, true);
-  assert.match(getElement("#scope").textContent, /Open a ChatGPT or Grok conversation/);
+  assert.match(getElement("#scope").textContent, /Open a ChatGPT conversation/);
 });

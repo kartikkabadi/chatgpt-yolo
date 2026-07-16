@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YOLO",
   "version": "0.6.0",
-  "description": "Reliable message queues and configurable automation controls for ChatGPT and Grok.",
+  "description": "Reliable message queues and configurable automation controls for ChatGPT.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -10,9 +10,7 @@
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
-    "https://*.chatgpt.com/*",
-    "https://grok.com/*",
-    "https://*.grok.com/*"
+    "https://*.chatgpt.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -41,9 +39,7 @@
     {
       "matches": [
         "https://chatgpt.com/*",
-        "https://*.chatgpt.com/*",
-        "https://grok.com/*",
-        "https://*.grok.com/*"
+        "https://*.chatgpt.com/*"
       ],
       "js": [
         "config.js",

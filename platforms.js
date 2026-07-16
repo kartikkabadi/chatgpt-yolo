@@ -42,45 +42,12 @@
         ".border-red-500",
         ".border-red-600"
       ]
-    }),
-    grok: Object.freeze({
-      id: "grok",
-      label: "Grok",
-      supportsApprovals: false,
-      composerSelectors: [
-        "textarea[placeholder*='Ask' i]",
-        "textarea[placeholder*='Message' i]",
-        "textarea[aria-label*='Ask' i]",
-        "textarea[aria-label*='Message' i]",
-        "form textarea",
-        "form div[contenteditable='true'][role='textbox']",
-        "div[contenteditable='true'][aria-label*='Ask' i]",
-        "div[contenteditable='true'][aria-label*='Message' i]"
-      ],
-      sendSelectors: [
-        "button[data-testid*='send' i]",
-        "button[aria-label*='Send' i]",
-        "button[aria-label*='Submit' i]",
-        "button[title*='Send' i]",
-        "button[type='submit']"
-      ],
-      generationSelectors: [
-        "button[aria-label*='Stop' i]",
-        "button[title*='Stop' i]",
-        "button[data-testid*='stop' i]"
-      ],
-      errorSelectors: [
-        "[role='alert']",
-        "[data-testid*='error' i]",
-        "[class*='error' i]"
-      ]
     })
   });
 
   function adapterForLocation(locationLike = globalThis.location) {
     const host = String(locationLike?.hostname || "").toLowerCase();
     if (host === "chatgpt.com" || host.endsWith(".chatgpt.com")) return ADAPTERS.chatgpt;
-    if (host === "grok.com" || host.endsWith(".grok.com")) return ADAPTERS.grok;
     return null;
   }
 
