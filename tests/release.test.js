@@ -59,11 +59,18 @@ test("temporary review and diagnostic files are absent", () => {
 
 test("documentation promises match the local-only permission model", () => {
   const manifest = JSON.parse(read("manifest.json"));
-  assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
+  assert.deepEqual(manifest.permissions, ["scripting", "storage"]);
   assert.deepEqual(manifest.host_permissions, ["https://chatgpt.com/*", "https://*.chatgpt.com/*"]);
   for (const file of ["README.md", "PRIVACY.md", "docs/PERMISSIONS.md"]) {
     const content = read(file);
     assert.match(content, /local/i, file);
     assert.doesNotMatch(content, /collects telemetry|remote code is loaded/i, file);
+  }
+});
+
+test("release package carries user-facing legal and privacy documents", () => {
+  const packager = read("scripts/package.mjs");
+  for (const file of ["README.md", "LICENSE", "NOTICE.md", "PRIVACY.md"]) {
+    assert.match(packager, new RegExp(`"${file.replace(".", "\\.")}"`), file);
   }
 });
