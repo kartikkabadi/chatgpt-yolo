@@ -83,3 +83,18 @@ test('package and background composition include the action coordinator', () => 
   assert.match(read('scripts/package.mjs'), /"coordinator\.js"/);
   assert.match(read('background.js'), /importScripts\("config\.js", "coordinator\.js", "queue\.js", "commands\.js"\)/);
 });
+
+test('automatic dedupe identity is stable across cooldown boundaries', () => {
+  const content = read('content.js');
+  const start = content.indexOf('function actionDedupeKey');
+  const end = content.indexOf('async function sendPrompt', start);
+  const helper = content.slice(start, end);
+  assert.match(helper, /Commands\.fingerprint/);
+  assert.doesNotMatch(helper, /Math\.floor|bucketMs/);
+});
+
+test('runtime reset is scoped to the current conversation', () => {
+  const background = read('background.js');
+  assert.match(background, /Coordinator\.resetPrefix\(state, `\$\{pageId\}::`\)/);
+  assert.doesNotMatch(background, /Coordinator\.reset\(state, actionKey \? guardKey : ""\)/);
+});

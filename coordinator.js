@@ -54,8 +54,15 @@
       seen.add(entry.key);
       entries.push(entry);
     }
-    entries.sort((a, b) => a.updatedAt - b.updatedAt);
-    return { version: 2, entries: entries.slice(-MAX_GUARDS), updatedAt: Math.max(0, finite(raw?.updatedAt, at)) };
+    const protectedEntries = entries
+      .filter((entry) => entry.phase !== "idle")
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const idleEntries = entries
+      .filter((entry) => entry.phase === "idle")
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const bounded = [...protectedEntries, ...idleEntries].slice(0, MAX_GUARDS);
+    bounded.sort((a, b) => a.updatedAt - b.updatedAt);
+    return { version: 2, entries: bounded, updatedAt: Math.max(0, finite(raw?.updatedAt, at)) };
   }
 
   function claim(rawState, key, ownerId, options = {}) {
@@ -71,6 +78,13 @@
 
     let entry = state.entries.find((candidate) => candidate.key === normalizedKey);
     if (!entry) {
+      if (state.entries.length >= MAX_GUARDS) {
+        const idleIndex = state.entries.findIndex((candidate) => candidate.phase === "idle");
+        if (idleIndex < 0) {
+          return { state, ok: false, reason: "Action guard capacity is occupied by unresolved actions", code: "action.guard_capacity" };
+        }
+        state.entries.splice(idleIndex, 1);
+      }
       entry = normalizeEntry({ key: normalizedKey }, at);
       state.entries.push(entry);
     }
@@ -119,10 +133,11 @@
     if (!normalizedToken || entry.token !== normalizedToken || !["claimed", "executing"].includes(entry.phase)) {
       return { state, ok: false, reason: "Action lease is no longer valid", code: "action.guard_invalid" };
     }
+    const alreadyExecuting = entry.phase === "executing";
     entry.phase = "executing";
     entry.updatedAt = at;
     state.updatedAt = at;
-    return { state: normalizeState(state, at), ok: true, alreadyExecuting: false };
+    return { state: normalizeState(state, at), ok: true, alreadyExecuting };
   }
 
   function complete(rawState, key, token, at = Date.now()) {
@@ -181,6 +196,15 @@
     return { state: normalizeState(state, at), ok: true, reset: true };
   }
 
+  function resetPrefix(rawState, prefix, at = Date.now()) {
+    const state = normalizeState(rawState, at);
+    const normalizedPrefix = clean(prefix);
+    if (!normalizedPrefix) return { state, ok: false, reason: "Action guard prefix is required", code: "action.guard_invalid" };
+    state.entries = state.entries.filter((entry) => !entry.key.startsWith(normalizedPrefix));
+    state.updatedAt = at;
+    return { state: normalizeState(state, at), ok: true, reset: true };
+  }
+
   return Object.freeze({
     MAX_GUARDS,
     DEFAULT_LEASE_MS,
@@ -190,6 +214,7 @@
     begin,
     complete,
     release,
-    reset
+    reset,
+    resetPrefix
   });
 });

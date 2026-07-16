@@ -59,3 +59,32 @@ test('manual reset clears unknown outcomes', () => {
   assert.equal(reset.ok, true);
   assert.equal(reset.state.entries.length, 0);
 });
+
+test('conversation reset does not clear another conversation guard', () => {
+  const state = Coordinator.normalizeState({
+    entries: [
+      { key: 'page-a::approval', phase: 'unknown', token: 'a', unknownAt: 1000, updatedAt: 1000 },
+      { key: 'page-b::approval', phase: 'unknown', token: 'b', unknownAt: 1000, updatedAt: 1000 }
+    ]
+  }, 2000);
+  const reset = Coordinator.resetPrefix(state, 'page-a::', 2100);
+  assert.equal(reset.ok, true);
+  assert.deepEqual(reset.state.entries.map((entry) => entry.key), ['page-b::approval']);
+});
+
+test('capacity never evicts unresolved action outcomes', () => {
+  const state = Coordinator.normalizeState({
+    entries: Array.from({ length: Coordinator.MAX_GUARDS }, (_, index) => ({
+      key: `page-${index}::approval`,
+      phase: 'unknown',
+      token: `token-${index}`,
+      unknownAt: 1000 + index,
+      updatedAt: 1000 + index
+    }))
+  }, 5000);
+  const claim = Coordinator.claim(state, 'new-page::approval', 'tab-new', { at: 5001 });
+  assert.equal(claim.ok, false);
+  assert.equal(claim.code, 'action.guard_capacity');
+  assert.equal(claim.state.entries.length, Coordinator.MAX_GUARDS);
+  assert.ok(claim.state.entries.every((entry) => entry.phase === 'unknown'));
+});

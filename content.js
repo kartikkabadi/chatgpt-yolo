@@ -455,9 +455,7 @@
   }
 
   function actionDedupeKey(action, prompt, reason) {
-    const cooldownSec = action === "recovery" ? state.settings.errorCooldownSec : state.settings.deepNudgeCooldownSec;
-    const bucketMs = Math.max(1000, cooldownSec * 1000);
-    return `auto:${action}:${Math.floor(now() / bucketMs)}:${Commands.fingerprint(`${prompt}\n${reason}`)}`;
+    return `auto:${action}:${Commands.fingerprint(`${prompt}\n${reason}`)}`;
   }
 
   async function sendPrompt({ action, prompt, label, reason, delayMinSec = 0, delayMaxSec = 0, automatic = true }) {

@@ -119,6 +119,9 @@ async function handleActionMessage(message, sender) {
     return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "action.page_mismatch" };
   }
   const actionKey = String(message.actionKey || "").trim().slice(0, 240);
+  if (message.type !== "YOLO_ACTION_RESET" && !actionKey) {
+    return { ok: false, reason: "Action key is required", code: "action.guard_invalid" };
+  }
   const guardKey = `${pageId}::${actionKey}`;
   if (message.type === "YOLO_ACTION_CLAIM") {
     return mutateActionGuards((state) => Coordinator.claim(state, guardKey, message.ownerId, {
@@ -136,7 +139,9 @@ async function handleActionMessage(message, sender) {
     return mutateActionGuards((state) => Coordinator.release(state, guardKey, message.token));
   }
   if (message.type === "YOLO_ACTION_RESET") {
-    return mutateActionGuards((state) => Coordinator.reset(state, actionKey ? guardKey : ""));
+    return mutateActionGuards((state) => actionKey
+      ? Coordinator.reset(state, guardKey)
+      : Coordinator.resetPrefix(state, `${pageId}::`));
   }
   return { ok: false, reason: "Unknown action guard operation", code: "action.unknown" };
 }
