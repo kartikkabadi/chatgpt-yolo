@@ -25,7 +25,11 @@ export const RUNTIME_FILES = Object.freeze([
   "icons/icon16.png",
   "icons/icon32.png",
   "icons/icon48.png",
-  "icons/icon128.png"
+  "icons/icon128.png",
+  "README.md",
+  "LICENSE",
+  "NOTICE.md",
+  "PRIVACY.md"
 ]);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -66,5 +70,5 @@ const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fil
 if (invokedDirectly) {
   const checkOnly = process.argv.includes("--check");
   const result = checkOnly ? await verifyRuntimeFiles() : await packageExtension();
-  console.log(checkOnly ? `Verified ${RUNTIME_FILES.length} runtime files` : `Packaged YOLO at ${result}`);
+  console.log(checkOnly ? `Verified ${RUNTIME_FILES.length} packaged files` : `Packaged YOLO at ${result}`);
 }
