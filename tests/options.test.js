@@ -14,6 +14,7 @@ function element() {
 
 test("options page resolves a conversation source and fails closed when none exists", async () => {
   let queried = false;
+  let templatesRequested = false;
   const elements = new Map();
   const getElement = (selector) => {
     if (!elements.has(selector)) elements.set(selector, element());
@@ -30,7 +31,13 @@ test("options page resolves a conversation source and fails closed when none exi
       createElement() { return element(); }
     },
     chrome: {
-      runtime: { lastError: null, sendMessage() {} },
+      runtime: {
+        lastError: null,
+        sendMessage(message, callback) {
+          if (message?.type === "YOLO_TEMPLATES_GET") templatesRequested = true;
+          callback?.({ ok: true, templates: [] });
+        }
+      },
       tabs: {
         query(_query, callback) { queried = true; callback([]); },
         sendMessage() {}
@@ -48,5 +55,6 @@ test("options page resolves a conversation source and fails closed when none exi
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "options.js"), "utf8"), context, { filename: "options.js" });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(queried, true);
+  assert.equal(templatesRequested, true);
   assert.match(getElement("#scope").textContent, /Open a ChatGPT conversation/);
 });

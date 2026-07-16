@@ -46,3 +46,39 @@ test("queue engine persists submission intent before touching the composer", () 
   assert.ok(markIndex >= 0);
   assert.ok(submitIndex > markIndex);
 });
+
+test("popup commits content and queue state atomically", () => {
+  const source = read("popup.js");
+  const queueGuard = source.indexOf("if (!queueResponse?.ok) return false;");
+  const contentCommit = source.indexOf("contentState = nextContent;");
+  const queueCommit = source.indexOf("queueState = queueResponse.state;");
+  assert.ok(queueGuard >= 0 && contentCommit > queueGuard && queueCommit > contentCommit);
+});
+
+test("popup initialization and editing shortcuts fail closed", () => {
+  const source = read("popup.js");
+  const init = source.slice(source.indexOf("async function init()"), source.indexOf("els.enabled.addEventListener"));
+  assert.match(init, /setBusy\(true\)/);
+  assert.match(init, /includeTemplates: true, force: true/);
+  assert.match(init, /setBusy\(false\)/);
+  assert.match(source, /send: event\.shiftKey && !editingId/);
+});
+
+test("template rendering receives the current conversation", () => {
+  const source = read("popup.js");
+  assert.match(source, /conversation: contentState\?\.pageId/);
+});
+
+test("primary controls and dynamic option statuses are accessibly named", () => {
+  assert.match(read("popup.html"), /id="enabled"[^>]*aria-label="Run automation for this conversation"/);
+  const options = read("options.html");
+  assert.match(options, /id="saveStatus"[^>]*role="status"/);
+  assert.match(options, /id="templateStatus"[^>]*role="status"/);
+});
+
+test("queue failures forward explicit delivery ambiguity", () => {
+  const source = read("content.js");
+  assert.match(source, /deliveryAmbiguous: submissionAttempted/);
+  assert.match(source, /submitted\.code, deliveryAmbiguous/);
+  assert.match(source, /"queue\.exception", deliveryAmbiguous/);
+});

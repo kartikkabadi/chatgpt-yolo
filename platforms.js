@@ -221,7 +221,7 @@
     if (!adapter) return false;
     if (isGenerating(adapter, documentLike)) return true;
     const composer = findComposer(adapter, documentLike);
-    return !composer || composerText(composer).trim() === "";
+    return Boolean(composer) && composerText(composer).trim() === "";
   }
 
   function approvalVerbAllowed(text, policy, contextText = "") {

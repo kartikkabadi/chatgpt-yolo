@@ -15,7 +15,7 @@
           <p id="scope">Loading conversation…</p>
         </div>
         <div class="header-actions">
-          <span id="saveStatus">Loading…</span>
+          <span id="saveStatus" role="status">Loading…</span>
           <button id="resetDefaults" type="button">Reset defaults</button>
         </div>
       </header>
@@ -114,7 +114,7 @@
           <input id="templateName" type="text" maxlength="80" placeholder="Template name">
           <textarea id="templateText" rows="5" maxlength="8000" placeholder="Template message"></textarea>
           <div><button id="saveTemplate" class="primary" type="button">Add template</button><button id="cancelTemplate" type="button" hidden>Cancel edit</button></div>
-          <p id="templateStatus"></p>
+          <p id="templateStatus" role="status"></p>
         </div>
         <ol id="templateList" class="template-list"></ol>
       </section>

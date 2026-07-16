@@ -82,8 +82,10 @@
 
   function setBusy(nextBusy) {
     busy = nextBusy;
-    for (const control of controls) control.disabled = nextBusy;
+    for (const control of controls) control.disabled = nextBusy || !contentState;
     for (const button of document.querySelectorAll("button")) button.disabled = nextBusy;
+    els.resetDefaults.disabled = nextBusy || !contentState;
+    els.resetRuntime.disabled = nextBusy || !contentState;
   }
 
   function valueFromControl(control) {
@@ -272,17 +274,17 @@
   }
 
   async function init() {
+    setBusy(true);
     contentState = await resolveSourceTab();
     if (!contentState) {
-      els.scope.textContent = "Open a ChatGPT conversation, then reopen this page from the YOLO popup.";
+      els.scope.textContent = "Open a ChatGPT conversation to configure automation. Templates remain available below.";
       els.saveStatus.textContent = "No conversation selected";
-      setBusy(true);
-      return;
+    } else {
+      settings = contentState.settings;
+      renderControls(settings);
+      els.scope.textContent = `${contentState.platform} · ${contentState.pageId}`;
+      els.saveStatus.textContent = "Saved";
     }
-    settings = contentState.settings;
-    renderControls(settings);
-    els.scope.textContent = `${contentState.platform} · ${contentState.pageId}`;
-    els.saveStatus.textContent = "Saved";
 
     const templateResponse = await sendBackground({ type: "YOLO_TEMPLATES_GET" });
     if (templateResponse?.ok) templates = templateResponse.templates;
@@ -290,6 +292,7 @@
 
     const section = params.get("section");
     if (section) document.getElementById(section)?.scrollIntoView({ block: "start" });
+    setBusy(false);
   }
 
   for (const control of controls) {

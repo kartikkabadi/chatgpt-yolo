@@ -102,3 +102,9 @@ test("submission observation requires a cleared composer or active generation", 
   documentLike.querySelectorAll = (selector) => selector === "composer" ? [composer] : selector === "stop" ? [stop] : [];
   assert.equal(Platforms.submissionObserved(adapter, documentLike), true);
 });
+
+test("a missing composer is not treated as delivery confirmation", () => {
+  const adapter = { composerSelectors: ["composer"], generationSelectors: ["stop"] };
+  const documentLike = { querySelectorAll() { return []; } };
+  assert.equal(Platforms.submissionObserved(adapter, documentLike), false);
+});

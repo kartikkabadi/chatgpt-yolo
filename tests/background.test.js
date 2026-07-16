@@ -44,8 +44,8 @@ function loadBackground() {
   for (const file of ["config.js", "queue.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
-  const invoke = (message) => new Promise((resolve) => {
-    const async = listener(message, {}, resolve);
+  const invoke = (message, sender = {}) => new Promise((resolve) => {
+    const async = listener(message, sender, resolve);
     assert.equal(async, true);
   });
   return { invoke, storage, failStorageWrite() { failNextSet = true; } };
@@ -137,7 +137,8 @@ test("background persists ambiguous delivery as terminal manual recovery", async
     errorCode: "composer.unconfirmed",
     maxRetries: 5,
     backoffSec: 1,
-    pauseOnFailure: false
+    pauseOnFailure: false,
+    deliveryAmbiguous: true
   });
 
   assert.equal(failed.ok, true);
@@ -147,4 +148,28 @@ test("background persists ambiguous delivery as terminal manual recovery", async
   const nextClaim = await invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "other-tab" });
   assert.equal(nextClaim.ok, false);
   assert.equal(nextClaim.code, "queue.paused");
+});
+
+test("tab-backed queue messages must match the sender conversation", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/sender-bound";
+  await invoke({ type: "YOLO_QUEUE_ADD", pageId, item: { text: "bound" } });
+
+  const matching = await invoke(
+    { type: "YOLO_QUEUE_GET", pageId },
+    { tab: { url: "https://chatgpt.com/c/sender-bound?temporary-chat=true" } }
+  );
+  assert.equal(matching.ok, true);
+
+  const mismatched = await invoke(
+    { type: "YOLO_QUEUE_GET", pageId },
+    { tab: { url: "https://chatgpt.com/c/other" } }
+  );
+  assert.equal(mismatched.ok, false);
+  assert.equal(mismatched.code, "queue.page_mismatch");
+});
+
+test("install-time template initialization uses the template lock", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
+  assert.match(source, /onInstalled[\s\S]*withLock\(templateLock/);
 });

@@ -229,7 +229,8 @@ test("ambiguous delivery outcomes fail closed and require manual retry", () => {
       backoffSec: 1,
       pauseOnFailure: false,
       error: `ambiguous outcome: ${errorCode}`,
-      errorCode
+      errorCode,
+      deliveryAmbiguous: true
     });
 
     assert.equal(failed.ok, true);
@@ -260,11 +261,50 @@ test("proven pre-submit failures retain automatic retry backoff", () => {
     backoffSec: 10,
     pauseOnFailure: true,
     error: "composer not found before submit",
-    errorCode: "composer.missing"
+    errorCode: "composer.missing",
+    deliveryAmbiguous: false
   });
 
   assert.equal(failed.state.items[0].state, "pending");
   assert.equal(failed.state.items[0].errorCode, "composer.missing");
   assert.equal(failed.state.items[0].nextAttemptAt, 11200);
   assert.equal(failed.state.paused, false);
+});
+
+test("delivery-unknown failures remain a hard block until explicitly resolved", () => {
+  const raw = {
+    paused: false,
+    items: [
+      { id: "unknown", text: "possibly sent", state: "failed", errorCode: "queue.delivery_unknown" },
+      { id: "later", text: "must wait", state: "pending" }
+    ]
+  };
+  const normalized = Queue.normalizeState(raw, 2000);
+  assert.equal(normalized.paused, true);
+  assert.equal(normalized.pauseReason, "failure");
+
+  const resumed = Queue.setPaused(normalized, false, 2100);
+  assert.equal(resumed.ok, false);
+  assert.equal(resumed.code, "queue.delivery_unknown");
+  assert.equal(resumed.state.paused, true);
+  assert.equal(Queue.claimNext(resumed.state, "owner", { at: 2200 }).code, "queue.paused");
+
+  const retried = Queue.retryItem(resumed.state, "unknown", 2300);
+  assert.equal(retried.state.items[0].state, "pending");
+  assert.equal(retried.state.paused, false);
+});
+
+test("retrying one failed item does not clear a failure pause while another failure remains", () => {
+  const raw = {
+    paused: true,
+    pauseReason: "failure",
+    items: [
+      { id: "one", text: "one", state: "failed", errorCode: "queue.send_failed" },
+      { id: "two", text: "two", state: "failed", errorCode: "queue.send_failed" }
+    ]
+  };
+  const retried = Queue.retryItem(raw, "one", 3000);
+  assert.equal(retried.state.items[0].state, "pending");
+  assert.equal(retried.state.paused, true);
+  assert.equal(retried.state.pauseReason, "failure");
 });

@@ -304,11 +304,12 @@
     if (!activeTab?.id || (busy && !force)) return false;
     const nextContent = await sendContentWithInject({ type: "YOLO_GET_STATE" });
     if (!nextContent?.pageId) return false;
-    contentState = nextContent;
-    const tasks = [sendBackground({ type: "YOLO_QUEUE_GET", pageId: contentState.pageId })];
+    const tasks = [sendBackground({ type: "YOLO_QUEUE_GET", pageId: nextContent.pageId })];
     if (includeTemplates) tasks.push(sendBackground({ type: "YOLO_TEMPLATES_GET" }));
     const [queueResponse, templateResponse] = await Promise.all(tasks);
-    if (queueResponse?.ok) queueState = queueResponse.state;
+    if (!queueResponse?.ok) return false;
+    contentState = nextContent;
+    queueState = queueResponse.state;
     if (templateResponse?.ok) templates = templateResponse.templates;
     renderContentState();
     renderQueue();
@@ -482,21 +483,21 @@
   }
 
   async function init() {
+    setBusy(true);
     els.version.textContent = `v${Config.VERSION}`;
     activeTab = await queryActiveTab();
     if (!Config.isSupportedUrl(activeTab?.url)) {
       els.status.textContent = "Unavailable";
       els.scope.textContent = "Open ChatGPT to use YOLO.";
-      setBusy(true);
       return;
     }
-    if (!await refreshAll({ includeTemplates: true })) {
+    if (!await refreshAll({ includeTemplates: true, force: true })) {
       els.status.textContent = "Unavailable";
       els.scope.textContent = "Could not start YOLO in this tab.";
-      setBusy(true);
       return;
     }
     pollTimer = window.setInterval(() => refreshAll(), 1800);
+    setBusy(false);
   }
 
   els.enabled.addEventListener("change", () => saveCoreSettings({ enabled: els.enabled.checked, profile: contentState.settings.profile }));
@@ -507,7 +508,10 @@
   els.templateSelect.addEventListener("change", () => {
     const template = templates.find((entry) => entry.id === els.templateSelect.value);
     if (!template) return;
-    els.message.value = Config.renderTemplate(template.text, { platform: contentState?.platform });
+    els.message.value = Config.renderTemplate(template.text, {
+      platform: contentState?.platform,
+      conversation: contentState?.pageId
+    });
     els.message.focus();
   });
   els.manageTemplates.addEventListener("click", () => openAdvanced("templates"));
@@ -521,7 +525,7 @@
   els.message.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      addOrUpdate({ send: event.shiftKey });
+      addOrUpdate({ send: event.shiftKey && !editingId });
     }
   });
 

@@ -376,30 +376,48 @@
   }
 
   async function writeAndSubmit(prompt, actionPageId) {
-    let composer = Platforms.findComposer(state.platform);
-    if (!composer) return { ok: false, code: "composer.missing", reason: "Message composer was not found" };
-    if (state.settings.pauseOnComposerText && Platforms.composerText(composer).trim()) {
-      return { ok: false, code: "composer.busy", reason: "Message composer contains a draft" };
-    }
-
-    Platforms.setComposerValue(composer, prompt);
-    await sleep(120);
-    if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
-      return { ok: false, code: "route.changed", reason: "Conversation changed before the message was submitted" };
-    }
-    composer = Platforms.findComposer(state.platform) || composer;
-    if (!Platforms.submitComposer(state.platform, composer)) {
-      return { ok: false, code: "composer.submit_failed", reason: "Message could not be submitted" };
-    }
-
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
-        return { ok: false, code: "route.changed", reason: "Conversation changed before delivery could be confirmed" };
+    let submissionAttempted = false;
+    try {
+      let composer = Platforms.findComposer(state.platform);
+      if (!composer) {
+        return { ok: false, code: "composer.missing", reason: "Message composer was not found", deliveryAmbiguous: false };
       }
-      if (Platforms.submissionObserved(state.platform)) return { ok: true };
-      await sleep(100);
+      if (state.settings.pauseOnComposerText && Platforms.composerText(composer).trim()) {
+        return { ok: false, code: "composer.busy", reason: "Message composer contains a draft", deliveryAmbiguous: false };
+      }
+
+      Platforms.setComposerValue(composer, prompt);
+      await sleep(120);
+      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
+        return { ok: false, code: "route.changed", reason: "Conversation changed before the message was submitted", deliveryAmbiguous: false };
+      }
+      composer = Platforms.findComposer(state.platform) || composer;
+      submissionAttempted = true;
+      if (!Platforms.submitComposer(state.platform, composer)) {
+        return { ok: false, code: "composer.submit_failed", reason: "Message could not be submitted", deliveryAmbiguous: true };
+      }
+
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
+          return { ok: false, code: "route.changed", reason: "Conversation changed before delivery could be confirmed", deliveryAmbiguous: true };
+        }
+        if (Platforms.submissionObserved(state.platform)) return { ok: true, deliveryAmbiguous: true };
+        await sleep(100);
+      }
+      return {
+        ok: false,
+        code: "composer.unconfirmed",
+        reason: "The chat did not confirm that the message was submitted",
+        deliveryAmbiguous: true
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        code: "queue.exception",
+        reason: String(error?.message || error),
+        deliveryAmbiguous: submissionAttempted
+      };
     }
-    return { ok: false, code: "composer.unconfirmed", reason: "The chat did not confirm that the message was submitted" };
   }
 
   async function sendPrompt({ action, prompt, label, reason, delayMinSec = 0, delayMaxSec = 0, automatic = true }) {
@@ -597,7 +615,7 @@
     });
   }
 
-  async function failQueueClaim(pageId, item, error, options, errorCode = "queue.send_failed") {
+  async function failQueueClaim(pageId, item, error, options, errorCode = "queue.send_failed", deliveryAmbiguous = false) {
     return backgroundSendWithRetry({
       type: "YOLO_QUEUE_FAIL",
       pageId,
@@ -607,7 +625,8 @@
       errorCode,
       maxRetries: options.maxRetries,
       backoffSec: options.backoffSec,
-      pauseOnFailure: options.pauseOnFailure
+      pauseOnFailure: options.pauseOnFailure,
+      deliveryAmbiguous
     });
   }
 
@@ -658,6 +677,7 @@
     }
 
     const item = claim.item;
+    let deliveryAmbiguous = false;
     state.actionInFlight = true;
     try {
       if (state.destroyed || state.pageId !== queuePageId || currentPageId() !== queuePageId) {
@@ -684,11 +704,13 @@
 
       await setLastAction("Sending queued message", "info", "queue.sending");
       const submitted = await writeAndSubmit(item.text, queuePageId);
+      deliveryAmbiguous = Boolean(submitted.deliveryAmbiguous);
       if (!submitted.ok) {
-        await failQueueClaim(queuePageId, item, submitted.reason, queueFailureOptions, submitted.code);
+        await failQueueClaim(queuePageId, item, submitted.reason, queueFailureOptions, submitted.code, deliveryAmbiguous);
         await setLastAction(`Queue send failed: ${submitted.reason}`, "error", submitted.code, true);
         return false;
       }
+      deliveryAmbiguous = true;
 
       const completed = await backgroundSendWithRetry({
         type: "YOLO_QUEUE_COMPLETE",
@@ -706,7 +728,7 @@
       await setLastAction("Sent queued message", "success", "queue.sent", true);
       return true;
     } catch (error) {
-      await failQueueClaim(queuePageId, item, String(error?.message || error), queueFailureOptions, "queue.exception");
+      await failQueueClaim(queuePageId, item, String(error?.message || error), queueFailureOptions, "queue.exception", deliveryAmbiguous);
       await setLastAction(`Queue send failed: ${String(error?.message || error)}`, "error", "queue.failed", true);
       return false;
     } finally {

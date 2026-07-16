@@ -128,11 +128,17 @@
   function normalizeState(raw, at = Date.now()) {
     const fallback = freshState(at);
     const source = raw && typeof raw === "object" ? raw : {};
+    const items = normalizeItems(source.items, at);
+    const deliveryUnknown = items.some((item) => item.state === "failed" && item.errorCode === "queue.delivery_unknown");
+    const paused = deliveryUnknown || Boolean(source.paused);
+    const pauseReason = deliveryUnknown
+      ? "failure"
+      : (paused && ["manual", "failure"].includes(source.pauseReason) ? source.pauseReason : (paused ? "manual" : ""));
     return {
       version: 1,
-      paused: Boolean(source.paused),
-      pauseReason: source.paused && ["manual", "failure"].includes(source.pauseReason) ? source.pauseReason : (source.paused ? "manual" : ""),
-      items: normalizeItems(source.items, at),
+      paused,
+      pauseReason,
+      items,
       events: (Array.isArray(source.events) ? source.events : [])
         .map((event) => normalizeEvent(event, at))
         .filter(Boolean)
@@ -259,6 +265,20 @@
 
   function setPaused(rawState, paused, at = Date.now()) {
     let state = normalizeState(rawState, at);
+    const deliveryUnknown = state.items.some((item) => item.state === "failed" && item.errorCode === "queue.delivery_unknown");
+    if (!paused && deliveryUnknown) {
+      state = appendEvent(state, {
+        code: "queue.delivery_unknown",
+        message: "Resolve or explicitly retry the delivery-unknown message before resuming",
+        level: "error"
+      }, at);
+      return {
+        state,
+        ok: false,
+        reason: "A message has unknown delivery status and requires explicit retry or removal",
+        code: "queue.delivery_unknown"
+      };
+    }
     state.paused = Boolean(paused);
     state.pauseReason = state.paused ? "manual" : "";
     state.updatedAt = at;
@@ -293,7 +313,7 @@
     item.errorCode = "";
     item.nextAttemptAt = 0;
     item.updatedAt = at;
-    if (state.pauseReason === "failure") {
+    if (state.pauseReason === "failure" && !state.items.some((entry) => entry.state === "failed")) {
       state.paused = false;
       state.pauseReason = "";
     }
@@ -379,8 +399,7 @@
 
     const maxRetries = Math.max(0, Math.round(finite(options.maxRetries, 0)));
     const backoffSec = Math.max(1, finite(options.backoffSec, 30));
-    const ambiguousDelivery = Boolean(options.deliveryAmbiguous)
-      || ["composer.unconfirmed", "route.changed", "queue.exception"].includes(cleanText(options.errorCode, 120));
+    const ambiguousDelivery = Boolean(options.deliveryAmbiguous);
     item.attempts += 1;
     item.error = cleanText(options.error || "Message could not be sent", 500);
     item.errorCode = cleanText(options.errorCode || "queue.send_failed", 120);

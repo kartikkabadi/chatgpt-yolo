@@ -80,6 +80,12 @@ function validPageId(pageId) {
   return typeof pageId === "string" && pageId.length > 0 && pageId.length <= 1000;
 }
 
+function senderMatchesPageId(sender, pageId) {
+  if (!sender?.tab?.url) return true;
+  if (!Config.isSupportedUrl(sender.tab.url)) return false;
+  return Config.pageId(sender.tab.url) === pageId;
+}
+
 function normalizeTemplate(raw, fallbackId = "") {
   if (!raw || typeof raw !== "object") return null;
   const name = String(raw.name || "").trim().slice(0, 80);
@@ -155,9 +161,12 @@ async function handleTemplateMessage(message) {
   });
 }
 
-async function handleQueueMessage(message) {
+async function handleQueueMessage(message, sender) {
   const pageId = message.pageId;
-  if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier" };
+  if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "queue.page_invalid" };
+  if (!senderMatchesPageId(sender, pageId)) {
+    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "queue.page_mismatch" };
+  }
 
   if (message.type === "YOLO_QUEUE_GET") {
     return readQueueState(pageId);
@@ -212,14 +221,14 @@ async function handleQueueMessage(message) {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  readTemplates().then(writeTemplates).catch(() => {});
+  withLock(templateLock, async () => writeTemplates(await readTemplates())).catch(() => {});
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type?.startsWith("YOLO_")) return false;
   const task = message.type.includes("TEMPLATE")
     ? handleTemplateMessage(message)
-    : handleQueueMessage(message);
+    : handleQueueMessage(message, sender);
   Promise.resolve(task)
     .then((response) => sendResponse(response))
     .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));
