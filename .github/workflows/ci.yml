@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Publish validated v1 lifecycle changes
+      - name: Publish validated lifecycle product files
         shell: bash
         run: |
           set -euo pipefail
@@ -28,62 +28,11 @@ jobs:
           npm run validate
           npm run package
           git diff --check
-
-          cat > .github/workflows/ci.yml <<'YAML'
-          name: CI
-
-          on:
-            pull_request:
-            push:
-              branches:
-                - main
-
-          permissions:
-            contents: read
-
-          jobs:
-            validate-node-20:
-              name: Validate on Node 20
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 20
-                - run: npm run validate
-
-            validate-node-24:
-              name: Validate on Node 24
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 24
-                - run: npm run validate
-
-            package:
-              name: Package extension
-              needs: [validate-node-20, validate-node-24]
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 24
-                - run: npm run package
-                - uses: actions/upload-artifact@v4
-                  with:
-                    name: yolo-preview
-                    path: dist/yolo
-                    retention-days: 7
-          YAML
-
-          rm -f .apply-v1-lifecycle.py .apply-v1-lifecycle.ready .v1-lifecycle-diagnostic.txt .v1-lifecycle.error.txt
           rm -rf dist
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add config.js background.js tests/background.test.js tests/manifest.test.js
           git diff --cached --check
-          git commit -m "Complete v1 lifecycle, onboarding, and package validation"
+          git commit -m "Wire v1 version parity and first-install onboarding"
           git push origin HEAD:release/v1-open-source
