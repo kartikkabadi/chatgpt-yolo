@@ -93,8 +93,16 @@
     const { exportButton, importButton, importInput, diagnosticsButton, status } = controls;
     let busy = false;
     const params = new URLSearchParams(win.location?.search || "");
-    const sourceTabId = Number(params.get("tabId")) || 0;
-    const pageId = String(params.get("pageId") || "");
+    const initialSourceTabId = Number(params.get("tabId")) || 0;
+    const initialPageId = String(params.get("pageId") || "");
+
+    function currentContext() {
+      const shared = win.YOLOOptionsController?.getContext?.() || {};
+      return {
+        sourceTabId: Number(shared.sourceTabId) || initialSourceTabId,
+        pageId: String(shared.pageId || initialPageId || "")
+      };
+    }
 
     const backgroundSend = (message) => new Promise((resolve) => {
       chrome.runtime.sendMessage(message, (response) => {
@@ -103,6 +111,7 @@
       });
     });
     const contentSend = (message) => new Promise((resolve) => {
+      const { sourceTabId } = currentContext();
       if (!sourceTabId) return resolve(null);
       chrome.tabs.sendMessage(sourceTabId, message, (response) => {
         if (chrome.runtime.lastError) resolve(null);
@@ -186,6 +195,7 @@
         if (!response?.ok) throw new Error(response?.reason || "Could not import YOLO data");
         applied = true;
 
+        const { sourceTabId, pageId } = currentContext();
         if (sourceTabId) {
           const currentState = await contentSend({ type: "YOLO_GET_STATE" });
           const currentPageId = currentState?.pageId || pageId;
@@ -211,6 +221,7 @@
       await setBusy(true);
       setStatus("Preparing privacy-safe diagnostics…");
       try {
+        const { pageId } = currentContext();
         const [contentState, queueResponse] = await Promise.all([
           contentSend({ type: "YOLO_GET_STATE" }),
           pageId ? backgroundSend({ type: "YOLO_QUEUE_GET", pageId }) : Promise.resolve(null)
@@ -230,7 +241,7 @@
     importButton.addEventListener("click", () => importInput.click());
     importInput.addEventListener("change", () => importBackup(importInput.files?.[0]));
     diagnosticsButton.addEventListener("click", copyDiagnostics);
-    return { destroy() {}, exportBackup, importBackup, copyDiagnostics };
+    return { destroy() {}, exportBackup, importBackup, copyDiagnostics, currentContext };
   }
 
   return Object.freeze({ importConfirmation, buildControls, mount });
