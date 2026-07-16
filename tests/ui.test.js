@@ -106,7 +106,7 @@ test("command workflows reuse the reliable queue and fail closed", () => {
   assert.match(runtime, /type: "YOLO_QUEUE_ADD"/);
   assert.match(runtime, /runAction\("queue-next"\)/);
   assert.match(runtime, /Commands\.decideWorkflowResponse/);
-  assert.match(commands, /Goal response omitted the required terminal control marker/);
+  assert.match(commands, /response omitted the required terminal control marker/);
   assert.match(commands, /Reached the \$\{workflow\.maxIterations\}-iteration safety cap/);
 });
 
@@ -269,4 +269,17 @@ test("destructive settings actions require confirmation and always report outcom
   assert.match(source, /Restore every automation setting to its default value/);
   assert.match(source, /Template deleted\./);
   assert.match(source, /Could not restore default templates/);
+});
+
+test("slash actions expose only viable product semantics", () => {
+  const commands = read("commands.js");
+  const runtime = read("command-runtime.js");
+  const readme = read("README.md");
+  assert.doesNotMatch(commands, /name: "compact"|name: "queue"|name: "clear"/);
+  assert.match(commands, /name: "handoff"[\s\S]*kind: "prompt"/);
+  assert.match(commands, /name: "stop"[\s\S]*kind: "control"/);
+  assert.match(runtime, /\["plan", "review", "fix", "handoff", "continue"\]/);
+  assert.doesNotMatch(runtime, /name === "queue"|name === "clear"|"compact"/);
+  assert.match(readme, /not native ChatGPT or Codex commands/i);
+  assert.match(readme, /does \*\*not\*\* compact or alter ChatGPT context/i);
 });

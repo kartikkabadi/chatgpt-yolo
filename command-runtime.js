@@ -314,19 +314,19 @@
     const api = engine();
     if (!api || !await api.ensureReady()) return { ok: false, reason: "YOLO is not ready in this conversation", keepOpen: true };
     if (["goal", "loop"].includes(name)) return startWorkflow(name, args);
-    if (["plan", "review", "fix", "compact", "continue"].includes(name)) return runOneShot(name, args);
-    if (name === "status" || name === "queue") return showStatus();
+    if (["plan", "review", "fix", "handoff", "continue"].includes(name)) return runOneShot(name, args);
+    if (name === "status") return showStatus();
     if (name === "pause") return setStatus("paused", "Paused by user");
     if (name === "resume") return resumeWorkflow();
-    if (name === "clear") {
+    if (name === "stop") {
       if (state.workflow.status === "idle") return { ok: false, reason: "No active goal or loop", keepOpen: true };
-      if (!window.confirm(`Clear the active ${state.workflow.kind} workflow?`)) return { ok: false, reason: "Workflow kept", keepOpen: true };
+      if (!window.confirm(`Stop and clear the active ${state.workflow.kind} workflow?`)) return { ok: false, reason: "Workflow kept", keepOpen: true };
       const cancelled = await cancelPendingWorkflowPrompt(state.workflow);
       if (!cancelled.ok || (state.workflow.pendingItemId && !cancelled.removed)) {
         return { ok: false, reason: cancelled.reason || "The workflow prompt is already sending", keepOpen: true };
       }
       const ok = await clearWorkflow();
-      if (ok) await record(cancelled.reason || "Cleared command workflow", "info", "command.workflow.cleared");
+      if (ok) await record(cancelled.reason || "Stopped and cleared command workflow", "info", "command.workflow.stopped");
       return { ok, reason: ok ? "" : "Workflow changed in another tab", keepOpen: !ok };
     }
     if (name === "settings") {

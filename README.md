@@ -9,7 +9,7 @@ A local-first Chromium extension that turns long ChatGPT conversations into a re
 YOLO adds four layers to ChatGPT:
 
 1. **A persistent queue** for instructions that should run when the conversation is ready.
-2. **Composer-native commands** such as `/goal`, `/loop`, `/plan`, and `/review`.
+2. **Composer-native YOLO actions**: automated workflows, prompt shortcuts, and extension controls.
 3. **Bounded automation** for safe approval cards, recovery, nudges, and stale-tab refreshes.
 4. **A Codex/ChatGPT-style interface** that keeps everyday actions simple and moves detailed controls into a searchable settings workspace.
 
@@ -20,8 +20,8 @@ Everything runs in your browser. Settings, queues, templates, and workflow state
 - Per-conversation persistent queues with drag ordering, editing, retry, pause, send-next, and fail-closed delivery recovery.
 - `/goal <objective>` for marker-driven persistent objectives.
 - `/loop [iterations] <objective>` for bounded iterative work; defaults to 12 and is hard-capped at 50 turns.
-- `/plan`, `/review`, `/fix`, `/compact`, and `/continue` one-shot commands.
-- `/status`, `/queue`, `/pause`, `/resume`, `/clear`, `/settings`, and `/help` controls.
+- `/plan`, `/review`, `/fix`, `/handoff`, and `/continue` prompt shortcuts.
+- `/status`, `/pause`, `/resume`, `/stop`, `/settings`, and `/help` YOLO controls.
 - Command palette from `/` in an empty composer or `Cmd/Ctrl + Shift + P`.
 - Safe, Balanced, Fast, and Custom profiles.
 - Conservative approval classification with Safe/Writes/All policies.
@@ -63,22 +63,36 @@ YOLO opens a local welcome page after a fresh install. The simplest setup is:
 
 YOLO scopes queues, settings, and workflows to the normalized conversation URL.
 
-## Commands
+## Slash actions
 
-| Command | Purpose |
+These are **YOLO extension actions**, not native ChatGPT or Codex commands. Automated workflows are implemented by YOLO. Prompt shortcuts simply turn an action into a visible queued prompt; they do not unlock hidden ChatGPT capabilities or modify ChatGPT's context window.
+
+### Automated workflows
+
+| Action | Purpose |
 | --- | --- |
-| `/goal <objective>` | Run a persistent objective. ChatGPT must finish each turn with `[YOLO:CONTINUE]`, `[YOLO:DONE]`, or `[YOLO:BLOCKED]`. |
-| `/loop [count] <objective>` | Continue iteratively for a bounded number of turns. |
-| `/plan <task>` | Ask ChatGPT to inspect context and produce an execution plan. |
-| `/review <scope>` | Perform an adversarial review before changing more work. |
-| `/fix <problem>` | Diagnose, fix, validate, and summarize a concrete problem. |
-| `/compact [focus]` | Produce a compact handoff that preserves decisions and next actions. |
-| `/continue [direction]` | Continue the current task without repeating earlier commentary. |
-| `/status` or `/queue` | Show workflow, queue, runner, generation, profile, and limit state. |
-| `/pause`, `/resume`, `/clear` | Control the active goal or loop. |
-| `/settings`, `/help` | Open settings or the command palette. |
+| `/goal <objective>` | Run a bounded persistent objective. Every turn must end with `[YOLO:CONTINUE]`, `[YOLO:DONE]`, or `[YOLO:BLOCKED]`. |
+| `/loop [count] <objective>` | Run bounded iterations. Missing or malformed terminal markers pause the loop instead of guessing. |
 
-Only standalone terminal workflow markers control `/goal`. Inline marker-shaped text is ignored.
+### Prompt shortcuts
+
+| Action | Purpose |
+| --- | --- |
+| `/plan <task>` | Queue a prompt asking ChatGPT to produce an execution plan. |
+| `/review [scope]` | Queue an adversarial review prompt. |
+| `/fix [scope]` | Queue a diagnose, repair, and validate prompt. |
+| `/handoff [focus]` | Queue a prompt asking ChatGPT to write a continuation brief. It does **not** compact or alter ChatGPT context. |
+| `/continue [direction]` | Queue a prompt to continue the current task with an optional direction. |
+
+### YOLO controls
+
+| Action | Purpose |
+| --- | --- |
+| `/status` | Show workflow, queue, runner, generation, profile, limits, and last action. |
+| `/pause`, `/resume`, `/stop` | Pause, resume, or stop and clear the active workflow. |
+| `/settings`, `/help` | Open Advanced settings or the action palette. |
+
+Only standalone terminal markers control automated workflows. Inline marker-shaped text is ignored.
 
 ## Queue reliability
 

@@ -2,12 +2,21 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const Commands = require("../commands.js");
 
-test("filters and parses the composer command catalog", () => {
+test("filters and parses the truthful slash-action catalog", () => {
   assert.equal(Commands.filterCommands("rev")[0].name, "review");
   assert.equal(Commands.parseInvocation("/goal ship the extension").command.name, "goal");
   assert.equal(Commands.parseInvocation("/goal ship the extension").args, "ship the extension");
   assert.equal(Commands.parseInvocation("hello"), null);
   assert.equal(Commands.parseInvocation("/unknown"), null);
+  assert.equal(Commands.parseInvocation("/compact"), null);
+  assert.equal(Commands.parseInvocation("/queue"), null);
+  assert.equal(Commands.parseInvocation("/clear"), null);
+
+  assert.deepEqual(Commands.COMMANDS.map(({ name, kind }) => [name, kind]), [
+    ["goal", "workflow"], ["loop", "workflow"],
+    ["plan", "prompt"], ["review", "prompt"], ["fix", "prompt"], ["handoff", "prompt"], ["continue", "prompt"],
+    ["status", "control"], ["pause", "control"], ["resume", "control"], ["stop", "control"], ["settings", "control"], ["help", "control"]
+  ]);
 });
 
 test("parses bounded loop iteration counts", () => {
@@ -49,7 +58,10 @@ test("one-shot commands build concrete prompts", () => {
   assert.match(Commands.oneShotPrompt("plan", "ship it"), /Plan this objective/);
   assert.match(Commands.oneShotPrompt("review", "security"), /adversarial/i);
   assert.match(Commands.oneShotPrompt("fix"), /repair/i);
-  assert.match(Commands.oneShotPrompt("compact"), /durable context handoff/i);
+  assert.match(Commands.oneShotPrompt("handoff", "release state"), /Handoff focus: release state/);
+  assert.match(Commands.oneShotPrompt("handoff"), /do not claim that ChatGPT context was compacted/i);
+  assert.match(Commands.oneShotPrompt("continue", "fix the tests"), /Continue with this direction: fix the tests/);
+  assert.equal(Commands.oneShotPrompt("compact"), "");
   assert.equal(Commands.oneShotPrompt("plan", ""), "");
 });
 
@@ -137,4 +149,22 @@ test("awaiting workflows retain and clear response stability candidates safely",
   const paused = Commands.setWorkflowStatus(waiting, "paused", "manual", 3000);
   assert.equal(paused.responseCandidateFingerprint, "");
   assert.equal(paused.responseCandidateSince, 0);
+});
+
+test("both automated workflows pause when the terminal marker is missing", () => {
+  for (const kind of ["goal", "loop"]) {
+    const workflow = Commands.normalizeWorkflow({
+      kind,
+      objective: "ship",
+      status: "running",
+      awaitingResponse: true,
+      promptFingerprint: "owned"
+    }, 1000);
+    const decision = Commands.decideWorkflowResponse(workflow, "work without a terminal marker", {
+      userFingerprint: "owned",
+      at: 1100
+    });
+    assert.equal(decision.action, "paused");
+    assert.equal(decision.code, "command.workflow.marker_missing");
+  }
 });
