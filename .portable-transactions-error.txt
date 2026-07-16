@@ -1,0 +1,261 @@
+Failed stage: validate
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  5 !== 1
+  
+      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/portable-mutation-integration.test.js:101:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 5,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/reliability-foundation.test.js:82:1
+✖ package and background composition include the action coordinator (3.72764ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /importScripts\("config\.js", "coordinator\.js", "queue\.js", "commands\.js"\)/. Input:
+  
+  '"use strict";\n' +
+    '\n' +
+    'importScripts("config.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js");\n' +
+    '\n' +
+    'const Config = globalThis.YOLOConfig;\n' +
+    'const Coordinator = globalThis.YOLOCoordinator;\n' +
+    'const PortableStore = globalThis.YOLOPortableStore;\n' +
+    'const Queue = globalThis.YOLOQueue;\n' +
+    'const Commands = globalThis.YOLOCommands;\n' +
+    'const queueLock = { current: Promise.resolve() };\n' +
+    'const workflowLock = { current: Promise.resolve() };\n' +
+    'const actionLock = { current: Promise.resolve() };\n' +
+    'const MAX_CONVERSATION_QUEUES = 25;\n' +
+    'const MAX_ACTIVE_WORKFLOWS = 25;\n' +
+    'const WORKFLOW_LEASE_MS = 15 * 1000;\n' +
+    'const WORKFLOW_RENEW_WINDOW_MS = 5 * 1000;\n' +
+    '\n' +
+    'const storageGet = (keys) => new Promise((resolve, reject) => {\n' +
+    '  chrome.storage.local.get(keys, (items) => {\n' +
+    '    const error = chrome.runtime.lastError;\n' +
+    '    if (error) reject(new Error(error.message || "Extension storage read failed"));\n' +
+    '    else resolve(items || {});\n' +
+    '  });\n' +
+    '});\n' +
+    'const storageSet = (items) => new Promise((resolve, reject) => {\n' +
+    '  chrome.storage.local.set(items, () => {\n' +
+    '    const error = chrome.runtime.lastError;\n' +
+    '    if (error) reject(new Error(error.message || "Extension storage write failed"));\n' +
+    '    else resolve(true);\n' +
+    '  });\n' +
+    '});\n' +
+    'const storageRemove = (keys) => new Promise((resolve, reject) => {\n' +
+    '  chrome.storage.local.remove(keys, () => {\n' +
+    '    const error = chrome.runtime.lastError;\n' +
+    '    if (error) reject(new Error(error.message || "Extension storage remove failed"));\n' +
+    '    else resolve(true);\n' +
+    '  });\n' +
+    '});\n' +
+    '\n' +
+    'function withLock(lock, task) {\n' +
+    '  const run = lock.current.catch(() => {}).then(task);\n' +
+    '  lock.current = run.catch(() => {});\n' +
+    '  return run;\n' +
+    '}\n' +
+    '\n' +
+    'async function readQueueMap() {\n' +
+    '  const stored = await storageGet([Config.STORAGE_KEYS.queues]);\n' +
+    '  const value = stored[Config.STORAGE_KEYS.queues];\n' +
+    '  return value && typeof value === "object" ? value : {};\n' +
+    '}\n' +
+    '\n' +
+    'async function readQueueState(pageId) {\n' +
+    '  return withLock(queueLock, async () => {\n' +
+    '    const map = await readQueueMap();\n' +
+    '    const state = Queue.normalizeState(map[pageId]);\n' +
+    '    return { ok: true, state, summary: Queue.summary(state) };\n' +
+    '  });\n' +
+    '}\n' +
+    '\n' +
+    'function ensureQueueCapacity(map, pageId, current) {\n' +
+    '  if (Object.prototype.hasOwnProperty.call(map, pageId) || Object.keys(map).length < MAX_CONVERSATION_QUEUES) return null;\n' +
+    '  const emptyQueues = Object.entries(map)\n' +
+    '    .filter(([, value]) => Queue.normalizeState(value).items.length === 0)\n' +
+    '    .sort((a, b) => (a[1]?.updatedAt || 0) - (b[1]?.updatedAt || 0));\n' +
+    '  while (Object.keys(map).length >= MAX_CONVERSATION_QUEUES && emptyQueues.length) {\n' +
+    '    delete map[emptyQueues.shift()[0]];\n' +
+    '  }\n' +
+    '  if (Object.keys(map).length < MAX_CONVERSATION_QUEUES) return null;\n' +
+    '  return {\n' +
+    '    ok: false,\n' +
+    '    reason: `Active queue limit of ${MAX_CONVERSATION_QUEUES} conversations reached; clear an old queue first`,\n' +
+    '    code: "queue.conversation_limit",\n' +
+    '    state: current,\n' +
+    '    summary: Queue.summary(current)\n' +
+    '  };\n' +
+    '}\n' +
+    '\n' +
+    'async function mutateQueue(pageId, mutator) {\n' +
+    '  return withLock(queueLock, async () => {\n' +
+    '    const map = await readQueueMap();\n' +
+    '    const current = Queue.normalizeState(map[pageId]);\n' +
+    '    const result = await mutator(current);\n' +
+    '    const state = Queue.normalizeState(result?.state || current);\n' +
+    '    const capacityError = ensureQueueCapacity(map, pageId, current);\n' +
+    '    if (capacityError) return capacityError;\n' +
+    '\n' +
+    '    delete map[pageId];\n' +
+    '    map[pageId] = state;\n' +
+    '    await storageSet({ [Config.STORAGE_KEYS.queues]: map });\n' +
+    '    return { ...result, state, summary: Queue.summary(state) };\n' +
+    '  });\n' +
+    '}\n' +
+    '\n' +
+    'function validPageId(pageId) {\n' +
+    '  return typeof pageId === "string" && pageId.length <= 1000 && Config.isDurablePageId(pageId);\n' +
+    '}\n' +
+    '\n' +
+    'function senderMatchesPageId(sender, pageId) {\n' +
+    '  if (!sender?.tab?.url) return true;\n' +
+    '  if (!Config.isSupportedUrl(sender.tab.url)) return false;\n' +
+    '  return Config.pageId(sender.tab.url) === pageId;\n' +
+    '}\n' +
+    '\n' +
+    'async function mutateActionGuards(mutator) {\n' +
+    '  return withLock(actionLock, async () => {\n' +
+    '    const stored = await storageGet([Config.STORAGE_KEYS.actionGuards]);\n' +
+    '    const current = Coordinator.normalizeState(stored[Config.STORAGE_KEYS.actionGuards]);\n' +
+    '    const result = await mutator(current);\n' +
+    '    const state = Coordinator.normalizeState(result?.state || current);\n' +
+    '    await storageSet({ [Config.STORAGE_KEYS.actionGuards]: state });\n' +
+    '    return { ...result, state };\n' +
+    '  });\n' +
+    '}\n' +
+    '\n' +
+    'async function handleActionMessage(message, sender) {\n' +
+    '  const pageId = message.pageId;\n' +
+    '  if (!validPageId(pageId)) return { ok: false, reason: "A saved ChatGPT conversation is required", code: "action.page_invalid" };\n' +
+    '  if (!senderMatchesPageId(sender, pageId)) {\n' +
+    '    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "action.page_mismatch" };\n' +
+    '  }\n' +
+    '  const actionKey = String(message.actionKey || "").trim().slice(0, 240);\n' +
+    '  if (message.type !== "YOLO_ACTION_RESET" && !actionKey) {\n' +
+    '    return { ok: false, reason: "Action key is required", code: "action.guard_invalid" };\n' +
+    '  }\n' +
+    '  const guardKey = `${pageId}::${actionKey}`;\n' +
+    '  if (message.type === "YOLO_ACTION_CLAIM") {\n' +
+    '    return mutateActionGuards((state) => Coordinator.claim(state, guardKey, message.ownerId, {\n' +
+    '      leaseMs: message.leaseMs,\n' +
+    '      cooldownMs: message.cooldownMs\n' +
+    '    }));\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_ACTION_BEGIN") {\n' +
+    '    return mutateActionGuards((state) => Coordinator.begin(state, guardKey, message.token));\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_ACTION_COMPLETE") {\n' +
+    '    return mutateActionGuards((state) => Coordinator.complete(state, guardKey, message.token));\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_ACTION_RELEASE") {\n' +
+    '    return mutateActionGuards((state) => Coordinator.release(state, guardKey, message.token));\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_ACTION_RESET") {\n' +
+    '    return mutateActionGuards((state) => actionKey\n' +
+    '      ? Coordinator.reset(state, guardKey)\n' +
+    '      : Coordinator.resetPrefix(state, `${pageId}::`));\n' +
+    '  }\n' +
+    '  return { ok: false, reason: "Unknown action guard operation", code: "action.unknown" };\n' +
+    '}\n' +
+    '\n' +
+    'function normalizeTemplate(raw, fallbackId = "") {\n' +
+    '  if (!raw || typeof raw !== "object") return null;\n' +
+    '  const name = String(raw.name || "").trim().slice(0, 80);\n' +
+    '  const text = String(raw.text || "").trim().slice(0, Queue.MAX_TEXT_LENGTH);\n' +
+    '  if (!name || !text) return null;\n' +
+    '  return {\n' +
+    '    id: String(raw.id || fallbackId || Queue.makeId("template")).trim().slice(0, 180),\n' +
+    '    name,\n' +
+    '    text,\n' +
+    '    builtIn: Boolean(raw.builtIn),\n' +
+    '    createdAt: Number(raw.createdAt) || Date.now(),\n' +
+    '    updatedAt: Number(raw.updatedAt) || Date.now()\n' +
+    '  };\n' +
+    '}\n' +
+    '\n' +
+    'function templatesFromStorage(stored) {\n' +
+    '  const raw = stored?.[Config.STORAGE_KEYS.templates];\n' +
+    '  if (Array.isArray(raw)) return raw.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);\n' +
+    '  return Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));\n' +
+    '}\n' +
+    '\n' +
+    'function templateMutationPlan(message, stored) {\n' +
+    '  let templates = templatesFromStorage(stored);\n' +
+    '  const now = Date.now();\n' +
+    '  if (message.type === "YOLO_TEMPLATES_RESET") {\n' +
+    '    templates = Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate({ ...template, createdAt: now, updatedAt: now }));\n' +
+    '    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_TEMPLATE_ADD") {\n' +
+    '    if (templates.length >= 50) return { ok: false, reason: "Template limit reached" };\n' +
+    '    const requestedId = String(message.template?.id || Queue.makeId("template")).trim().slice(0, 180);\n' +
+    '    const existing = templates.find((template) => template.id === requestedId);\n' +
+    '    if (existing) return { mutate: false, result: { templates, template: existing, deduplicated: true } };\n' +
+    '    const template = normalizeTemplate({ ...message.template, id: requestedId, createdAt: now, updatedAt: now });\n' +
+    '    if (!template) return { ok: false, reason: "Template name and text are required" };\n' +
+    '    templates.push(template);\n' +
+    '    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_TEMPLATE_UPDATE") {\n' +
+    '    const index = templates.findIndex((template) => template.id === message.template?.id);\n' +
+    '    if (index < 0) return { ok: false, reason: "Template not found" };\n' +
+    '    const template = normalizeTemplate({ ...templates[index], ...message.template, builtIn: false, updatedAt: now });\n' +
+    '    if (!template) return { ok: false, reason: "Template name and text are required" };\n' +
+    '    templates[index] = template;\n' +
+    '    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_TEMPLATE_REMOVE") {\n' +
+    '    if (!templates.some((entry) => entry.id === message.templateId)) return { ok: false, reason: "Template not found" };\n' +
+    '    templates = templates.filter((entry) => entry.id !== message.templateId);\n' +
+    '    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };\n' +
+    '  }\n' +
+    '  if (message.type === "YOLO_TEMPLATES_REORDER") {\n' +
+    '    const order = Array.isArray(message.orderedIds) ? message.orderedIds : [];\n' +
+    '    const byId = new Map(templates.map((template) => [template.id, template]));\n' +
+    '    const ordered = [];\n' +
+    '    for (const id of order) {\n' +
+    '      if (!byId.has(id)) continue;\n' +
+    '      ordered.push(byId.get(id));\n' +
+    '      byId.delete(id);\n' +
+    '    }\n' +
+    '    for (const template of templates) if (byId.has(template.id)) ordered.push(template);\n' +
+    '    return { setItems: { [Config.STORAGE_KEYS.templates]: ordered }, result: { templates: ordered } };\n' +
+    '  }\n' +
+    '  return { ok: false, reason: "Unknown template operation" };\n' +
+    '}\n' +
+    '\n' +
+    'async function handleTemplateMessage(message) {\n' +
+    '  if (message.type === "YOLO_TEMPLATES_GET") {\n' +
+    '    return PortableStore.read(({ stored, revision }) => ({ ok: true, templates: templatesFromStorage(stored), revision }));\n' +
+    '  }\n' +
+    '  return PortableStore.mutate(({ stored }) => templateMutationPlan(message, stored));\n' +
+    '}\n' +
+    '\n' +
+    'async function activeWorkflowLimitError(key, current, workflow) {\n' +
+    '  if (current.status !== "idle" || workflow.status === "idle") return null;\n' +
+    '  const allStored = await storageGet(null);\n' +
+    '  const activeCount = Object.entries(allStored)\n' +
+    '    .filter(([storedKey]) => storedKey.startsWith("yol'... 9928 more characters
+  
+      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/reliability-foundation.test.js:84:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '"use strict";\n\nimportScripts("config.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js");\n\nconst Config = globalThis.YOLOConfig;\nconst Coordinator = globalThis.YOLOCoordinator;\nconst PortableStore = globalThis.YOLOPortableStore;\nconst Queue = globalThis.YOLOQueue;\nconst Commands = globalThis.YOLOCommands;\nconst queueLock = { current: Promise.resolve() };\nconst workflowLock = { current: Promise.resolve() };\nconst actionLock = { current: Promise.resolve() };\nconst MAX_CONVERSATION_QUEUES = 25;\nconst MAX_ACTIVE_WORKFLOWS = 25;\nconst WORKFLOW_LEASE_MS = 15 * 1000;\nconst WORKFLOW_RENEW_WINDOW_MS = 5 * 1000;\n\nconst storageGet = (keys) => new Promise((resolve, reject) => {\n  chrome.storage.local.get(keys, (items) => {\n    const error = chrome.runtime.lastError;\n    if (error) reject(new Error(error.message || "Extension storage read failed"));\n    else resolve(items || {});\n  });\n});\nconst storageSet = (items) => new Promise((resolve, reject) => {\n  chrome.storage.local.set(items, () => {\n    const error = chrome.runtime.lastError;\n    if (error) reject(new Error(error.message || "Extension storage write failed"));\n    else resolve(true);\n  });\n});\nconst storageRemove = (keys) => new Promise((resolve, reject) => {\n  chrome.storage.local.remove(keys, () => {\n    const error = chrome.runtime.lastError;\n    if (error) reject(new Error(error.message || "Extension storage remove failed"));\n    else resolve(true);\n  });\n});\n\nfunction withLock(lock, task) {\n  const run = lock.current.catch(() => {}).then(task);\n  lock.current = run.catch(() => {});\n  return run;\n}\n\nasync function readQueueMap() {\n  const stored = await storageGet([Config.STORAGE_KEYS.queues]);\n  const value = stored[Config.STORAGE_KEYS.queues];\n  return value && typeof value === "object" ? value : {};\n}\n\nasync function readQueueState(pageId) {\n  return withLock(queueLock, async () => {\n    const map = await readQueueMap();\n    const state = Queue.normalizeState(map[pageId]);\n    return { ok: true, state, summary: Queue.summary(state) };\n  });\n}\n\nfunction ensureQueueCapacity(map, pageId, current) {\n  if (Object.prototype.hasOwnProperty.call(map, pageId) || Object.keys(map).length < MAX_CONVERSATION_QUEUES) return null;\n  const emptyQueues = Object.entries(map)\n    .filter(([, value]) => Queue.normalizeState(value).items.length === 0)\n    .sort((a, b) => (a[1]?.updatedAt || 0) - (b[1]?.updatedAt || 0));\n  while (Object.keys(map).length >= MAX_CONVERSATION_QUEUES && emptyQueues.length) {\n    delete map[emptyQueues.shift()[0]];\n  }\n  if (Object.keys(map).length < MAX_CONVERSATION_QUEUES) return null;\n  return {\n    ok: false,\n    reason: `Active queue limit of ${MAX_CONVERSATION_QUEUES} conversations reached; clear an old queue first`,\n    code: "queue.conversation_limit",\n    state: current,\n    summary: Queue.summary(current)\n  };\n}\n\nasync function mutateQueue(pageId, mutator) {\n  return withLock(queueLock, async () => {\n    const map = await readQueueMap();\n    const current = Queue.normalizeState(map[pageId]);\n    const result = await mutator(current);\n    const state = Queue.normalizeState(result?.state || current);\n    const capacityError = ensureQueueCapacity(map, pageId, current);\n    if (capacityError) return capacityError;\n\n    delete map[pageId];\n    map[pageId] = state;\n    await storageSet({ [Config.STORAGE_KEYS.queues]: map });\n    return { ...result, state, summary: Queue.summary(state) };\n  });\n}\n\nfunction validPageId(pageId) {\n  return typeof pageId === "string" && pageId.length <= 1000 && Config.isDurablePageId(pageId);\n}\n\nfunction senderMatchesPageId(sender, pageId) {\n  if (!sender?.tab?.url) return true;\n  if (!Config.isSupportedUrl(sender.tab.url)) return false;\n  return Config.pageId(sender.tab.url) === pageId;\n}\n\nasync function mutateActionGuards(mutator) {\n  return withLock(actionLock, async () => {\n    const stored = await storageGet([Config.STORAGE_KEYS.actionGuards]);\n    const current = Coordinator.normalizeState(stored[Config.STORAGE_KEYS.actionGuards]);\n    const result = await mutator(current);\n    const state = Coordinator.normalizeState(result?.state || current);\n    await storageSet({ [Config.STORAGE_KEYS.actionGuards]: state });\n    return { ...result, state };\n  });\n}\n\nasync function handleActionMessage(message, sender) {\n  const pageId = message.pageId;\n  if (!validPageId(pageId)) return { ok: false, reason: "A saved ChatGPT conversation is required", code: "action.page_invalid" };\n  if (!senderMatchesPageId(sender, pageId)) {\n    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "action.page_mismatch" };\n  }\n  const actionKey = String(message.actionKey || "").trim().slice(0, 240);\n  if (message.type !== "YOLO_ACTION_RESET" && !actionKey) {\n    return { ok: false, reason: "Action key is required", code: "action.guard_invalid" };\n  }\n  const guardKey = `${pageId}::${actionKey}`;\n  if (message.type === "YOLO_ACTION_CLAIM") {\n    return mutateActionGuards((state) => Coordinator.claim(state, guardKey, message.ownerId, {\n      leaseMs: message.leaseMs,\n      cooldownMs: message.cooldownMs\n    }));\n  }\n  if (message.type === "YOLO_ACTION_BEGIN") {\n    return mutateActionGuards((state) => Coordinator.begin(state, guardKey, message.token));\n  }\n  if (message.type === "YOLO_ACTION_COMPLETE") {\n    return mutateActionGuards((state) => Coordinator.complete(state, guardKey, message.token));\n  }\n  if (message.type === "YOLO_ACTION_RELEASE") {\n    return mutateActionGuards((state) => Coordinator.release(state, guardKey, message.token));\n  }\n  if (message.type === "YOLO_ACTION_RESET") {\n    return mutateActionGuards((state) => actionKey\n      ? Coordinator.reset(state, guardKey)\n      : Coordinator.resetPrefix(state, `${pageId}::`));\n  }\n  return { ok: false, reason: "Unknown action guard operation", code: "action.unknown" };\n}\n\nfunction normalizeTemplate(raw, fallbackId = "") {\n  if (!raw || typeof raw !== "object") return null;\n  const name = String(raw.name || "").trim().slice(0, 80);\n  const text = String(raw.text || "").trim().slice(0, Queue.MAX_TEXT_LENGTH);\n  if (!name || !text) return null;\n  return {\n    id: String(raw.id || fallbackId || Queue.makeId("template")).trim().slice(0, 180),\n    name,\n    text,\n    builtIn: Boolean(raw.builtIn),\n    createdAt: Number(raw.createdAt) || Date.now(),\n    updatedAt: Number(raw.updatedAt) || Date.now()\n  };\n}\n\nfunction templatesFromStorage(stored) {\n  const raw = stored?.[Config.STORAGE_KEYS.templates];\n  if (Array.isArray(raw)) return raw.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);\n  return Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));\n}\n\nfunction templateMutationPlan(message, stored) {\n  let templates = templatesFromStorage(stored);\n  const now = Date.now();\n  if (message.type === "YOLO_TEMPLATES_RESET") {\n    templates = Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate({ ...template, createdAt: now, updatedAt: now }));\n    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };\n  }\n  if (message.type === "YOLO_TEMPLATE_ADD") {\n    if (templates.length >= 50) return { ok: false, reason: "Template limit reached" };\n    const requestedId = String(message.template?.id || Queue.makeId("template")).trim().slice(0, 180);\n    const existing = templates.find((template) => template.id === requestedId);\n    if (existing) return { mutate: false, result: { templates, template: existing, deduplicated: true } };\n    const template = normalizeTemplate({ ...message.template, id: requestedId, createdAt: now, updatedAt: now });\n    if (!template) return { ok: false, reason: "Template name and text are required" };\n    templates.push(template);\n    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };\n  }\n  if (message.type === "YOLO_TEMPLATE_UPDATE") {\n    const index = templates.findIndex((template) => template.id === message.template?.id);\n    if (index < 0) return { ok: false, reason: "Template not found" };\n    const template = normalizeTemplate({ ...templates[index], ...message.template, builtIn: false, updatedAt: now });\n    if (!template) return { ok: false, reason: "Template name and text are required" };\n    templates[index] = template;\n    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };\n  }\n  if (message.type === "YOLO_TEMPLATE_REMOVE") {\n    if (!templates.some((entry) => entry.id === message.templateId)) return { ok: false, reason: "Template not found" };\n    templates = templates.filter((entry) => entry.id !== message.templateId);\n    return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };\n  }\n  if (message.type === "YOLO_TEMPLATES_REORDER") {\n    const order = Array.isArray(message.orderedIds) ? message.orderedIds : [];\n    const byId = new Map(templates.map((template) => [template.id, template]));\n    const ordered = [];\n    for (const id of order) {\n      if (!byId.has(id)) continue;\n      ordered.push(byId.get(id));\n      byId.delete(id);\n    }\n    for (const template of templates) if (byId.has(template.id)) ordered.push(template);\n    return { setItems: { [Config.STORAGE_KEYS.templates]: ordered }, result: { templates: ordered } };\n  }\n  return { ok: false, reason: "Unknown template operation" };\n}\n\nasync function handleTemplateMessage(message) {\n  if (message.type === "YOLO_TEMPLATES_GET") {\n    return PortableStore.read(({ stored, revision }) => ({ ok: true, templates: templatesFromStorage(stored), revision }));\n  }\n  return PortableStore.mutate(({ stored }) => templateMutationPlan(message, stored));\n}\n\nasync function activeWorkflowLimitError(key, current, workflow) {\n  if (current.status !== "idle" || workflow.status === "idle") return null;\n  const allStored = await storageGet(null);\n  const activeCount = Object.entries(allStored)\n    .filter(([storedKey]) => storedKey.startsWith("yol'... 9928 more characters,
+    expected: /importScripts\("config\.js", "coordinator\.js", "queue\.js", "commands\.js"\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
