@@ -115,3 +115,36 @@ test("background bounds active conversation queues and does not persist read-onl
   assert.equal(rejected.ok, false);
   assert.equal(rejected.code, "queue.conversation_limit");
 });
+
+
+test("background persists ambiguous delivery as terminal manual recovery", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/ambiguous-delivery";
+  await invoke({ type: "YOLO_QUEUE_ADD", pageId, item: { text: "send once" } });
+  const claim = await invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "tab" });
+  await invoke({
+    type: "YOLO_QUEUE_MARK_SUBMITTING",
+    pageId,
+    itemId: claim.item.id,
+    claimToken: claim.item.claimToken
+  });
+  const failed = await invoke({
+    type: "YOLO_QUEUE_FAIL",
+    pageId,
+    itemId: claim.item.id,
+    claimToken: claim.item.claimToken,
+    error: "submission could not be observed",
+    errorCode: "composer.unconfirmed",
+    maxRetries: 5,
+    backoffSec: 1,
+    pauseOnFailure: false
+  });
+
+  assert.equal(failed.ok, true);
+  assert.equal(failed.state.items[0].state, "failed");
+  assert.equal(failed.state.items[0].errorCode, "queue.delivery_unknown");
+  assert.equal(failed.state.paused, true);
+  const nextClaim = await invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "other-tab" });
+  assert.equal(nextClaim.ok, false);
+  assert.equal(nextClaim.code, "queue.paused");
+});

@@ -7,63 +7,14 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Apply final reviewed safety fix
-        if: github.event_name == 'pull_request' && github.head_ref == 'agent/reliability-observability'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! -f .delivery-fix.ready || ! -f .delivery-fix.py ]]; then
-            echo "No staged safety fix; validating current tree."
-            npm run validate
-            exit 0
-          fi
-
-          python3 .delivery-fix.py
-          npm run validate
-          git diff --check
-
-          cat > .github/workflows/ci.yml <<'YAML'
-          name: CI
-
-          on:
-            pull_request:
-            push:
-              branches:
-                - main
-
-          permissions:
-            contents: read
-
-          jobs:
-            validate:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 20
-                - run: npm run validate
-          YAML
-
-          rm -f .delivery-fix.ready .delivery-fix.py .github/workflows/fix-ambiguous-delivery.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Fail ambiguous queue delivery closed"
-          git push origin HEAD:agent/reliability-observability
-      - name: Validate unchanged tree
-        if: github.event_name != 'pull_request' || github.head_ref != 'agent/reliability-observability'
-        run: npm run validate
+      - run: npm run validate

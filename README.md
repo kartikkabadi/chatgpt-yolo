@@ -100,6 +100,7 @@ A destructive card whose button merely says `Confirm` is still destructive. `Saf
 - Only one unexpired queue claim may exist for a conversation.
 - Claims expire and return to pending after a crashed sender.
 - Completion is idempotent, so a lost acknowledgment cannot cause the same message to be sent twice.
+- Ambiguous post-submit outcomes pause the queue and require explicit manual recovery instead of automatic retry.
 - Delivery is not completed until the page observably clears the composer or begins generation.
 - Active queues are bounded across conversations; read-only visits do not consume queue slots.
 - Delayed actions carry the exact conversation identity where they started and abort after SPA navigation.
@@ -162,7 +163,7 @@ Validation performs syntax checks for every extension entry point and runs the c
 - Queue items can be added, edited, dragged, moved with buttons, retried, removed, paused, resumed, and cleared.
 - A refresh during `sending` eventually returns an expired claim to pending.
 - A lost completion response is safely retried without duplicating the message.
-- A submit action that does not clear the composer or begin generation remains failed/retryable instead of being silently dequeued.
+- A submit action that cannot be confirmed fails closed with delivery status unknown and requires an explicit manual retry; it is never automatically retried.
 - Queue delivery never interrupts active generation.
 - Queue delivery respects the configured draft-protection setting.
 - Automatic retries follow backoff and pause after the configured final failure.

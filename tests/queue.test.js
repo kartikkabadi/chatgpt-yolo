@@ -216,3 +216,55 @@ test("queue completion is idempotent after an acknowledgement is lost", () => {
   assert.equal(retried.alreadyCompleted, true);
   assert.equal(retried.state.items.length, 0);
 });
+
+
+test("ambiguous delivery outcomes fail closed and require manual retry", () => {
+  for (const errorCode of ["composer.unconfirmed", "route.changed", "queue.exception"]) {
+    let state = Queue.addItem(Queue.freshState(1000), { text: `send once: ${errorCode}` }, { id: errorCode, at: 1001 }).state;
+    const claim = Queue.claimNext(state, "owner", { at: 1100 });
+    const submitting = Queue.markSubmitting(claim.state, errorCode, claim.item.claimToken, 1150);
+    const failed = Queue.failClaim(submitting.state, errorCode, claim.item.claimToken, {
+      at: 1200,
+      maxRetries: 5,
+      backoffSec: 1,
+      pauseOnFailure: false,
+      error: `ambiguous outcome: ${errorCode}`,
+      errorCode
+    });
+
+    assert.equal(failed.ok, true);
+    assert.equal(failed.state.items[0].state, "failed");
+    assert.equal(failed.state.items[0].errorCode, "queue.delivery_unknown");
+    assert.equal(failed.state.items[0].nextAttemptAt, 0);
+    assert.equal(failed.state.paused, true);
+    assert.equal(failed.state.pauseReason, "failure");
+    assert.match(failed.state.items[0].error, /manual retry required/i);
+
+    const automaticClaim = Queue.claimNext(failed.state, "other", { at: 5000 });
+    assert.equal(automaticClaim.ok, false);
+    assert.equal(automaticClaim.code, "queue.paused");
+
+    const retried = Queue.retryItem(failed.state, errorCode, 6000);
+    assert.equal(retried.state.paused, false);
+    assert.equal(retried.state.items[0].state, "pending");
+  }
+});
+
+test("proven pre-submit failures retain automatic retry backoff", () => {
+  let state = Queue.addItem(Queue.freshState(1000), { text: "retry safely" }, { id: "safe-retry", at: 1001 }).state;
+  const claim = Queue.claimNext(state, "owner", { at: 1100 });
+  const submitting = Queue.markSubmitting(claim.state, "safe-retry", claim.item.claimToken, 1150);
+  const failed = Queue.failClaim(submitting.state, "safe-retry", claim.item.claimToken, {
+    at: 1200,
+    maxRetries: 2,
+    backoffSec: 10,
+    pauseOnFailure: true,
+    error: "composer not found before submit",
+    errorCode: "composer.missing"
+  });
+
+  assert.equal(failed.state.items[0].state, "pending");
+  assert.equal(failed.state.items[0].errorCode, "composer.missing");
+  assert.equal(failed.state.items[0].nextAttemptAt, 11200);
+  assert.equal(failed.state.paused, false);
+});

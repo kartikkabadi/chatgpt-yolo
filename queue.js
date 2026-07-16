@@ -379,6 +379,8 @@
 
     const maxRetries = Math.max(0, Math.round(finite(options.maxRetries, 0)));
     const backoffSec = Math.max(1, finite(options.backoffSec, 30));
+    const ambiguousDelivery = Boolean(options.deliveryAmbiguous)
+      || ["composer.unconfirmed", "route.changed", "queue.exception"].includes(cleanText(options.errorCode, 120));
     item.attempts += 1;
     item.error = cleanText(options.error || "Message could not be sent", 500);
     item.errorCode = cleanText(options.errorCode || "queue.send_failed", 120);
@@ -387,6 +389,23 @@
     item.claimExpiresAt = 0;
     item.claimPhase = "";
     item.updatedAt = at;
+
+    if (ambiguousDelivery) {
+      const detail = item.error;
+      item.state = "failed";
+      item.nextAttemptAt = 0;
+      item.error = cleanText(`Delivery status is unknown; manual retry required. ${detail}`, 500);
+      item.errorCode = "queue.delivery_unknown";
+      state.paused = true;
+      state.pauseReason = "failure";
+      state = appendEvent(state, {
+        code: "queue.delivery_unknown",
+        message: "Queue paused because delivery could not be confirmed; manual retry is required",
+        level: "error"
+      }, at);
+      state.updatedAt = at;
+      return { state, ok: true, item: clone(item) };
+    }
 
     if (item.attempts <= maxRetries) {
       item.state = "pending";

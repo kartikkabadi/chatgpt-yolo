@@ -201,7 +201,8 @@ async function handleQueueMessage(message) {
       errorCode: message.errorCode,
       maxRetries: message.maxRetries,
       backoffSec: message.backoffSec,
-      pauseOnFailure: message.pauseOnFailure
+      pauseOnFailure: message.pauseOnFailure,
+      deliveryAmbiguous: message.deliveryAmbiguous
     }));
   }
   if (message.type === "YOLO_EVENT_APPEND") {
