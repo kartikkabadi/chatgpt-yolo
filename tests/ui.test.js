@@ -148,3 +148,22 @@ test("runtime uses the pure workflow response decision and completion ring", () 
   assert.match(runtime, /Commands\.decideWorkflowResponse/);
   assert.match(runtime, /queue\.state\.completions\.some/);
 });
+
+test("workflow prompt creation is atomic and responses must settle", () => {
+  const runtime = read("command-runtime.js");
+  assert.match(runtime, /YOLO_WORKFLOW_QUEUE_ADD/);
+  assert.match(runtime, /RESPONSE_STABLE_MS/);
+  assert.match(runtime, /responseCandidateFingerprint/);
+  assert.doesNotMatch(runtime, /type: "YOLO_QUEUE_ADD"[\s\S]{0,900}Workflow changed before its prompt could be committed/);
+});
+
+test("fallback injection restores the full command content-script stack", () => {
+  const expected = '["config.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]';
+  assert.match(read("popup.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(read("options.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("palette filter text is not leaked into optional command arguments", () => {
+  const source = read("command-ui.js");
+  assert.match(source, /run\(entry, argumentCommand \? search\.value : ""\)/);
+});

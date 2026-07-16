@@ -295,7 +295,7 @@
         search.focus();
         return;
       }
-      run(entry, search.value);
+      run(entry, argumentCommand ? search.value : "");
     }
 
     function showStatus(data = {}) {

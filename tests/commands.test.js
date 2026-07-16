@@ -118,3 +118,20 @@ test("workflow response decisions enforce ownership, markers, and caps", () => {
   });
   assert.equal(done.action, "completed");
 });
+
+test("awaiting workflows retain and clear response stability candidates safely", () => {
+  const waiting = Commands.normalizeWorkflow({
+    kind: "loop",
+    objective: "iterate",
+    status: "running",
+    awaitingResponse: true,
+    responseCandidateFingerprint: "candidate",
+    responseCandidateSince: 1234
+  }, 2000);
+  assert.equal(waiting.responseCandidateFingerprint, "candidate");
+  assert.equal(waiting.responseCandidateSince, 1234);
+
+  const paused = Commands.setWorkflowStatus(waiting, "paused", "manual", 3000);
+  assert.equal(paused.responseCandidateFingerprint, "");
+  assert.equal(paused.responseCandidateSince, 0);
+});

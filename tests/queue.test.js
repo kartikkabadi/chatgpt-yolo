@@ -343,3 +343,16 @@ test("recent completion identity remains available after later sends", () => {
   state = Queue.completeClaim(secondClaim.state, "second", secondClaim.item.claimToken, 1400).state;
   assert.equal(state.completions.some((entry) => entry.itemId === "first" && entry.sourceId === "goal-1"), true);
 });
+
+test("completion identity history remains bounded", () => {
+  let state = Queue.freshState(1000);
+  for (let index = 0; index < 30; index += 1) {
+    const id = `completion-${index}`;
+    state = Queue.addItem(state, { text: id }, { id, at: 1100 + index * 10 }).state;
+    const claim = Queue.claimNext(state, "owner", { at: 1101 + index * 10 });
+    state = Queue.completeClaim(claim.state, id, claim.item.claimToken, 1102 + index * 10).state;
+  }
+  assert.equal(state.completions.length, 20);
+  assert.equal(state.completions[0].itemId, "completion-10");
+  assert.equal(state.completions.at(-1).itemId, "completion-29");
+});

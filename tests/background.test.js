@@ -37,6 +37,11 @@ function loadBackground() {
             }
             Object.assign(storage, items);
             callback?.();
+          },
+          remove(keys, callback) {
+            const list = Array.isArray(keys) ? keys : [keys];
+            for (const key of list) delete storage[key];
+            callback?.();
           }
         }
       }
@@ -224,7 +229,10 @@ test("background persists sender-bound command workflow state", async () => {
     expectedRevision: claimed.workflow.revision
   }, sender);
   assert.equal(cleared.workflow.status, "idle");
-  assert.equal(cleared.workflow.revision, claimed.workflow.revision + 1);
+  assert.equal(cleared.workflow.revision, 0);
+  const afterClear = await invoke({ type: "YOLO_WORKFLOW_GET", pageId }, sender);
+  assert.equal(afterClear.workflow.status, "idle");
+  assert.equal(afterClear.workflow.revision, 0);
 });
 
 test("background bounds active command workflows", async () => {
@@ -247,4 +255,56 @@ test("background bounds active command workflows", async () => {
   });
   assert.equal(rejected.ok, false);
   assert.equal(rejected.code, "workflow.conversation_limit");
+});
+
+test("workflow prompt enqueue commits queue and workflow together", async () => {
+  const { invoke, storage } = loadBackground();
+  const pageId = "https://chatgpt.com/c/atomic-workflow";
+  const response = await invoke({
+    type: "YOLO_WORKFLOW_QUEUE_ADD",
+    pageId,
+    expectedRevision: 0,
+    ownerId: "tab-a",
+    workflow: { kind: "goal", objective: "atomic", status: "running", promptFingerprint: "prompt" },
+    item: { text: "workflow prompt", source: "workflow:goal", sourceId: "goal-a" }
+  });
+  assert.equal(response.ok, true);
+  assert.equal(response.workflow.pendingItemId, response.item.id);
+  assert.equal(response.workflow.runnerId, "tab-a");
+  assert.equal(storage.yoloQueuesV1[pageId].items[0].id, response.item.id);
+  const workflowKey = Object.keys(storage).find((key) => key.startsWith("yoloWorkflow:"));
+  assert.equal(storage[workflowKey].pendingItemId, response.item.id);
+
+  const stale = await invoke({
+    type: "YOLO_WORKFLOW_QUEUE_ADD",
+    pageId,
+    expectedRevision: 0,
+    ownerId: "tab-b",
+    workflow: { kind: "goal", objective: "stale", status: "running" },
+    item: { text: "must not queue" }
+  });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.code, "workflow.conflict");
+  assert.equal(storage.yoloQueuesV1[pageId].items.length, 1);
+});
+
+test("clearing a workflow removes its per-conversation storage key", async () => {
+  const { invoke, storage } = loadBackground();
+  const pageId = "https://chatgpt.com/c/removable-workflow";
+  const started = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "remove me", status: "paused" }
+  });
+  assert.equal(started.ok, true);
+  assert.equal(Object.keys(storage).some((key) => key.startsWith("yoloWorkflow:")), true);
+  const cleared = await invoke({
+    type: "YOLO_WORKFLOW_CLEAR",
+    pageId,
+    expectedRevision: started.workflow.revision
+  });
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.workflow.status, "idle");
+  assert.equal(Object.keys(storage).some((key) => key.startsWith("yoloWorkflow:")), false);
 });

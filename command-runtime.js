@@ -12,6 +12,7 @@
 
   const POLL_MS = 750;
   const RESPONSE_SETTLE_MS = 1200;
+  const RESPONSE_STABLE_MS = 1400;
   const state = {
     destroyed: false,
     pageId: "",
@@ -147,35 +148,44 @@
     const prompt = String(text || "").trim();
     const pageId = state.pageId;
     if (!prompt) return { ok: false, reason: "Command produced an empty prompt" };
-    const response = await backgroundSend({
-      type: "YOLO_QUEUE_ADD",
-      pageId,
-      front: true,
-      item: {
-        text: prompt,
-        source,
-        sourceId: workflow?.id || ""
-      }
-    });
-    if (!response?.ok) return response || { ok: false, reason: "Could not add the command prompt to the queue" };
 
+    let response;
     if (workflow) {
       const next = Commands.normalizeWorkflow(workflow);
-      next.pendingItemId = response.item.id;
       next.awaitingResponse = false;
       next.sawGeneration = false;
+      next.responseCandidateFingerprint = "";
+      next.responseCandidateSince = 0;
       next.baselineFingerprint = latestAssistantFingerprint();
       next.lastAssistantFingerprint = next.baselineFingerprint;
       next.promptFingerprint = Commands.fingerprint(prompt);
+      next.responseCandidateFingerprint = "";
+      next.responseCandidateSince = 0;
       next.lastPromptAt = now();
       next.reason = "Queued command prompt";
       next.updatedAt = now();
-      state.workflow = next;
-      if (!await writeWorkflow(next, pageId)) {
-        await removeQueueItem(response.item.id, pageId);
-        return { ok: false, reason: "Workflow changed before its prompt could be committed" };
-      }
+      response = await backgroundSend({
+        type: "YOLO_WORKFLOW_QUEUE_ADD",
+        pageId,
+        expectedRevision: next.revision,
+        ownerId: state.ownerId,
+        workflow: next,
+        item: {
+          text: prompt,
+          source,
+          sourceId: next.id
+        }
+      });
+      applyWorkflowResponse(response, pageId);
+    } else {
+      response = await backgroundSend({
+        type: "YOLO_QUEUE_ADD",
+        pageId,
+        front: true,
+        item: { text: prompt, source, sourceId: "" }
+      });
     }
+    if (!response?.ok) return response || { ok: false, reason: "Could not add the command prompt to the queue" };
 
     const api = engine();
     const sent = api ? await api.runAction("queue-next") : false;
@@ -184,8 +194,12 @@
       next.pendingItemId = "";
       next.awaitingResponse = true;
       next.sawGeneration = false;
+      next.responseCandidateFingerprint = "";
+      next.responseCandidateSince = 0;
       next.baselineFingerprint = latestAssistantFingerprint();
       next.lastAssistantFingerprint = next.baselineFingerprint;
+      next.responseCandidateFingerprint = "";
+      next.responseCandidateSince = 0;
       next.reason = "Waiting for ChatGPT";
       next.updatedAt = now();
       await writeWorkflow(next, pageId);
@@ -232,8 +246,6 @@
     current.workflow.revision = latest.revision;
     current.workflow.runnerId = state.ownerId;
     state.workflow = current.workflow;
-    if (!await writeWorkflow(state.workflow)) return { ok: false, reason: "Workflow changed in another tab", keepOpen: true };
-
     const prompt = Commands.workflowPrompt(state.workflow, "initial");
     const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${kind}` });
     if (!queued.ok) {
@@ -278,12 +290,8 @@
     next.status = "running";
     next.reason = "Resumed by user";
     next.updatedAt = now();
-    if (!await writeWorkflow(next)) return { ok: false, reason: "Workflow changed in another tab", keepOpen: true };
-    if (!state.workflow.pendingItemId && !state.workflow.awaitingResponse) {
-      const prompt = Commands.workflowPrompt(state.workflow, state.workflow.iteration === 0 ? "initial" : "continue");
-      return queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
-    }
-    return { ok: true };
+    const prompt = Commands.workflowPrompt(next, next.iteration === 0 ? "initial" : "continue");
+    return queuePrompt(prompt, { workflow: next, source: `workflow:${next.kind}` });
   }
 
   async function showStatus() {
@@ -379,7 +387,6 @@
       return true;
     }
 
-    if (!await writeWorkflow(state.workflow)) return true;
     const prompt = Commands.workflowPrompt(state.workflow, "continue");
     const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
     if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not queue the next workflow iteration", "command.workflow.queue_failed");
@@ -404,6 +411,8 @@
           next.pendingItemId = "";
           next.awaitingResponse = true;
           next.sawGeneration = false;
+          next.responseCandidateFingerprint = "";
+          next.responseCandidateSince = 0;
           next.baselineFingerprint = latestAssistantFingerprint();
           next.lastAssistantFingerprint = next.baselineFingerprint;
           next.reason = "Waiting for ChatGPT";
@@ -421,6 +430,8 @@
       next.pendingItemId = "";
       next.awaitingResponse = true;
       next.sawGeneration = false;
+      next.responseCandidateFingerprint = "";
+      next.responseCandidateSince = 0;
       next.baselineFingerprint = latestAssistantFingerprint();
       next.lastAssistantFingerprint = next.baselineFingerprint;
       next.reason = "Waiting for ChatGPT";
@@ -446,8 +457,10 @@
     if (!workflow.awaitingResponse) return false;
 
     if (apiState.generating) {
-      if (!workflow.sawGeneration) {
+      if (!workflow.sawGeneration || workflow.responseCandidateFingerprint) {
         workflow.sawGeneration = true;
+        workflow.responseCandidateFingerprint = "";
+        workflow.responseCandidateSince = 0;
         workflow.reason = "ChatGPT is working";
         workflow.updatedAt = now();
         await writeWorkflow(workflow);
@@ -456,6 +469,18 @@
     }
 
     if (now() - workflow.lastPromptAt < RESPONSE_SETTLE_MS) return false;
+    const assistantText = Platforms.latestAssistantText(adapter());
+    const candidateFingerprint = Commands.fingerprint(assistantText);
+    if (!assistantText || candidateFingerprint === workflow.baselineFingerprint || candidateFingerprint === workflow.lastAssistantFingerprint) return false;
+    if (workflow.responseCandidateFingerprint !== candidateFingerprint) {
+      workflow.responseCandidateFingerprint = candidateFingerprint;
+      workflow.responseCandidateSince = now();
+      workflow.reason = "Waiting for ChatGPT response to settle";
+      workflow.updatedAt = now();
+      await writeWorkflow(workflow);
+      return false;
+    }
+    if (now() - workflow.responseCandidateSince < RESPONSE_STABLE_MS) return false;
     return processResponse();
   }
 

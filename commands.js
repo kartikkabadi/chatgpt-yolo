@@ -110,6 +110,8 @@
       baselineFingerprint: "",
       lastAssistantFingerprint: "",
       promptFingerprint: "",
+      responseCandidateFingerprint: "",
+      responseCandidateSince: 0,
       runnerId: "",
       runnerExpiresAt: 0,
       lastPromptAt: 0,
@@ -150,6 +152,8 @@
       baselineFingerprint: cleanText(raw.baselineFingerprint, 180),
       lastAssistantFingerprint: cleanText(raw.lastAssistantFingerprint, 180),
       promptFingerprint: cleanText(raw.promptFingerprint, 180),
+      responseCandidateFingerprint: Boolean(raw.awaitingResponse) ? cleanText(raw.responseCandidateFingerprint, 180) : "",
+      responseCandidateSince: Boolean(raw.awaitingResponse) ? Math.max(0, finite(raw.responseCandidateSince, 0)) : 0,
       runnerId: status === "running" ? cleanText(raw.runnerId, 220) : "",
       runnerExpiresAt: status === "running" ? Math.max(0, finite(raw.runnerExpiresAt, 0)) : 0,
       lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),
@@ -191,6 +195,8 @@
       workflow.pendingItemId = "";
       workflow.awaitingResponse = false;
       workflow.sawGeneration = false;
+      workflow.responseCandidateFingerprint = "";
+      workflow.responseCandidateSince = 0;
       workflow.runnerId = "";
       workflow.runnerExpiresAt = 0;
     }
@@ -268,6 +274,8 @@
 
     workflow.awaitingResponse = false;
     workflow.sawGeneration = false;
+    workflow.responseCandidateFingerprint = "";
+    workflow.responseCandidateSince = 0;
     workflow.lastAssistantFingerprint = fingerprint(text);
     workflow.lastResponseAt = at;
     workflow.iteration += 1;
