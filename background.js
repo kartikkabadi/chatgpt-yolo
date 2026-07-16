@@ -12,6 +12,8 @@ const workflowLock = { current: Promise.resolve() };
 const actionLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
+const MAX_RETAINED_COMPLETED_WORKFLOWS = 100;
+const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "blocked"]);
 const WORKFLOW_LEASE_MS = 2 * 60 * 1000;
 const WORKFLOW_RENEW_WINDOW_MS = 30 * 1000;
 
@@ -151,8 +153,9 @@ function normalizeTemplate(raw, fallbackId = "") {
   const name = String(raw.name || "").trim().slice(0, 80);
   const text = String(raw.text || "").trim().slice(0, Queue.MAX_TEXT_LENGTH);
   if (!name || !text) return null;
+  const requestedId = String(raw.id || fallbackId || "").trim().slice(0, 180);
   return {
-    id: String(raw.id || fallbackId || Queue.makeId("template")).trim().slice(0, 180),
+    id: requestedId || Queue.makeId("template"),
     name,
     text,
     builtIn: Boolean(raw.builtIn),
@@ -162,9 +165,19 @@ function normalizeTemplate(raw, fallbackId = "") {
 }
 
 function templatesFromStorage(stored) {
-  const raw = stored?.[Config.STORAGE_KEYS.templates];
-  if (Array.isArray(raw)) return raw.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
-  return Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));
+  const raw = Array.isArray(stored?.[Config.STORAGE_KEYS.templates])
+    ? stored[Config.STORAGE_KEYS.templates]
+    : Config.DEFAULT_TEMPLATES;
+  const templates = [];
+  const ids = new Set();
+  for (const entry of raw) {
+    if (templates.length >= 50) break;
+    const template = normalizeTemplate(entry);
+    if (!template || ids.has(template.id)) continue;
+    ids.add(template.id);
+    templates.push(template);
+  }
+  return templates;
 }
 
 function templateMutationPlan(message, stored) {
@@ -175,31 +188,33 @@ function templateMutationPlan(message, stored) {
     return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };
   }
   if (message.type === "YOLO_TEMPLATE_ADD") {
-    if (templates.length >= 50) return { ok: false, reason: "Template limit reached" };
     const requestedId = String(message.template?.id || "").trim().slice(0, 180);
     if (!requestedId) return { ok: false, reason: "Template identifier is required", code: "template.id_required" };
     const existing = templates.find((template) => template.id === requestedId);
     if (existing) return { mutate: false, result: { templates, template: existing, deduplicated: true } };
+    if (templates.length >= 50) return { ok: false, reason: "Template limit reached", code: "template.limit" };
     const template = normalizeTemplate({ ...message.template, id: requestedId, createdAt: now, updatedAt: now });
     if (!template) return { ok: false, reason: "Template name and text are required" };
     templates.push(template);
     return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };
   }
   if (message.type === "YOLO_TEMPLATE_UPDATE") {
-    const index = templates.findIndex((template) => template.id === message.template?.id);
+    const requestedId = String(message.template?.id || "").trim().slice(0, 180);
+    const index = templates.findIndex((template) => template.id === requestedId);
     if (index < 0) return { ok: false, reason: "Template not found" };
-    const template = normalizeTemplate({ ...templates[index], ...message.template, builtIn: false, updatedAt: now });
+    const template = normalizeTemplate({ ...templates[index], ...message.template, id: requestedId, builtIn: false, updatedAt: now });
     if (!template) return { ok: false, reason: "Template name and text are required" };
     templates[index] = template;
     return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates, template } };
   }
   if (message.type === "YOLO_TEMPLATE_REMOVE") {
-    if (!templates.some((entry) => entry.id === message.templateId)) return { ok: false, reason: "Template not found" };
-    templates = templates.filter((entry) => entry.id !== message.templateId);
+    const requestedId = String(message.templateId || "").trim().slice(0, 180);
+    if (!templates.some((entry) => entry.id === requestedId)) return { ok: false, reason: "Template not found" };
+    templates = templates.filter((entry) => entry.id !== requestedId);
     return { setItems: { [Config.STORAGE_KEYS.templates]: templates }, result: { templates } };
   }
   if (message.type === "YOLO_TEMPLATES_REORDER") {
-    const order = Array.isArray(message.orderedIds) ? message.orderedIds : [];
+    const order = Array.isArray(message.orderedIds) ? message.orderedIds.map((id) => String(id).trim().slice(0, 180)) : [];
     const byId = new Map(templates.map((template) => [template.id, template]));
     const ordered = [];
     for (const id of order) {
@@ -221,20 +236,29 @@ async function handleTemplateMessage(message) {
 }
 
 async function activeWorkflowLimitError(key, current, workflow) {
-  if (current.status !== "idle" || workflow.status === "idle") return null;
+  const startsActiveWorkflow = ACTIVE_WORKFLOW_STATUSES.has(workflow.status) && !ACTIVE_WORKFLOW_STATUSES.has(current.status);
+  if (!startsActiveWorkflow) return null;
+
   const allStored = await storageGet(null);
-  const activeCount = Object.entries(allStored)
+  const workflowEntries = Object.entries(allStored)
     .filter(([storedKey]) => storedKey.startsWith("yoloWorkflow:") && storedKey !== key)
-    .map(([, value]) => Commands.normalizeWorkflow(value))
-    .filter((entry) => entry.status !== "idle")
-    .length;
-  if (activeCount < MAX_ACTIVE_WORKFLOWS) return null;
-  return {
-    ok: false,
-    reason: `Active workflow limit of ${MAX_ACTIVE_WORKFLOWS} conversations reached; clear an old workflow first`,
-    code: "workflow.conversation_limit",
-    workflow: current
-  };
+    .map(([storedKey, value]) => [storedKey, Commands.normalizeWorkflow(value)]);
+  const activeCount = workflowEntries.filter(([, entry]) => ACTIVE_WORKFLOW_STATUSES.has(entry.status)).length;
+  if (activeCount >= MAX_ACTIVE_WORKFLOWS) {
+    return {
+      ok: false,
+      reason: `Active workflow limit of ${MAX_ACTIVE_WORKFLOWS} conversations reached; pause or clear an old workflow first`,
+      code: "workflow.conversation_limit",
+      workflow: current
+    };
+  }
+
+  const completed = workflowEntries
+    .filter(([, entry]) => entry.status === "completed")
+    .sort((a, b) => a[1].updatedAt - b[1].updatedAt);
+  const excess = completed.slice(0, Math.max(0, completed.length - MAX_RETAINED_COMPLETED_WORKFLOWS));
+  if (excess.length) await storageRemove(excess.map(([storedKey]) => storedKey));
+  return null;
 }
 
 async function enqueueWorkflowPrompt(pageId, key, current, message) {
