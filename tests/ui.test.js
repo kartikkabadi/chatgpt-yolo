@@ -104,7 +104,7 @@ test("command workflows reuse the reliable queue and fail closed", () => {
   const runtime = read("command-runtime.js");
   assert.match(runtime, /type: "YOLO_QUEUE_ADD"/);
   assert.match(runtime, /runAction\("queue-next"\)/);
-  assert.match(runtime, /Goal response omitted the required control marker/);
+  assert.match(runtime, /Goal response omitted the required terminal control marker/);
   assert.match(runtime, /Reached the \$\{workflow\.maxIterations\}-iteration safety cap/);
 });
 
