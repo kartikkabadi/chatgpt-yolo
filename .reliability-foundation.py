@@ -8,7 +8,7 @@ if not parts:
 
 patch = b"".join(part.read_bytes() for part in parts)
 expected_size = 69_998
-expected_sha256 = "912ba5d71d5c0012dd9d3694a578d15ebb73c519f6e437ab66c0b17cb914f962"
+expected_sha256 = "9d8cc13926f99ab3c0ee06be318d296fe0b67d03c7c7370528761b1667002643"
 actual_sha256 = hashlib.sha256(patch).hexdigest()
 if len(patch) != expected_size or actual_sha256 != expected_sha256:
     raise RuntimeError(
