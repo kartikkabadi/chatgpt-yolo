@@ -23,7 +23,7 @@ jobs:
           set -euo pipefail
           python .reliability-foundation.py
           git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm -f .reliability-foundation.py
+          rm -f .reliability-foundation.py .reliability-patch.*
           npm run validate
           npm run package
           git diff --check
