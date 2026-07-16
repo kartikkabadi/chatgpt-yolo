@@ -20,32 +20,70 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Capture lifecycle diagnostic without publishing product changes
+      - name: Publish validated v1 lifecycle changes
         shell: bash
         run: |
-          set -uo pipefail
-          : > /tmp/v1-lifecycle.log
-          set +e
-          (
-            set -euo pipefail
-            python .apply-v1-lifecycle.py
-            npm run validate
-            npm run package
-            git diff --check
-          ) 2>&1 | tee /tmp/v1-lifecycle.log
-          status=${PIPESTATUS[0]}
-          set -e
+          set -euo pipefail
+          python .apply-v1-lifecycle.py
+          npm run validate
+          npm run package
+          git diff --check
 
-          {
-            echo "exit_status=$status"
-            echo
-            tail -n 220 /tmp/v1-lifecycle.log
-          } > .v1-lifecycle-diagnostic.txt
+          cat > .github/workflows/ci.yml <<'YAML'
+          name: CI
 
-          git restore config.js background.js tests/background.test.js tests/manifest.test.js 2>/dev/null || true
+          on:
+            pull_request:
+            push:
+              branches:
+                - main
+
+          permissions:
+            contents: read
+
+          jobs:
+            validate-node-20:
+              name: Validate on Node 20
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 20
+                - run: npm run validate
+
+            validate-node-24:
+              name: Validate on Node 24
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 24
+                - run: npm run validate
+
+            package:
+              name: Package extension
+              needs: [validate-node-20, validate-node-24]
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 24
+                - run: npm run package
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: yolo-preview
+                    path: dist/yolo
+                    retention-days: 7
+          YAML
+
+          rm -f .apply-v1-lifecycle.py .apply-v1-lifecycle.ready .v1-lifecycle-diagnostic.txt .v1-lifecycle.error.txt
           rm -rf dist
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .v1-lifecycle-diagnostic.txt
-          git commit -m "Capture exact v1 lifecycle diagnostic"
+          git add -A
+          git diff --cached --check
+          git commit -m "Complete v1 lifecycle, onboarding, and package validation"
           git push origin HEAD:release/v1-open-source
