@@ -38,6 +38,15 @@ jobs:
             exit 1
           }
 
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.overnight-hardening.py')
+          lines = path.read_text(encoding='utf-8').splitlines()
+          for index, line in enumerate(lines):
+              if 'assert.equal(read("background-wrapper.js").trim()' in line and line.lstrip().startswith("'''"):
+                  lines[index] = line.replace("'''", "r'''", 1)
+          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
           python .overnight-hardening.py > /tmp/patch.log 2>&1 || fail patch /tmp/patch.log
           git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml || fail restore-ci
           rm -f .overnight-hardening.py .overnight-hardening-error.txt
