@@ -1,25 +1,44 @@
 name: Feature request
-description: Propose a focused improvement
-title: "[Feature]: "
-labels: [enhancement]
+description: Propose a focused improvement to the Chrome extension
+title: "[Feature] "
+labels:
+  - enhancement
 body:
   - type: textarea
-    id: problem
+    id: repeated_problem
     attributes:
-      label: Problem
-      description: What user problem exists today?
+      label: Repeated user problem
+      description: What action or failure happens repeatedly in ChatGPT today? Give a concrete example.
+      placeholder: I repeatedly have to...
+    validations:
+      required: true
+  - type: textarea
+    id: current_workaround
+    attributes:
+      label: Current workaround
+      description: How do you handle this without YOLO?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed behavior
+      label: Proposed extension behavior
+      description: Describe the smallest browser-extension change that solves the problem.
     validations:
       required: true
   - type: textarea
-    id: safety
+    id: boundary
     attributes:
-      label: Simplicity, privacy, and safety impact
-      description: Explain permissions, automation, storage, and UI complexity changes.
+      label: Product-boundary impact
+      description: Explain any new permissions, stored data, automation, UI complexity, or supported ChatGPT routes.
     validations:
       required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This can be implemented entirely inside the Chrome extension.
+          required: true
+        - label: This does not require a local daemon, CLI, coding-agent integration, filesystem access, or hosted backend.
+          required: true
