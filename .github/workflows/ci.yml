@@ -2,52 +2,48 @@ name: CI
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
+  validate-node-20:
+    name: Validate on Node 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          ref: fix/command-viability
-          fetch-depth: 0
+          node-version: 20
+      - run: npm run validate
+
+  validate-node-24:
+    name: Validate on Node 24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Apply and validate truthful command semantics
-        shell: bash
-        run: |
-          set -uo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - run: npm run validate
 
-          fail() {
-            stage="$1"
-            output="${2:-}"
-            git restore .github/workflows/ci.yml .yolo-command-viability.py .yolo-command-viability-followup.py .yolo-command-viability-followup2.py 2>/dev/null || true
-            {
-              echo "Failed stage: ${stage}"
-              [[ -n "$output" && -f "$output" ]] && tail -n 200 "$output"
-            } > .yolo-command-viability-error.txt
-            git add .yolo-command-viability-error.txt
-            git commit -m "Capture command viability failure at ${stage}" || true
-            git push origin HEAD:fix/command-viability
-            exit 1
-          }
-
-          python .yolo-command-viability.py > /tmp/primary.log 2>&1 || fail primary-patch /tmp/primary.log
-          python .yolo-command-viability-followup.py > /tmp/followup.log 2>&1 || fail followup-patch /tmp/followup.log
-          python .yolo-command-viability-followup2.py > /tmp/followup2.log 2>&1 || fail followup2-patch /tmp/followup2.log
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml || fail restore-ci
-          rm -f .yolo-command-viability.py .yolo-command-viability-followup.py .yolo-command-viability-followup2.py .yolo-command-viability-error.txt
-          npm run validate > /tmp/validate.log 2>&1 || fail validate /tmp/validate.log
-          npm run package > /tmp/package.log 2>&1 || fail package /tmp/package.log
-          git diff --check > /tmp/diff.log 2>&1 || fail diff-check /tmp/diff.log
-
-          git add -A
-          git diff --cached --check || fail staged-diff
-          git commit -m "Make slash actions truthful and fail closed" || fail commit
-          git push origin HEAD:fix/command-viability || fail push
+  package:
+    name: Package extension
+    needs:
+      - validate-node-20
+      - validate-node-24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yolo-preview
+          path: dist/yolo
+          retention-days: 7

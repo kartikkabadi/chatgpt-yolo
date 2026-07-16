@@ -13,20 +13,19 @@
   const MARKER_RE = /(?:^|\n)\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
 
   const COMMANDS = Object.freeze([
-    Object.freeze({ name: "goal", title: "Goal", description: "Start a persistent objective that continues until done, blocked, paused, or capped.", args: "objective", group: "Workflows" }),
-    Object.freeze({ name: "loop", title: "Loop", description: "Repeat focused work toward an objective for a bounded number of iterations.", args: "[iterations] objective", group: "Workflows" }),
-    Object.freeze({ name: "plan", title: "Plan", description: "Ask ChatGPT to shape a concrete multi-step plan before implementation.", args: "objective", group: "One-shot" }),
-    Object.freeze({ name: "review", title: "Review", description: "Run a rigorous review of the current work or a supplied scope.", args: "[scope]", group: "One-shot" }),
-    Object.freeze({ name: "fix", title: "Fix", description: "Find concrete defects, repair them, and validate the result.", args: "[scope]", group: "One-shot" }),
-    Object.freeze({ name: "compact", title: "Compact", description: "Create a durable context handoff with decisions, state, risks, and next actions.", args: "", group: "One-shot" }),
-    Object.freeze({ name: "continue", title: "Continue", description: "Continue the current task deeply without repeating prior work.", args: "", group: "One-shot" }),
-    Object.freeze({ name: "status", title: "Status", description: "Show workflow, queue, generation, limits, and last-action state.", args: "", group: "Controls" }),
-    Object.freeze({ name: "queue", title: "Queue", description: "Show the current conversation queue and workflow state.", args: "", group: "Controls" }),
-    Object.freeze({ name: "pause", title: "Pause", description: "Pause the active goal or loop without clearing it.", args: "", group: "Controls" }),
-    Object.freeze({ name: "resume", title: "Resume", description: "Resume the active paused goal or loop.", args: "", group: "Controls" }),
-    Object.freeze({ name: "clear", title: "Clear", description: "Clear the active goal or loop after confirmation.", args: "", group: "Controls" }),
-    Object.freeze({ name: "settings", title: "Settings", description: "Open YOLO advanced settings.", args: "", group: "Controls" }),
-    Object.freeze({ name: "help", title: "Help", description: "Open the command palette and command reference.", args: "", group: "Controls" })
+    Object.freeze({ name: "goal", title: "Goal", description: "Start a marker-driven objective that YOLO can continue for bounded turns.", args: "objective", group: "Automated workflows", kind: "workflow" }),
+    Object.freeze({ name: "loop", title: "Loop", description: "Run bounded, marker-driven iterations toward one objective.", args: "[iterations] objective", group: "Automated workflows", kind: "workflow" }),
+    Object.freeze({ name: "plan", title: "Plan", description: "Queue a prompt asking ChatGPT to produce an execution plan.", args: "objective", group: "Prompt shortcuts", kind: "prompt" }),
+    Object.freeze({ name: "review", title: "Review", description: "Queue an adversarial review prompt for the current work or scope.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),
+    Object.freeze({ name: "fix", title: "Fix", description: "Queue a prompt asking ChatGPT to diagnose, repair, and validate work.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),
+    Object.freeze({ name: "handoff", title: "Handoff", description: "Ask ChatGPT to write a continuation brief; this does not compact ChatGPT context.", args: "[focus]", group: "Prompt shortcuts", kind: "prompt" }),
+    Object.freeze({ name: "continue", title: "Continue", description: "Queue a prompt to continue the current task, optionally with a direction.", args: "[direction]", group: "Prompt shortcuts", kind: "prompt" }),
+    Object.freeze({ name: "status", title: "Status", description: "Show YOLO workflow, queue, generation, limits, and last-action state.", args: "", group: "YOLO controls", kind: "control" }),
+    Object.freeze({ name: "pause", title: "Pause", description: "Pause the active YOLO goal or loop without deleting it.", args: "", group: "YOLO controls", kind: "control" }),
+    Object.freeze({ name: "resume", title: "Resume", description: "Resume the active paused or blocked YOLO workflow.", args: "", group: "YOLO controls", kind: "control" }),
+    Object.freeze({ name: "stop", title: "Stop", description: "Stop and clear the active YOLO goal or loop after confirmation.", args: "", group: "YOLO controls", kind: "control" }),
+    Object.freeze({ name: "settings", title: "Settings", description: "Open YOLO Advanced settings.", args: "", group: "YOLO controls", kind: "control" }),
+    Object.freeze({ name: "help", title: "Help", description: "Open the YOLO action palette and reference.", args: "", group: "YOLO controls", kind: "control" })
   ]);
 
   const COMMAND_BY_NAME = new Map(COMMANDS.map((command) => [command.name, command]));
@@ -229,7 +228,7 @@
       `Loop objective: ${workflow.objective}`,
       `Maximum iterations: ${workflow.maxIterations}.`,
       "Perform one meaningful iteration now. Build on the current conversation, make concrete progress, inspect your own work, and avoid repeating prior commentary.",
-      "End with [YOLO:DONE] if the objective is complete, [YOLO:BLOCKED] if user input is required, or [YOLO:CONTINUE] when another iteration would help. A missing marker is treated as continue in Loop mode."
+      "At the very end, emit exactly one marker on its own line: [YOLO:DONE] if complete, [YOLO:BLOCKED] if user input is required, or [YOLO:CONTINUE] when another iteration would help. Missing or malformed markers pause the loop."
     ].join("\n\n");
   }
 
@@ -238,7 +237,7 @@
       `Run the next YOLO Loop iteration for: ${workflow.objective}`,
       `Iteration ${workflow.iteration + 1} of ${workflow.maxIterations}.`,
       "Continue from the latest work, find the highest-value unfinished step, execute it, and validate the result. Do not restate the objective or repeat the prior response.",
-      "End with [YOLO:DONE], [YOLO:BLOCKED], or [YOLO:CONTINUE]. A missing marker is treated as continue."
+      "At the very end, emit exactly one marker on its own line: [YOLO:DONE], [YOLO:BLOCKED], or [YOLO:CONTINUE]. Missing or malformed markers pause the loop."
     ].join("\n\n");
   }
 
@@ -288,12 +287,13 @@
     if (outcome === "blocked") {
       return { workflow, action: "blocked", reason: "ChatGPT requested user input or unavailable access", code: "command.workflow.blocked" };
     }
-    if (workflow.kind === "goal" && outcome === "missing") {
+    if (outcome === "missing") {
+      const label = workflow.kind === "goal" ? "Goal" : "Loop";
       return {
         workflow,
         action: "paused",
-        reason: "Goal response omitted the required terminal control marker",
-        code: "command.goal.marker_missing"
+        reason: `${label} response omitted the required terminal control marker`,
+        code: "command.workflow.marker_missing"
       };
     }
     if (workflow.iteration >= workflow.maxIterations) {
@@ -328,11 +328,17 @@
         "Identify concrete defects and unfinished parts, repair them directly, validate the result, and continue until the scoped work is complete or a real blocker remains. Do not stop at a plan and do not repeat prior commentary."
       ].join("\n\n");
     }
-    if (name === "compact") {
-      return "Create a durable context handoff for this conversation. Preserve the objective, decisions, constraints, completed work, exact current state, unresolved defects, risks, relevant identifiers, validation evidence, and next actions. Remove repetition and incidental discussion. Write it so another strong agent can continue immediately without guessing.";
+    if (name === "handoff") {
+      return [
+        scope ? `Handoff focus: ${scope}` : "Write a continuation handoff for the current work.",
+        "Summarize the objective, decisions, constraints, completed work, exact current state, unresolved defects, risks, relevant identifiers, validation evidence, and next actions. Remove incidental repetition. This is a written handoff only; do not claim that ChatGPT context was compacted, truncated, or changed."
+      ].join("\n\n");
     }
     if (name === "continue") {
-      return "Continue from the current state and keep going deeper. Do not repeat the previous answer. Critically inspect assumptions, close gaps, execute the next concrete steps toward the original objective, and validate the result.";
+      return [
+        scope ? `Continue with this direction: ${scope}` : "Continue from the current state and keep going deeper.",
+        "Do not repeat the previous answer. Critically inspect assumptions, close gaps, execute the next concrete steps toward the original objective, and validate the result."
+      ].join("\n\n");
     }
     return "";
   }
