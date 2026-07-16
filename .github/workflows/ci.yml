@@ -9,10 +9,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-node-20:
     name: Validate on Node 20
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -23,6 +28,7 @@ jobs:
   validate-node-24:
     name: Validate on Node 24
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -36,6 +42,7 @@ jobs:
       - validate-node-20
       - validate-node-24
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -46,4 +53,5 @@ jobs:
         with:
           name: yolo-preview
           path: dist/yolo
+          if-no-files-found: error
           retention-days: 7

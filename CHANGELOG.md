@@ -2,6 +2,13 @@
 
 All notable changes are documented here.
 
+## Unreleased
+
+- Reaffirmed YOLO as a browser-only ChatGPT extension and documented the product boundary, non-goals, roadmap, and success measures.
+- Added automated release verification for narrow permissions/hosts, local-only packaged files, no remote or dynamic code, and no CLI/agent/server/native-messaging surfaces.
+- Stabilized CI, CodeQL, package artifacts, and tagged GitHub releases on maintained GitHub Actions versions with timeouts and concurrency controls.
+- Improved public issue forms, pull-request review guidance, code ownership, contribution rules, README disclosures, and the manual release smoke checklist.
+
 ## 1.1.0 - overnight reliability
 
 - Added adaptive visible/hidden/generating tab scheduling for large multi-tab ChatGPT sessions.

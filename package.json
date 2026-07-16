@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Local-first Codex-style workflows, queues, and bounded Chromium automation for ChatGPT.",
+  "description": "Local-first queues, bounded workflows, and safety controls for ChatGPT in Chromium browsers.",
   "repository": {
     "type": "git",
     "url": "https://github.com/kartikkabadi/chatgpt-yolo.git"
@@ -11,10 +11,11 @@
   "homepage": "https://github.com/kartikkabadi/chatgpt-yolo#readme",
   "bugs": "https://github.com/kartikkabadi/chatgpt-yolo/issues",
   "scripts": {
-    "check": "node --check config.js && node --check lifecycle.js && node --check coordinator.js && node --check portable-store.js && node --check queue.js && node --check commands.js && node --check background.js && node --check background-wrapper.js && node --check tab-supervisor.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs",
+    "check": "node --check config.js && node --check lifecycle.js && node --check coordinator.js && node --check portable-store.js && node --check queue.js && node --check commands.js && node --check background.js && node --check background-wrapper.js && node --check tab-supervisor.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs && node --check scripts/verify-extension.mjs",
     "test": "node --test",
+    "verify:extension": "node scripts/verify-extension.mjs",
     "package": "node scripts/package.mjs",
-    "validate": "npm run check && npm test && node scripts/package.mjs --check"
+    "validate": "npm run check && npm test && npm run verify:extension && node scripts/package.mjs --check"
   },
   "engines": {
     "node": ">=20"

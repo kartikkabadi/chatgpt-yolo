@@ -1,6 +1,6 @@
 # YOLO for ChatGPT
 
-A local-first Chromium extension that turns long ChatGPT conversations into a reliable, queue-driven workspace with Codex-style commands, bounded autonomous workflows, safety controls, and a quiet task-first interface.
+A local-first Chromium extension that turns long ChatGPT conversations into a reliable, queue-driven workspace with bounded workflows, safety controls, and a quiet task-first interface.
 
 > **Independent project:** YOLO is not affiliated with or endorsed by OpenAI. It does not use the OpenAI API, run a backend, inject remote code, or collect telemetry.
 
@@ -9,11 +9,11 @@ A local-first Chromium extension that turns long ChatGPT conversations into a re
 YOLO adds four layers to ChatGPT:
 
 1. **A persistent queue** for instructions that should run when the conversation is ready.
-2. **Composer-native YOLO actions**: automated workflows, prompt shortcuts, and extension controls.
-3. **Bounded automation** for safe approval cards, recovery, nudges, and stale-tab refreshes.
-4. **A Codex/ChatGPT-style interface** that keeps everyday actions simple and moves detailed controls into a searchable settings workspace.
+2. **Composer-native actions** for bounded workflows, prompt shortcuts, and extension controls.
+3. **Safety controls** for approvals, recovery, nudges, stale tabs, and ambiguous delivery.
+4. **A focused interface** that keeps everyday actions simple and moves detailed controls into Advanced settings.
 
-Everything runs in your browser. Settings, queues, templates, and workflow state are stored in `chrome.storage.local`.
+Everything runs in the browser. Settings, queues, templates, and workflow state are stored in `chrome.storage.local`.
 
 ## Highlights
 
@@ -21,15 +21,23 @@ Everything runs in your browser. Settings, queues, templates, and workflow state
 - `/goal <objective>` for marker-driven persistent objectives.
 - `/loop [iterations] <objective>` for bounded iterative work; defaults to 12 and is hard-capped at 50 turns.
 - `/plan`, `/review`, `/fix`, `/handoff`, and `/continue` prompt shortcuts.
-- `/status`, `/pause`, `/resume`, `/stop`, `/settings`, and `/help` YOLO controls.
+- `/status`, `/pause`, `/resume`, `/stop`, `/settings`, and `/help` extension controls.
 - Command palette from `/` in an empty composer or `Cmd/Ctrl + Shift + P`.
 - Safe, Balanced, Fast, and Custom profiles.
 - Approvals are off by default and require explicit opt-in; sensitive permissions and destructive actions require the All policy.
 - Exact message receipts, durable queue-delivery identity, cross-tab side-effect leases, optimistic workflow revisions, and bounded storage.
-- Draft protection is mandatory: YOLO never replaces text already present in the composer.
+- Mandatory draft protection: YOLO never replaces text already present in the composer.
 - Templates with `{{date}}`, `{{time}}`, `{{platform}}`, and `{{conversation}}` variables.
 - Versioned settings/template backups and privacy-safe diagnostics.
-- No runtime dependencies, no build step, no analytics, and no remote code.
+- No runtime dependencies, build framework, analytics, hosted service, or remote code.
+
+## Product boundary
+
+YOLO is deliberately a **normal Chrome extension**, not an agent platform.
+
+The core repository does not include coding-agent hooks, a CLI, local daemon, MCP server, native-messaging host, filesystem or Git access, automatic code review/repair, or a hosted backend. Related experiments belong in separate repositories so the extension stays understandable, auditable, and easy to install.
+
+See [Product direction](docs/PRODUCT_DIRECTION.md) for the principles, non-goals, roadmap, and success measures.
 
 ## Install
 
@@ -65,7 +73,7 @@ YOLO runs durable automation only inside saved ChatGPT conversations with a stab
 
 ## Slash actions
 
-These are **YOLO extension actions**, not native ChatGPT or Codex commands. Automated workflows are implemented by YOLO. Prompt shortcuts simply turn an action into a visible queued prompt; they do not unlock hidden ChatGPT capabilities or modify ChatGPT's context window.
+These are **YOLO extension actions**, not native ChatGPT commands. Automated workflows are implemented by YOLO. Prompt shortcuts turn an action into a visible queued prompt; they do not unlock hidden ChatGPT capabilities or modify ChatGPT's context window.
 
 ### Automated workflows
 
@@ -127,17 +135,24 @@ Advanced settings can download or restore a versioned JSON backup containing glo
 
 Backups deliberately exclude active queues, queued instruction text, goals, workflow objectives, claims, retries, counters, and ChatGPT messages. Importing a backup cannot resume stale automation. If the current conversation is present in the backup, YOLO also synchronizes those restored settings into the open ChatGPT tab.
 
-Privacy-safe diagnostics contain only versions, feature toggles, counts, queue states, and error/action codes. They exclude conversation identifiers and all user-authored prompt, template, queue, workflow-objective, and message text. See the [data portability contract](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/DATA_PORTABILITY.md).
+Privacy-safe diagnostics contain only versions, feature toggles, counts, queue states, and error/action codes. They exclude conversation identifiers and all user-authored prompt, template, queue, workflow-objective, and message text. See the [data portability contract](docs/DATA_PORTABILITY.md).
 
 ## Permissions and privacy
 
 YOLO requests only:
 
 - `storage` — local settings, queues, templates, and workflow state.
-- `scripting` — restore the extension’s packaged content scripts in matching ChatGPT tabs after installation or update.
+- `alarms` — bounded scheduling while the Manifest V3 service worker is asleep.
+- `scripting` — restore packaged content scripts in matching ChatGPT tabs after installation or update.
 - Host access to `https://chatgpt.com/*` and its subdomains — no other website is supported.
 
-YOLO does not request `activeTab`, `tabs`, broad web access, or access to browser history. See [PRIVACY.md](PRIVACY.md) and [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for the precise data and permission model.
+YOLO does not request `activeTab`, `tabs`, optional localhost access, native messaging, broad web access, cookies, or browser-history access. See [PRIVACY.md](PRIVACY.md) and [Browser permissions](docs/PERMISSIONS.md) for the precise data and permission model.
+
+## Compatibility and responsibility
+
+YOLO automates a third-party web interface whose DOM and behavior can change without notice. It does not bypass rate limits, access controls, safety systems, or subscription restrictions. Users are responsible for ensuring their use complies with applicable service terms and local law.
+
+Model output remains probabilistic. YOLO's workflow markers and queue receipts provide control-flow reliability; they do not make the model's answer correct. Consequential work still needs appropriate verification.
 
 ## Development
 
@@ -146,26 +161,29 @@ Requirements: Node.js 20 or newer. There are no npm dependencies.
 ```bash
 npm run check
 npm test
+npm run verify:extension
 npm run validate
 npm run package
 ```
 
-`npm run package` creates a clean, allowlisted extension directory at `dist/yolo`. It packages only runtime files plus the README, MIT license, notice, and privacy policy; it excludes tests, repository metadata, review scripts, and contributor-only documentation.
+`npm run verify:extension` enforces the extension-only boundary: narrow permissions and hosts, no optional localhost/native surfaces, no remote or dynamic code, and no CLI/agent/server files in the runtime allowlist.
 
-Architecture and invariants are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the [reliability model](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/RELIABILITY_MODEL.md). Contributions must preserve fail-closed delivery, durable conversation scoping, mandatory draft protection, bounded automation, and the content-script order in `manifest.json`.
+`npm run package` creates a clean, allowlisted extension directory at `dist/yolo`. It packages only runtime files plus the README, MIT license, notice, and privacy policy; it excludes tests, repository metadata, contributor documentation, and development scripts.
+
+Architecture and invariants are documented in [Architecture](docs/ARCHITECTURE.md) and the [Reliability model](docs/RELIABILITY_MODEL.md). Contributions must preserve fail-closed delivery, durable conversation scoping, mandatory draft protection, bounded automation, and the content-script order in `manifest.json`.
 
 ## Release verification
 
 Every release must pass automated validation and a manual unpacked-extension smoke pass against the current live ChatGPT interface. ChatGPT does not expose a stable public DOM contract, so selector compatibility cannot be guaranteed by unit tests alone.
 
-See [docs/RELEASING.md](docs/RELEASING.md) and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+See [Releasing](docs/RELEASING.md) and [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ## Contributing and security
 
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [SECURITY.md](SECURITY.md)
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- [SUPPORT.md](SUPPORT.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Support](SUPPORT.md)
 
 ## License
 
