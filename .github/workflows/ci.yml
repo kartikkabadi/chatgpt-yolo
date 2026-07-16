@@ -30,6 +30,7 @@ jobs:
             set +e
             (
               set -euo pipefail
+              python .fix-external-review-script.py
               python .apply-command-external-review.py
               npm run validate
               git diff --check
@@ -71,7 +72,7 @@ jobs:
                 - run: npm run validate
           YAML
 
-            rm -f .apply-command-external-review.py .apply-command-external-review.ready .command-external-review.error.txt
+            rm -f .fix-external-review-script.py .apply-command-external-review.py .apply-command-external-review.ready .command-external-review.error.txt
             git add -A
             git diff --cached --check
             git commit -m "Resolve external command workflow review findings"
