@@ -7,68 +7,14 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/reliability-observability
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Stress-run validation ten times
-        shell: bash
-        run: |
-          set -uo pipefail
-          failed=0
-          : > /tmp/yolo-validation-stress.log
-          for attempt in $(seq 1 10); do
-            echo "===== validation attempt ${attempt} =====" | tee -a /tmp/yolo-validation-stress.log
-            if ! npm run validate 2>&1 | tee -a /tmp/yolo-validation-stress.log; then
-              failed=1
-              break
-            fi
-          done
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if [[ $failed -ne 0 ]]; then
-            cp /tmp/yolo-validation-stress.log .yolo-ci-diagnostic.txt
-            git add .yolo-ci-diagnostic.txt
-            git commit -m "Capture final validation flake"
-            git push origin HEAD:agent/reliability-observability
-            exit 1
-          fi
-
-          cat > .github/workflows/ci.yml <<'YAML'
-          name: CI
-
-          on:
-            pull_request:
-            push:
-              branches:
-                - main
-
-          permissions:
-            contents: read
-
-          jobs:
-            validate:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 20
-                - run: npm run validate
-          YAML
-          rm -f .yolo-ci-diagnostic.txt
-          git add -A
-          git diff --cached --check
-          git commit -m "Confirm stable production validation"
-          git push origin HEAD:agent/reliability-observability
+      - run: npm run validate
