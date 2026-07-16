@@ -52,16 +52,13 @@
   }
 
   async function createPreview(backup) {
-    const payload = Portability.storagePayload(backup);
-    const keys = Object.keys(payload);
-    const current = await storageGet(keys);
+    const current = Portability.portableStorageSnapshot(await storageGet(null));
     prunePreviews();
     const token = crypto.randomUUID();
     previews.set(token, {
       expiresAt: Date.now() + PREVIEW_TTL_MS,
       backupFingerprint: stable(backup),
-      storageFingerprint: stable(current),
-      keys
+      storageFingerprint: stable(current)
     });
     return token;
   }
@@ -90,26 +87,27 @@
         if (stable(backup) !== preview.backupFingerprint) {
           return { ok: false, reason: "Backup changed after preview; choose the file again", code: "data.backup_changed" };
         }
-        const current = await storageGet(preview.keys);
+        const current = Portability.portableStorageSnapshot(await storageGet(null));
         if (stable(current) !== preview.storageFingerprint) {
           return { ok: false, reason: "YOLO settings changed after preview; review the backup again", code: "data.storage_conflict" };
         }
 
-        const payload = Portability.storagePayload(backup);
+        const plan = Portability.storagePlan(backup, current);
         const previous = current;
-        const missing = preview.keys.filter((key) => !Object.prototype.hasOwnProperty.call(previous, key));
+        const createdKeys = Object.keys(plan.payload).filter((key) => !Object.prototype.hasOwnProperty.call(previous, key));
         try {
-          await storageSet(payload);
+          await storageSet(plan.payload);
+          if (plan.removeKeys.length) await storageRemove(plan.removeKeys);
         } catch (error) {
           try {
             if (Object.keys(previous).length) await storageSet(previous);
-            if (missing.length) await storageRemove(missing);
+            if (createdKeys.length) await storageRemove(createdKeys);
           } catch {
             throw new Error(`${String(error?.message || error)}; backup rollback also failed`);
           }
           throw error;
         }
-        return { ok: true, summary: Portability.backupSummary(backup) };
+        return { ok: true, summary: Portability.backupSummary(backup), removedOverrides: plan.removeKeys.length };
       });
     }
 

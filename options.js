@@ -339,6 +339,17 @@
   els.cancelTemplate.addEventListener("click", cancelTemplateEdit);
   els.resetTemplates.addEventListener("click", resetTemplates);
 
+  globalThis.YOLOOptionsController = Object.freeze({
+    async beginExternalMutation() {
+      setBusy(true);
+      await flushScheduledSave();
+      return true;
+    },
+    endExternalMutation() {
+      setBusy(false);
+    }
+  });
+
   window.addEventListener("pagehide", () => window.clearTimeout(saveTimer));
   init().catch((error) => {
     els.scope.textContent = `Startup failed: ${String(error?.message || error)}`;

@@ -2,85 +2,48 @@ name: CI
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  rebuild:
+  validate-node-20:
+    name: Validate on Node 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          ref: rebuild/data-portability-main
-          fetch-depth: 0
+          node-version: 20
+      - run: npm run validate
+
+  validate-node-24:
+    name: Validate on Node 24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Rebuild reviewed portability delta on main
-        shell: bash
-        run: |
-          set -uo pipefail
-          git fetch origin feature/data-portability main
-          files=(
-            CHANGELOG.md
-            PRIVACY.md
-            README.md
-            background-wrapper.js
-            data-background.js
-            docs/DATA_PORTABILITY.md
-            manifest.json
-            options-portability.js
-            options-ui.js
-            package.json
-            portability.js
-            scripts/package.mjs
-            tests/data-background.test.js
-            tests/options-portability.test.js
-            tests/portability-integration.test.js
-            tests/portability.test.js
-          )
-          set +e
-          (
-            set -euo pipefail
-            for file in "${files[@]}"; do
-              mkdir -p "$(dirname "$file")"
-              git show "origin/feature/data-portability:$file" > "$file"
-            done
-            python .yolo-portability-rebuild.py
-            python - <<'PY'
-          from pathlib import Path
-          path = Path("options-portability.js")
-          text = path.read_text(encoding="utf-8")
-          old = "Backup imported. Refreshing this page; refresh ChatGPT if its restored settings do not appear."
-          new = "Backup imported. Refresh the ChatGPT tab if its restored settings do not appear. This page will reload."
-          if text.count(old) != 1:
-              raise RuntimeError("Expected one imported-settings warning")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
+      - run: npm run validate
 
-            # Validate the exact final repository shape, not the temporary write-enabled machinery.
-            git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-            rm -f .yolo-portability-rebuild.py .yolo-portability-error.txt
-            npm run validate
-            npm run package
-            git diff --check
-          ) > /tmp/yolo-portability-rebuild.log 2>&1
-          status=$?
-          set -e
-          cat /tmp/yolo-portability-rebuild.log
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [[ $status -ne 0 ]]; then
-            git restore .github/workflows/ci.yml .yolo-portability-rebuild.py
-            tail -n 220 /tmp/yolo-portability-rebuild.log > .yolo-portability-error.txt
-            git add .yolo-portability-error.txt
-            git commit -m "Capture portability rebuild failure" || true
-            git push origin HEAD:rebuild/data-portability-main
-            exit "$status"
-          fi
-
-          git add -A
-          git diff --cached --check
-          git commit -m "Add safe data portability with final review fixes"
-          git push origin HEAD:rebuild/data-portability-main
+  package:
+    name: Package extension
+    needs:
+      - validate-node-20
+      - validate-node-24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yolo-preview
+          path: dist/yolo
+          retention-days: 7
