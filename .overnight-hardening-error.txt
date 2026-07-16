@@ -1,7 +1,301 @@
-Failed stage: patch
-Traceback (most recent call last):
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.overnight-hardening.py", line 867, in <module>
-    replace_once(
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.overnight-hardening.py", line 18, in replace_once
-    raise RuntimeError(f"Expected one match in {path}, found {count}: {old[:180]!r}")
-RuntimeError: Expected one match in tests/portability-integration.test.js, found 0: '  assert.equal(read("background-wrapper.js").trim(), \'"use strict";\n\nimportScripts("background.js", "portability.js", "data-background.js");\');'
+Failed stage: validate
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 774.918757
+
+✖ failing tests:
+
+test at tests/ui.test.js:152:1
+✖ workflow prompt creation is atomic and responses must settle (2.45371ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /RESPONSE_STABLE_MS/. Input:
+  
+  '(() => {\n' +
+    '  "use strict";\n' +
+    '\n' +
+    '  const Config = globalThis.YOLOConfig;\n' +
+    '  const Lifecycle = globalThis.YOLOLifecycle;\n' +
+    '  const Platforms = globalThis.YOLOPlatforms;\n' +
+    '  const Commands = globalThis.YOLOCommands;\n' +
+    '  const CommandUI = globalThis.YOLOCommandUI;\n' +
+    '  if (!Config || !Lifecycle || !Platforms || !Commands || !CommandUI) return;\n' +
+    '\n' +
+    '  if (window.__YOLO_COMMAND_RUNTIME__?.version === Config.VERSION) return;\n' +
+    '  window.__YOLO_COMMAND_RUNTIME__?.destroy?.();\n' +
+    '\n' +
+    '  const POLL_MS = Lifecycle.VISIBLE_WORKFLOW_POLL_MS;\n' +
+    '  const RESPONSE_SETTLE_MS = 1200;\n' +
+    '  const state = {\n' +
+    '    destroyed: false,\n' +
+    '    pageId: "",\n' +
+    '    workflow: Commands.freshWorkflow(),\n' +
+    '    ui: null,\n' +
+    '    pollTimer: null,\n' +
+    '    routeInFlight: false,\n' +
+    '    tickInFlight: false,\n' +
+    '    lastQueueAttemptAt: 0,\n' +
+    '    unregisterEngineClient: null,\n' +
+    '    lifecycleHandlers: [],\n' +
+    '    mutationLock: { current: Promise.resolve() },\n' +
+    '    ownerId: `command_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`\n' +
+    '  };\n' +
+    '\n' +
+    '  const now = () => Date.now();\n' +
+    '  const engine = () => window.__YOLO_EXTENSION__?.commandApi || null;\n' +
+    '\n' +
+    '  function withWorkflowLock(task) {\n' +
+    '    const run = state.mutationLock.current.catch(() => {}).then(task);\n' +
+    '    state.mutationLock.current = run.catch(() => {});\n' +
+    '    return run;\n' +
+    '  }\n' +
+    '\n' +
+    '  const backgroundSend = (message) => new Promise((resolve) => {\n' +
+    '    if (state.destroyed) return resolve(null);\n' +
+    '    try {\n' +
+    '      chrome.runtime.sendMessage(message, (response) => {\n' +
+    '        const error = chrome.runtime?.lastError;\n' +
+    '        resolve(error ? null : response || null);\n' +
+    '      });\n' +
+    '    } catch {\n' +
+    '      resolve(null);\n' +
+    '    }\n' +
+    '  });\n' +
+    '\n' +
+    '  function adapter() {\n' +
+    '    return Platforms.adapterForLocation();\n' +
+    '  }\n' +
+    '\n' +
+    '  function composer() {\n' +
+    '    return Platforms.findComposer(adapter());\n' +
+    '  }\n' +
+    '\n' +
+    '  function composerText() {\n' +
+    '    return Platforms.composerText(composer());\n' +
+    '  }\n' +
+    '\n' +
+    '  function setComposerText(value) {\n' +
+    '    const target = composer();\n' +
+    '    if (!target) return false;\n' +
+    '    Platforms.setComposerValue(target, value);\n' +
+    '    return true;\n' +
+    '  }\n' +
+    '\n' +
+    '  function latestAssistantFingerprint() {\n' +
+    '    return Commands.fingerprint(Platforms.latestAssistantText(adapter()));\n' +
+    '  }\n' +
+    '\n' +
+    '  function latestUserFingerprint() {\n' +
+    '    return Commands.fingerprint(Platforms.latestUserText(adapter()));\n' +
+    '  }\n' +
+    '\n' +
+    '  async function record(message, level = "info", code = "command.status", log = true) {\n' +
+    '    const api = engine();\n' +
+    '    if (api?.recordStatus) await api.recordStatus(message, level, code, log);\n' +
+    '  }\n' +
+    '\n' +
+    '  function applyWorkflowResponse(response, targetPageId = state.pageId) {\n' +
+    '    if (response?.workflow && state.pageId === targetPageId) {\n' +
+    '      state.workflow = Commands.normalizeWorkflow(response.workflow);\n' +
+    '      syncUI();\n' +
+    '    }\n' +
+    '  }\n' +
+    '\n' +
+    '  async function readWorkflow(pageId = state.pageId) {\n' +
+    '    const response = await backgroundSend({ type: "YOLO_WORKFLOW_GET", pageId });\n' +
+    '    return response?.ok ? Commands.normalizeWorkflow(response.workflow) : Commands.freshWorkflow();\n' +
+    '  }\n' +
+    '\n' +
+    '  async function writeWorkflow(workflow = state.workflow, pageId = state.pageId) {\n' +
+    '    const normalized = Commands.normalizeWorkflow(workflow);\n' +
+    '    const response = await backgroundSend({\n' +
+    '      type: "YOLO_WORKFLOW_SET",\n' +
+    '      pageId,\n' +
+    '      expectedRevision: normalized.revision,\n' +
+    '      workflow: normalized\n' +
+    '    });\n' +
+    '    applyWorkflowResponse(response, pageId);\n' +
+    '    return Boolean(response?.ok && state.pageId === pageId);\n' +
+    '  }\n' +
+    '\n' +
+    '  async function clearWorkflow(pageId = state.pageId) {\n' +
+    '    const response = await backgroundSend({\n' +
+    '      type: "YOLO_WORKFLOW_CLEAR",\n' +
+    '      pageId,\n' +
+    '      expectedRevision: state.workflow.revision\n' +
+    '    });\n' +
+    '    applyWorkflowResponse(response, pageId);\n' +
+    '    return Boolean(response?.ok && state.pageId === pageId);\n' +
+    '  }\n' +
+    '\n' +
+    '  async function claimWorkflow() {\n' +
+    '    const pageId = state.pageId;\n' +
+    '    const response = await backgroundSend({\n' +
+    '      type: "YOLO_WORKFLOW_CLAIM",\n' +
+    '      pageId,\n' +
+    '      ownerId: state.ownerId\n' +
+    '    });\n' +
+    '    applyWorkflowResponse(response, pageId);\n' +
+    '    return Boolean(response?.ok && state.pageId === pageId);\n' +
+    '  }\n' +
+    '\n' +
+    '  function releaseWorkflow() {\n' +
+    '    if (!state.pageId || state.workflow.runnerId !== state.ownerId) return;\n' +
+    '    backgroundSend({\n' +
+    '      type: "YOLO_WORKFLOW_RELEASE",\n' +
+    '      pageId: state.pageId,\n' +
+    '      ownerId: state.ownerId\n' +
+    '    });\n' +
+    '  }\n' +
+    '\n' +
+    '  async function queueState(pageId = state.pageId) {\n' +
+    '    return backgroundSend({ type: "YOLO_QUEUE_GET", pageId });\n' +
+    '  }\n' +
+    '\n' +
+    '  async function removeQueueItem(itemId, pageId = state.pageId) {\n' +
+    '    if (!itemId) return true;\n' +
+    '    const response = await backgroundSend({ type: "YOLO_QUEUE_REMOVE", pageId, itemId });\n' +
+    '    return Boolean(response?.ok || response?.code === "queue.not_found");\n' +
+    '  }\n' +
+    '\n' +
+    '  async function queuePrompt(text, { workflow = null, source = "command" } = {}) {\n' +
+    '    const prompt = String(text || "").trim();\n' +
+    '    const pageId = state.pageId;\n' +
+    '    if (!prompt) return { ok: false, reason: "Command produced an empty prompt" };\n' +
+    '\n' +
+    '    let response;\n' +
+    '    if (workflow) {\n' +
+    '      const next = Commands.normalizeWorkflow(workflow);\n' +
+    '      next.awaitingResponse = false;\n' +
+    '      next.sawGeneration = false;\n' +
+    '      next.responseCandidateFingerprint = "";\n' +
+    '      next.responseCandidateSince = 0;\n' +
+    '      next.baselineFingerprint = latestAssistantFingerprint();\n' +
+    '      next.lastAssistantFingerprint = next.baselineFingerprint;\n' +
+    '      next.promptFingerprint = Commands.fingerprint(prompt);\n' +
+    '      next.lastPromptAt = now();\n' +
+    '      next.reason = "Queued command prompt";\n' +
+    '      next.updatedAt = now();\n' +
+    '      response = await backgroundSend({\n' +
+    '        type: "YOLO_WORKFLOW_QUEUE_ADD",\n' +
+    '        pageId,\n' +
+    '        expectedRevision: next.revision,\n' +
+    '        ownerId: state.ownerId,\n' +
+    '        workflow: next,\n' +
+    '        item: {\n' +
+    '          text: prompt,\n' +
+    '          source,\n' +
+    '          sourceId: next.id\n' +
+    '        }\n' +
+    '      });\n' +
+    '      applyWorkflowResponse(response, pageId);\n' +
+    '    } else {\n' +
+    '      response = await backgroundSend({\n' +
+    '        type: "YOLO_QUEUE_ADD",\n' +
+    '        pageId,\n' +
+    '        front: true,\n' +
+    '        item: { text: prompt, source, sourceId: "" }\n' +
+    '      });\n' +
+    '    }\n' +
+    '    if (!response?.ok) return response || { ok: false, reason: "Could not add the command prompt to the queue" };\n' +
+    '\n' +
+    '    const api = engine();\n' +
+    '    const sent = api ? await api.runAction("queue-next") : false;\n' +
+    '    if (workflow && sent && state.pageId === pageId) {\n' +
+    '      const next = Commands.normalizeWorkflow(state.workflow);\n' +
+    '      next.pendingItemId = "";\n' +
+    '      next.awaitingResponse = true;\n' +
+    '      next.sawGeneration = false;\n' +
+    '      next.responseCandidateFingerprint = "";\n' +
+    '      next.responseCandidateSince = 0;\n' +
+    '      next.reason = "Waiting for ChatGPT";\n' +
+    '      next.updatedAt = now();\n' +
+    '      await writeWorkflow(next, pageId);\n' +
+    '    }\n' +
+    '    return { ...response, sent };\n' +
+    '  }\n' +
+    '\n' +
+    '  async function cancelPendingWorkflowPrompt(workflow = state.workflow) {\n' +
+    '    if (!workflow.pendingItemId) return { ok: true, removed: false };\n' +
+    '    const response = await backgroundSend({\n' +
+    '      type: "YOLO_QUEUE_REMOVE",\n' +
+    '      pageId: state.pageId,\n' +
+    '      itemId: workflow.pendingItemId\n' +
+    '    });\n' +
+    '    if (response?.ok || response?.code === "queue.not_found") return { ok: true, removed: true };\n' +
+    '    if (response?.code === "queue.sending") {\n' +
+    '      return { ok: true, removed: false, reason: "The current workflow prompt is already sending and cannot be unsent" };\n' +
+    '    }\n' +
+    '    return { ok: false, removed: false, reason: response?.reason || "Could not remove the pending workflow prompt" };\n' +
+    '  }\n' +
+    '\n' +
+    '  async function startWorkflow(kind, args) {\n' +
+    '    await syncRoute();\n' +
+    '    const latest = await readWorkflow(state.pageId);\n' +
+    '    state.workflow = latest;\n' +
+    '    syncUI();\n' +
+    '\n' +
+    '    if (latest.status !== "idle") {\n' +
+    '      if (latest.status === "running" && (latest.pendingItemId || latest.awaitingResponse || engine()?.getState?.().generating)) {\n' +
+    '        return { ok: false, reason: "Pause or stop the active workflow after its current turn finishes before replacing it", keepOpen: true };\n' +
+    '      }\n' +
+    '      if (!window.confirm(`Replace the active ${latest.kind} workflow?`)) {\n' +
+    '        return { ok: false, reason: "Existing workflow kept", keepOpen: true };\n' +
+    '      }\n' +
+    '      const cancelled = await cancelPendingWorkflowPrompt(latest);\n' +
+    '      if (!cancelled.ok) return { ok: false, reason: cancelled.reason, keepOpen: true };\n' +
+    '    }\n' +
+    '\n' +
+    '    const current = Commands.startWorkflow(kind, args, {\n' +
+    '      at: now(),\n' +
+    '      baselineFingerprint: latestAssistantFingerprint()\n' +
+    '    });\n' +
+    '    if (!current.ok) return { ...current, keepOpen: true };\n' +
+    '    current.workflow.revision = latest.revision;\n' +
+    '    current.workflow.runnerId = state.ownerId;\n' +
+    '    state.workflow = current.workflow;\n' +
+    '    const prompt = Commands.workflowPrompt(state.workflow, "initial");\n' +
+    '    const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${kind}` });\n' +
+    '    if (!queued.ok) {\n' +
+    '      await markWorkflow("blocked", queued.reason || "Could not queue workflow prompt", `command.${kind}.blocked`);\n' +
+    '      return { ...queued, keepOpen: true };\n' +
+    '    }\n' +
+    '    await record(`Started /${kind}: ${state.workflow.objective}`, "success", `command.${kind}.started`);\n' +
+    '    return { ok: true };\n' +
+    '  }\n' +
+    '\n' +
+    '  async function runOneShot(name, args) {\n' +
+    '    if (state.workflow.status === "running") {\n' +
+    '      return { ok: false, reason: "Pause the active goal or loop before running another prompt command", keepOpen: true };\n' +
+    '    }\n' +
+    '    const prompt = Commands.oneShotPrompt(name, args);\n' +
+    '    if (!prompt) return { ok: false, reason: `/${name} requires more detail`, keepOpen: true };\n' +
+    '    const queued = await queuePrompt(prompt, { source: `command:${name}` });\n' +
+    '    if (!queued.ok) {\n' +
+    '      await record(`/${name} failed: ${queued.reason || "queue unavailable"}`, "error", `command.${name}.failed`);\n' +
+    '      return { ...queued, keepOpen: true };\n' +
+    '    }\n' +
+    '    await record(queued.sent ? `Ran /${name}` : `Queued /${name}`, "success", `command.${name}`);\n' +
+    '    return { ok: true };\n' +
+    '  }\n' +
+    '\n' +
+    '  async function setStatus(status, reason) {\n' +
+    '    if (state.workflow.status === "idle") return { ok: false, reason: "No active goal or loop", keepOpen: true };\n' +
+    '    if (status === "paused") {\n' +
+    '      const cancelled = await cancelPendingWorkflowPrompt(state.workflow);\n' +
+    '      if (!cancelled.ok || (state.workflow.pendingItemId && !cancelled.removed)) {\n' +
+    '       '... 12662 more characters
+  
+      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/ui.test.js:155:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '(() => {\n  "use strict";\n\n  const Config = globalThis.YOLOConfig;\n  const Lifecycle = globalThis.YOLOLifecycle;\n  const Platforms = globalThis.YOLOPlatforms;\n  const Commands = globalThis.YOLOCommands;\n  const CommandUI = globalThis.YOLOCommandUI;\n  if (!Config || !Lifecycle || !Platforms || !Commands || !CommandUI) return;\n\n  if (window.__YOLO_COMMAND_RUNTIME__?.version === Config.VERSION) return;\n  window.__YOLO_COMMAND_RUNTIME__?.destroy?.();\n\n  const POLL_MS = Lifecycle.VISIBLE_WORKFLOW_POLL_MS;\n  const RESPONSE_SETTLE_MS = 1200;\n  const state = {\n    destroyed: false,\n    pageId: "",\n    workflow: Commands.freshWorkflow(),\n    ui: null,\n    pollTimer: null,\n    routeInFlight: false,\n    tickInFlight: false,\n    lastQueueAttemptAt: 0,\n    unregisterEngineClient: null,\n    lifecycleHandlers: [],\n    mutationLock: { current: Promise.resolve() },\n    ownerId: `command_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`\n  };\n\n  const now = () => Date.now();\n  const engine = () => window.__YOLO_EXTENSION__?.commandApi || null;\n\n  function withWorkflowLock(task) {\n    const run = state.mutationLock.current.catch(() => {}).then(task);\n    state.mutationLock.current = run.catch(() => {});\n    return run;\n  }\n\n  const backgroundSend = (message) => new Promise((resolve) => {\n    if (state.destroyed) return resolve(null);\n    try {\n      chrome.runtime.sendMessage(message, (response) => {\n        const error = chrome.runtime?.lastError;\n        resolve(error ? null : response || null);\n      });\n    } catch {\n      resolve(null);\n    }\n  });\n\n  function adapter() {\n    return Platforms.adapterForLocation();\n  }\n\n  function composer() {\n    return Platforms.findComposer(adapter());\n  }\n\n  function composerText() {\n    return Platforms.composerText(composer());\n  }\n\n  function setComposerText(value) {\n    const target = composer();\n    if (!target) return false;\n    Platforms.setComposerValue(target, value);\n    return true;\n  }\n\n  function latestAssistantFingerprint() {\n    return Commands.fingerprint(Platforms.latestAssistantText(adapter()));\n  }\n\n  function latestUserFingerprint() {\n    return Commands.fingerprint(Platforms.latestUserText(adapter()));\n  }\n\n  async function record(message, level = "info", code = "command.status", log = true) {\n    const api = engine();\n    if (api?.recordStatus) await api.recordStatus(message, level, code, log);\n  }\n\n  function applyWorkflowResponse(response, targetPageId = state.pageId) {\n    if (response?.workflow && state.pageId === targetPageId) {\n      state.workflow = Commands.normalizeWorkflow(response.workflow);\n      syncUI();\n    }\n  }\n\n  async function readWorkflow(pageId = state.pageId) {\n    const response = await backgroundSend({ type: "YOLO_WORKFLOW_GET", pageId });\n    return response?.ok ? Commands.normalizeWorkflow(response.workflow) : Commands.freshWorkflow();\n  }\n\n  async function writeWorkflow(workflow = state.workflow, pageId = state.pageId) {\n    const normalized = Commands.normalizeWorkflow(workflow);\n    const response = await backgroundSend({\n      type: "YOLO_WORKFLOW_SET",\n      pageId,\n      expectedRevision: normalized.revision,\n      workflow: normalized\n    });\n    applyWorkflowResponse(response, pageId);\n    return Boolean(response?.ok && state.pageId === pageId);\n  }\n\n  async function clearWorkflow(pageId = state.pageId) {\n    const response = await backgroundSend({\n      type: "YOLO_WORKFLOW_CLEAR",\n      pageId,\n      expectedRevision: state.workflow.revision\n    });\n    applyWorkflowResponse(response, pageId);\n    return Boolean(response?.ok && state.pageId === pageId);\n  }\n\n  async function claimWorkflow() {\n    const pageId = state.pageId;\n    const response = await backgroundSend({\n      type: "YOLO_WORKFLOW_CLAIM",\n      pageId,\n      ownerId: state.ownerId\n    });\n    applyWorkflowResponse(response, pageId);\n    return Boolean(response?.ok && state.pageId === pageId);\n  }\n\n  function releaseWorkflow() {\n    if (!state.pageId || state.workflow.runnerId !== state.ownerId) return;\n    backgroundSend({\n      type: "YOLO_WORKFLOW_RELEASE",\n      pageId: state.pageId,\n      ownerId: state.ownerId\n    });\n  }\n\n  async function queueState(pageId = state.pageId) {\n    return backgroundSend({ type: "YOLO_QUEUE_GET", pageId });\n  }\n\n  async function removeQueueItem(itemId, pageId = state.pageId) {\n    if (!itemId) return true;\n    const response = await backgroundSend({ type: "YOLO_QUEUE_REMOVE", pageId, itemId });\n    return Boolean(response?.ok || response?.code === "queue.not_found");\n  }\n\n  async function queuePrompt(text, { workflow = null, source = "command" } = {}) {\n    const prompt = String(text || "").trim();\n    const pageId = state.pageId;\n    if (!prompt) return { ok: false, reason: "Command produced an empty prompt" };\n\n    let response;\n    if (workflow) {\n      const next = Commands.normalizeWorkflow(workflow);\n      next.awaitingResponse = false;\n      next.sawGeneration = false;\n      next.responseCandidateFingerprint = "";\n      next.responseCandidateSince = 0;\n      next.baselineFingerprint = latestAssistantFingerprint();\n      next.lastAssistantFingerprint = next.baselineFingerprint;\n      next.promptFingerprint = Commands.fingerprint(prompt);\n      next.lastPromptAt = now();\n      next.reason = "Queued command prompt";\n      next.updatedAt = now();\n      response = await backgroundSend({\n        type: "YOLO_WORKFLOW_QUEUE_ADD",\n        pageId,\n        expectedRevision: next.revision,\n        ownerId: state.ownerId,\n        workflow: next,\n        item: {\n          text: prompt,\n          source,\n          sourceId: next.id\n        }\n      });\n      applyWorkflowResponse(response, pageId);\n    } else {\n      response = await backgroundSend({\n        type: "YOLO_QUEUE_ADD",\n        pageId,\n        front: true,\n        item: { text: prompt, source, sourceId: "" }\n      });\n    }\n    if (!response?.ok) return response || { ok: false, reason: "Could not add the command prompt to the queue" };\n\n    const api = engine();\n    const sent = api ? await api.runAction("queue-next") : false;\n    if (workflow && sent && state.pageId === pageId) {\n      const next = Commands.normalizeWorkflow(state.workflow);\n      next.pendingItemId = "";\n      next.awaitingResponse = true;\n      next.sawGeneration = false;\n      next.responseCandidateFingerprint = "";\n      next.responseCandidateSince = 0;\n      next.reason = "Waiting for ChatGPT";\n      next.updatedAt = now();\n      await writeWorkflow(next, pageId);\n    }\n    return { ...response, sent };\n  }\n\n  async function cancelPendingWorkflowPrompt(workflow = state.workflow) {\n    if (!workflow.pendingItemId) return { ok: true, removed: false };\n    const response = await backgroundSend({\n      type: "YOLO_QUEUE_REMOVE",\n      pageId: state.pageId,\n      itemId: workflow.pendingItemId\n    });\n    if (response?.ok || response?.code === "queue.not_found") return { ok: true, removed: true };\n    if (response?.code === "queue.sending") {\n      return { ok: true, removed: false, reason: "The current workflow prompt is already sending and cannot be unsent" };\n    }\n    return { ok: false, removed: false, reason: response?.reason || "Could not remove the pending workflow prompt" };\n  }\n\n  async function startWorkflow(kind, args) {\n    await syncRoute();\n    const latest = await readWorkflow(state.pageId);\n    state.workflow = latest;\n    syncUI();\n\n    if (latest.status !== "idle") {\n      if (latest.status === "running" && (latest.pendingItemId || latest.awaitingResponse || engine()?.getState?.().generating)) {\n        return { ok: false, reason: "Pause or stop the active workflow after its current turn finishes before replacing it", keepOpen: true };\n      }\n      if (!window.confirm(`Replace the active ${latest.kind} workflow?`)) {\n        return { ok: false, reason: "Existing workflow kept", keepOpen: true };\n      }\n      const cancelled = await cancelPendingWorkflowPrompt(latest);\n      if (!cancelled.ok) return { ok: false, reason: cancelled.reason, keepOpen: true };\n    }\n\n    const current = Commands.startWorkflow(kind, args, {\n      at: now(),\n      baselineFingerprint: latestAssistantFingerprint()\n    });\n    if (!current.ok) return { ...current, keepOpen: true };\n    current.workflow.revision = latest.revision;\n    current.workflow.runnerId = state.ownerId;\n    state.workflow = current.workflow;\n    const prompt = Commands.workflowPrompt(state.workflow, "initial");\n    const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${kind}` });\n    if (!queued.ok) {\n      await markWorkflow("blocked", queued.reason || "Could not queue workflow prompt", `command.${kind}.blocked`);\n      return { ...queued, keepOpen: true };\n    }\n    await record(`Started /${kind}: ${state.workflow.objective}`, "success", `command.${kind}.started`);\n    return { ok: true };\n  }\n\n  async function runOneShot(name, args) {\n    if (state.workflow.status === "running") {\n      return { ok: false, reason: "Pause the active goal or loop before running another prompt command", keepOpen: true };\n    }\n    const prompt = Commands.oneShotPrompt(name, args);\n    if (!prompt) return { ok: false, reason: `/${name} requires more detail`, keepOpen: true };\n    const queued = await queuePrompt(prompt, { source: `command:${name}` });\n    if (!queued.ok) {\n      await record(`/${name} failed: ${queued.reason || "queue unavailable"}`, "error", `command.${name}.failed`);\n      return { ...queued, keepOpen: true };\n    }\n    await record(queued.sent ? `Ran /${name}` : `Queued /${name}`, "success", `command.${name}`);\n    return { ok: true };\n  }\n\n  async function setStatus(status, reason) {\n    if (state.workflow.status === "idle") return { ok: false, reason: "No active goal or loop", keepOpen: true };\n    if (status === "paused") {\n      const cancelled = await cancelPendingWorkflowPrompt(state.workflow);\n      if (!cancelled.ok || (state.workflow.pendingItemId && !cancelled.removed)) {\n       '... 12662 more characters,
+    expected: /RESPONSE_STABLE_MS/,
+    operator: 'match',
+    diff: 'simple'
+  }
