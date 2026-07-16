@@ -32,6 +32,7 @@ jobs:
               set -euo pipefail
               python .fix-third-review-script.py
               python .apply-command-third-review.py
+              python .fix-third-review-test.py
               npm run validate
               git diff --check
             ) 2>&1 | tee /tmp/command-third-review.log
@@ -72,7 +73,7 @@ jobs:
                 - run: npm run validate
           YAML
 
-            rm -f .fix-third-review-script.py .apply-command-third-review.py .apply-command-third-review.ready .command-third-review.error.txt
+            rm -f .fix-third-review-script.py .fix-third-review-test.py .apply-command-third-review.py .apply-command-third-review.ready .command-third-review.error.txt
             git add -A
             git diff --cached --check
             git commit -m "Complete third command workflow review pass"
