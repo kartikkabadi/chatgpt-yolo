@@ -66,7 +66,6 @@
       const settings = Config.normalizeSettings(message.settings || {});
       return Store.mutate(() => ({
         setItems: {
-          [Config.STORAGE_KEYS.global]: Config.globalDefaultsFromSettings(settings),
           [Config.pageSettingsKey(pageId)]: settings
         },
         result: { settings }
