@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, rm } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,11 +31,23 @@ export const RUNTIME_FILES = Object.freeze([
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.join(root, "dist", "yolo");
 
+async function readJson(relative) {
+  return JSON.parse(await readFile(path.join(root, relative), "utf8"));
+}
+
 export async function verifyRuntimeFiles() {
-  for (const relative of RUNTIME_FILES) await access(path.join(root, relative));
-  const manifest = JSON.parse(await import("node:fs/promises").then(({ readFile }) => readFile(path.join(root, "manifest.json"), "utf8")));
-  const pkg = JSON.parse(await import("node:fs/promises").then(({ readFile }) => readFile(path.join(root, "package.json"), "utf8")));
-  if (manifest.version !== pkg.version) throw new Error(`Manifest ${manifest.version} does not match package ${pkg.version}`);
+  const unique = new Set(RUNTIME_FILES);
+  if (unique.size !== RUNTIME_FILES.length) throw new Error("Runtime package contains duplicate paths");
+  for (const relative of RUNTIME_FILES) {
+    if (path.isAbsolute(relative) || relative.includes("..")) throw new Error(`Unsafe runtime path: ${relative}`);
+    await access(path.join(root, relative));
+  }
+
+  const manifest = await readJson("manifest.json");
+  const pkg = await readJson("package.json");
+  if (manifest.version !== pkg.version) {
+    throw new Error(`Manifest ${manifest.version} does not match package ${pkg.version}`);
+  }
   return true;
 }
 
