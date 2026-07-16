@@ -31,6 +31,7 @@ jobs:
             (
               set -euo pipefail
               python .apply-command-second-review.py
+              python .fix-background-storage-harness.py
               npm run validate
               git diff --check
             ) 2>&1 | tee /tmp/command-second-review.log
@@ -71,7 +72,7 @@ jobs:
                 - run: npm run validate
           YAML
 
-            rm -f .apply-command-second-review.py .apply-command-second-review.ready .command-second-review.error.txt
+            rm -f .apply-command-second-review.py .apply-command-second-review.ready .fix-background-storage-harness.py .command-second-review.error.txt
             git add -A
             git diff --cached --check
             git commit -m "Complete second command workflow review pass"
