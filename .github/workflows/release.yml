@@ -9,12 +9,17 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: npm run validate
@@ -24,19 +29,20 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           test "$GITHUB_REF_NAME" = "v${version}"
-      - name: Build release archive
+      - name: Build reproducible release archive
         run: |
           version=$(node -p "require('./package.json').version")
           cd dist
           zip -X -rq "yolo-v${version}.zip" yolo
           sha256sum "yolo-v${version}.zip" > SHA256SUMS
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         with:
           name: yolo-extension
           path: |
             dist/yolo-v*.zip
             dist/SHA256SUMS
           if-no-files-found: error
+          retention-days: 30
       - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         env:
