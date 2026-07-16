@@ -111,7 +111,7 @@ Advanced settings can download or restore a versioned JSON backup containing glo
 
 Backups deliberately exclude active queues, queued instruction text, goals, workflow objectives, claims, retries, counters, and ChatGPT messages. Importing a backup cannot resume stale automation. If the current conversation is present in the backup, YOLO also synchronizes those restored settings into the open ChatGPT tab.
 
-Privacy-safe diagnostics contain only versions, feature toggles, counts, queue states, and error/action codes. They exclude conversation identifiers and all user-authored prompt, template, queue, workflow-objective, and message text. See [docs/DATA_PORTABILITY.md](docs/DATA_PORTABILITY.md).
+Privacy-safe diagnostics contain only versions, feature toggles, counts, queue states, and error/action codes. They exclude conversation identifiers and all user-authored prompt, template, queue, workflow-objective, and message text. See the [data portability contract](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/DATA_PORTABILITY.md).
 
 ## Permissions and privacy
 
