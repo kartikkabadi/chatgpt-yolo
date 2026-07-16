@@ -1,0 +1,220 @@
+    '})(typeof globalThis !== "undefined" ? globalThis : this, () => {\n' +
+    '  "use strict";\n' +
+    '\n' +
+    '  const MAX_OBJECTIVE_LENGTH = 4000;\n' +
+    '  const MAX_ITERATIONS = 50;\n' +
+    '  const DEFAULT_MAX_ITERATIONS = 12;\n' +
+    '  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);\n' +
+    '  const WORKFLOW_KINDS = new Set(["goal", "loop"]);\n' +
+    '  const MARKER_RE = /(?:^|\\n)\\[YOLO:(CONTINUE|DONE|BLOCKED)\\][ \\t]*$/i;\n' +
+    '\n' +
+    '  const COMMANDS = Object.freeze([\n' +
+    '    Object.freeze({ name: "goal", title: "Goal", description: "Start a marker-driven objective that YOLO can continue for bounded turns.", args: "objective", group: "Automated workflows", kind: "workflow" }),\n' +
+    '    Object.freeze({ name: "loop", title: "Loop", description: "Run bounded, marker-driven iterations toward one objective.", args: "[iterations] objective", group: "Automated workflows", kind: "workflow" }),\n' +
+    '    Object.freeze({ name: "plan", title: "Plan", description: "Queue a prompt asking ChatGPT to produce an execution plan.", args: "objective", group: "Prompt shortcuts", kind: "prompt" }),\n' +
+    '    Object.freeze({ name: "review", title: "Review", description: "Queue an adversarial review prompt for the current work or scope.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
+    '    Object.freeze({ name: "fix", title: "Fix", description: "Queue a prompt asking ChatGPT to diagnose, repair, and validate work.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
+    '    Object.freeze({ name: "handoff", title: "Handoff", description: "Ask ChatGPT to write a continuation brief; this does not compact ChatGPT context.", args: "[focus]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
+    '    Object.freeze({ name: "continue", title: "Continue", description: "Queue a prompt to continue the current task, optionally with a direction.", args: "[direction]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
+    '    Object.freeze({ name: "status", title: "Status", description: "Show YOLO workflow, queue, generation, limits, and last-action state.", args: "", group: "YOLO controls", kind: "control" }),\n' +
+    '    Object.freeze({ name: "pause", title: "Pause", description: "Pause the active YOLO goal or loop without deleting it.", args: "", group: "YOLO controls", kind: "control" }),\n' +
+    '    Object.freeze({ name: "resume", title: "Resume", description: "Resume the active paused or blocked YOLO workflow.", args: "", group: "YOLO controls", kind: "control" }),\n' +
+    '    Object.freeze({ name: "stop", title: "Stop", description: "Stop and clear the active YOLO goal or loop after confirmation.", args: "", group: "YOLO controls", kind: "control" }),\n' +
+    '    Object.freeze({ name: "settings", title: "Settings", description: "Open YOLO Advanced settings.", args: "", group: "YOLO controls", kind: "control" }),\n' +
+    '    Object.freeze({ name: "help", title: "Help", description: "Open the YOLO action palette and reference.", args: "", group: "YOLO controls", kind: "control" })\n' +
+    '  ]);\n' +
+    '\n' +
+    '  const COMMAND_BY_NAME = new Map(COMMANDS.map((command) => [command.name, command]));\n' +
+    '\n' +
+    '  const cleanText = (value, max = MAX_OBJECTIVE_LENGTH) => String(value ?? "").trim().slice(0, max);\n' +
+    '  const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;\n' +
+    '  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));\n' +
+    '\n' +
+    '  function makeId(prefix = "workflow") {\n' +
+    '    if (globalThis.crypto?.randomUUID) return `${prefix}_${globalThis.crypto.randomUUID()}`;\n' +
+    '    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;\n' +
+    '  }\n' +
+    '\n' +
+    '  function command(name) {\n' +
+    '    return COMMAND_BY_NAME.get(String(name || "").toLowerCase()) || null;\n' +
+    '  }\n' +
+    '\n' +
+    '  function filterCommands(query = "") {\n' +
+    '    const needle = cleanText(query, 120).replace(/^\\//, "").toLowerCase();\n' +
+    '    if (!needle) return [...COMMANDS];\n' +
+    '    return COMMANDS\n' +
+    '      .map((entry) => {\n' +
+    '        const name = entry.name.toLowerCase();\n' +
+    '        const title = entry.title.toLowerCase();\n' +
+    '        const description = entry.description.toLowerCase();\n' +
+    '        let score = 0;\n' +
+    '        if (name === needle) score += 100;\n' +
+    '        if (name.startsWith(needle)) score += 60;\n' +
+    '        if (title.startsWith(needle)) score += 40;\n' +
+    '        if (name.includes(needle)) score += 25;\n' +
+    '        if (description.includes(needle)) score += 10;\n' +
+    '        return { entry, score };\n' +
+    '      })\n' +
+    '      .filter(({ score }) => score > 0)\n' +
+    '      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))\n' +
+    '      .map(({ entry }) => entry);\n' +
+    '  }\n' +
+    '\n' +
+    '  function parseInvocation(input) {\n' +
+    '    const text = String(input || "").trim();\n' +
+    '    const match = text.match(/^\\/([a-z][a-z0-9-]*)(?:\\s+([\\s\\S]*))?$/i);\n' +
+    '    if (!match) return null;\n' +
+    '    const entry = command(match[1]);\n' +
+    '    if (!entry) return null;\n' +
+    '    return { command: entry, args: cleanText(match[2] || "") };\n' +
+    '  }\n' +
+    '\n' +
+    '  function parseLoopArgs(input) {\n' +
+    '    const text = cleanText(input);\n' +
+    '    const match = text.match(/^(\\d{1,3})\\s+([\\s\\S]+)$/);\n' +
+    '    if (!match) return { objective: text, maxIterations: DEFAULT_MAX_ITERATIONS };\n' +
+    '    return {\n' +
+    '      objective: cleanText(match[2]),\n' +
+    '      maxIterations: clamp(Math.round(Number(match[1])), 1, MAX_ITERATIONS)\n' +
+    '    };\n' +
+    '  }\n' +
+    '\n' +
+    '  function fingerprint(text) {\n' +
+    '    const value = String(text || "").replace(/\\s+/g, " ").trim();\n' +
+    '    let hash = 2166136261;\n' +
+    '    for (let index = 0; index < value.length; index += 1) {\n' +
+    '      hash ^= value.charCodeAt(index);\n' +
+    '      hash = Math.imul(hash, 16777619);\n' +
+    '    }\n' +
+    '    return `${value.length}:${(hash >>> 0).toString(36)}`;\n' +
+    '  }\n' +
+    '\n' +
+    '  function freshWorkflow(at = Date.now()) {\n' +
+    '    return {\n' +
+    '      version: 1,\n' +
+    '      revision: 0,\n' +
+    '      id: "",\n' +
+    '      kind: "",\n' +
+    '      objective: "",\n' +
+    '      status: "idle",\n' +
+    '      maxIterations: DEFAULT_MAX_ITERATIONS,\n' +
+    '      iteration: 0,\n' +
+    '      pendingItemId: "",\n' +
+    '      awaitingResponse: false,\n' +
+    '      sawGeneration: false,\n' +
+    '      baselineFingerprint: "",\n' +
+    '      lastAssistantFingerprint: "",\n' +
+    '      promptFingerprint: "",\n' +
+    '      responseCandidateFingerprint: "",\n' +
+    '      responseCandidateSince: 0,\n' +
+    '      runnerId: "",\n' +
+    '      runnerExpiresAt: 0,\n' +
+    '      lastPromptAt: 0,\n' +
+    '      lastResponseAt: 0,\n' +
+    '      reason: "",\n' +
+    '      createdAt: at,\n' +
+    '      updatedAt: at\n' +
+    '    };\n' +
+    '  }\n' +
+    '\n' +
+    '  function normalizeWorkflow(raw, at = Date.now()) {\n' +
+    '    const fallback = freshWorkflow(at);\n' +
+    '    if (!raw || typeof raw !== "object") return fallback;\n' +
+    '    const kind = WORKFLOW_KINDS.has(raw.kind) ? raw.kind : "";\n' +
+    '    const objective = cleanText(raw.objective);\n' +
+    '    const status = WORKFLOW_STATUSES.has(raw.status) ? raw.status : (kind && objective ? "paused" : "idle");\n' +
+    '    const revision = Math.max(0, Math.round(finite(raw.revision, 0)));\n' +
+    '    if (!kind || !objective || status === "idle") {\n' +
+    '      return {\n' +
+    '        ...fallback,\n' +
+    '        revision,\n' +
+    '        createdAt: finite(raw.createdAt, fallback.createdAt),\n' +
+    '        updatedAt: finite(raw.updatedAt, at)\n' +
+    '      };\n' +
+    '    }\n' +
+    '    return {\n' +
+    '      version: 1,\n' +
+    '      revision,\n' +
+    '      id: cleanText(raw.id, 180) || makeId(kind),\n' +
+    '      kind,\n' +
+    '      objective,\n' +
+    '      status,\n' +
+    '      maxIterations: clamp(Math.round(finite(raw.maxIterations, DEFAULT_MAX_ITERATIONS)), 1, MAX_ITERATIONS),\n' +
+    '      iteration: clamp(Math.round(finite(raw.iteration, 0)), 0, MAX_ITERATIONS),\n' +
+    '      pendingItemId: cleanText(raw.pendingItemId, 180),\n' +
+    '      awaitingResponse: Boolean(raw.awaitingResponse),\n' +
+    '      sawGeneration: Boolean(raw.sawGeneration),\n' +
+    '      baselineFingerprint: cleanText(raw.baselineFingerprint, 180),\n' +
+    '      lastAssistantFingerprint: cleanText(raw.lastAssistantFingerprint, 180),\n' +
+    '      promptFingerprint: cleanText(raw.promptFingerprint, 180),\n' +
+    '      responseCandidateFingerprint: Boolean(raw.awaitingResponse) ? cleanText(raw.responseCandidateFingerprint, 180) : "",\n' +
+    '      responseCandidateSince: Boolean(raw.awaitingResponse) ? Math.max(0, finite(raw.responseCandidateSince, 0)) : 0,\n' +
+    '      runnerId: status === "running" ? cleanText(raw.runnerId, 220) : "",\n' +
+    '      runnerExpiresAt: status === "running" ? Math.max(0, finite(raw.runnerExpiresAt, 0)) : 0,\n' +
+    '      lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),\n' +
+    '      lastResponseAt: Math.max(0, finite(raw.lastResponseAt, 0)),\n' +
+    '      reason: cleanText(raw.reason, 500),\n' +
+    '      createdAt: finite(raw.createdAt, at),\n' +
+    '      updatedAt: finite(raw.updatedAt, at)\n' +
+    '    };\n' +
+    '  }\n' +
+    '\n' +
+    '  function startWorkflow(kind, input, { at = Date.now(), baselineFingerprint = "" } = {}) {\n' +
+    '    if (!WORKFLOW_KINDS.has(kind)) return { ok: false, reason: "Unsupported workflow type" };\n' +
+    '    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: MAX_ITERATIONS };\n' +
+    '    if (!parsed.objective) return { ok: false, reason: `/${kind} requires an objective` };\n' +
+    '    return {\n' +
+    '      ok: true,\n' +
+    '      workflow: normalizeWorkflow({\n' +
+    '        id: makeId(kind),\n' +
+    '        kind,\n' +
+    '        objective: parsed.objective,\n' +
+    '        status: "running",\n' +
+    '        maxIterations: parsed.maxIterations,\n' +
+    '        iteration: 0,\n' +
+    '        baselineFingerprint,\n' +
+    '        lastAssistantFingerprint: baselineFingerprint,\n' +
+    '        createdAt: at,\n' +
+    '        updatedAt: at\n' +
+    '      }, at)\n' +
+    '    };\n' +
+    '  }\n' +
+    '\n' +
+    '  function setWorkflowStatus(raw, status, reason = "", at = Date.now()) {\n' +
+    '    const workflow = normalizeWorkflow(raw, at);\n' +
+    '    if (workflow.status === "idle") return workflow;\n' +
+    '    workflow.status = WORKFLOW_STATUSES.has(status) ? status : workflow.status;\n' +
+    '    workflow.reason = cleanText(reason, 500);\n' +
+    '    workflow.updatedAt = at;\n' +
+    '    if (workflow.status !== "running") {\n' +
+    '      workflow.pendingItemId = "";\n' +
+    '      workflow.awaitingResponse = false;\n' +
+    '      workflow.sawGeneration = false;\n' +
+    '      workflow.responseCandidateFingerprint = "";\n' +
+    '      workflow.responseCandidateSince = 0;\n' +
+    '      workflow.runnerId = "";\n' +
+    '      workflow.runnerExpiresAt = 0;\n' +
+    '    }\n' +
+    '    return workflow;\n' +
+    '  }\n' +
+    '\n' +
+    '  function goalInitialPrompt(workflow) {\n' +
+    '    return [\n' +
+    '      "You are now working in YOLO Goal mode.",\n' +
+    '      `Persistent objective: ${workflow.objective}`,\n' +
+    '      "Work toward the objective concretely. Inspect the current conv'... 7716 more characters
+  
+      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/ui.test.js:109:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '((root, factory) => {\n  const api = factory();\n  if (typeof module === "object" && module.exports) module.exports = api;\n  else root.YOLOCommands = api;\n})(typeof globalThis !== "undefined" ? globalThis : this, () => {\n  "use strict";\n\n  const MAX_OBJECTIVE_LENGTH = 4000;\n  const MAX_ITERATIONS = 50;\n  const DEFAULT_MAX_ITERATIONS = 12;\n  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);\n  const WORKFLOW_KINDS = new Set(["goal", "loop"]);\n  const MARKER_RE = /(?:^|\\n)\\[YOLO:(CONTINUE|DONE|BLOCKED)\\][ \\t]*$/i;\n\n  const COMMANDS = Object.freeze([\n    Object.freeze({ name: "goal", title: "Goal", description: "Start a marker-driven objective that YOLO can continue for bounded turns.", args: "objective", group: "Automated workflows", kind: "workflow" }),\n    Object.freeze({ name: "loop", title: "Loop", description: "Run bounded, marker-driven iterations toward one objective.", args: "[iterations] objective", group: "Automated workflows", kind: "workflow" }),\n    Object.freeze({ name: "plan", title: "Plan", description: "Queue a prompt asking ChatGPT to produce an execution plan.", args: "objective", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "review", title: "Review", description: "Queue an adversarial review prompt for the current work or scope.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "fix", title: "Fix", description: "Queue a prompt asking ChatGPT to diagnose, repair, and validate work.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "handoff", title: "Handoff", description: "Ask ChatGPT to write a continuation brief; this does not compact ChatGPT context.", args: "[focus]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "continue", title: "Continue", description: "Queue a prompt to continue the current task, optionally with a direction.", args: "[direction]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "status", title: "Status", description: "Show YOLO workflow, queue, generation, limits, and last-action state.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "pause", title: "Pause", description: "Pause the active YOLO goal or loop without deleting it.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "resume", title: "Resume", description: "Resume the active paused or blocked YOLO workflow.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "stop", title: "Stop", description: "Stop and clear the active YOLO goal or loop after confirmation.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "settings", title: "Settings", description: "Open YOLO Advanced settings.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "help", title: "Help", description: "Open the YOLO action palette and reference.", args: "", group: "YOLO controls", kind: "control" })\n  ]);\n\n  const COMMAND_BY_NAME = new Map(COMMANDS.map((command) => [command.name, command]));\n\n  const cleanText = (value, max = MAX_OBJECTIVE_LENGTH) => String(value ?? "").trim().slice(0, max);\n  const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;\n  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));\n\n  function makeId(prefix = "workflow") {\n    if (globalThis.crypto?.randomUUID) return `${prefix}_${globalThis.crypto.randomUUID()}`;\n    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;\n  }\n\n  function command(name) {\n    return COMMAND_BY_NAME.get(String(name || "").toLowerCase()) || null;\n  }\n\n  function filterCommands(query = "") {\n    const needle = cleanText(query, 120).replace(/^\\//, "").toLowerCase();\n    if (!needle) return [...COMMANDS];\n    return COMMANDS\n      .map((entry) => {\n        const name = entry.name.toLowerCase();\n        const title = entry.title.toLowerCase();\n        const description = entry.description.toLowerCase();\n        let score = 0;\n        if (name === needle) score += 100;\n        if (name.startsWith(needle)) score += 60;\n        if (title.startsWith(needle)) score += 40;\n        if (name.includes(needle)) score += 25;\n        if (description.includes(needle)) score += 10;\n        return { entry, score };\n      })\n      .filter(({ score }) => score > 0)\n      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))\n      .map(({ entry }) => entry);\n  }\n\n  function parseInvocation(input) {\n    const text = String(input || "").trim();\n    const match = text.match(/^\\/([a-z][a-z0-9-]*)(?:\\s+([\\s\\S]*))?$/i);\n    if (!match) return null;\n    const entry = command(match[1]);\n    if (!entry) return null;\n    return { command: entry, args: cleanText(match[2] || "") };\n  }\n\n  function parseLoopArgs(input) {\n    const text = cleanText(input);\n    const match = text.match(/^(\\d{1,3})\\s+([\\s\\S]+)$/);\n    if (!match) return { objective: text, maxIterations: DEFAULT_MAX_ITERATIONS };\n    return {\n      objective: cleanText(match[2]),\n      maxIterations: clamp(Math.round(Number(match[1])), 1, MAX_ITERATIONS)\n    };\n  }\n\n  function fingerprint(text) {\n    const value = String(text || "").replace(/\\s+/g, " ").trim();\n    let hash = 2166136261;\n    for (let index = 0; index < value.length; index += 1) {\n      hash ^= value.charCodeAt(index);\n      hash = Math.imul(hash, 16777619);\n    }\n    return `${value.length}:${(hash >>> 0).toString(36)}`;\n  }\n\n  function freshWorkflow(at = Date.now()) {\n    return {\n      version: 1,\n      revision: 0,\n      id: "",\n      kind: "",\n      objective: "",\n      status: "idle",\n      maxIterations: DEFAULT_MAX_ITERATIONS,\n      iteration: 0,\n      pendingItemId: "",\n      awaitingResponse: false,\n      sawGeneration: false,\n      baselineFingerprint: "",\n      lastAssistantFingerprint: "",\n      promptFingerprint: "",\n      responseCandidateFingerprint: "",\n      responseCandidateSince: 0,\n      runnerId: "",\n      runnerExpiresAt: 0,\n      lastPromptAt: 0,\n      lastResponseAt: 0,\n      reason: "",\n      createdAt: at,\n      updatedAt: at\n    };\n  }\n\n  function normalizeWorkflow(raw, at = Date.now()) {\n    const fallback = freshWorkflow(at);\n    if (!raw || typeof raw !== "object") return fallback;\n    const kind = WORKFLOW_KINDS.has(raw.kind) ? raw.kind : "";\n    const objective = cleanText(raw.objective);\n    const status = WORKFLOW_STATUSES.has(raw.status) ? raw.status : (kind && objective ? "paused" : "idle");\n    const revision = Math.max(0, Math.round(finite(raw.revision, 0)));\n    if (!kind || !objective || status === "idle") {\n      return {\n        ...fallback,\n        revision,\n        createdAt: finite(raw.createdAt, fallback.createdAt),\n        updatedAt: finite(raw.updatedAt, at)\n      };\n    }\n    return {\n      version: 1,\n      revision,\n      id: cleanText(raw.id, 180) || makeId(kind),\n      kind,\n      objective,\n      status,\n      maxIterations: clamp(Math.round(finite(raw.maxIterations, DEFAULT_MAX_ITERATIONS)), 1, MAX_ITERATIONS),\n      iteration: clamp(Math.round(finite(raw.iteration, 0)), 0, MAX_ITERATIONS),\n      pendingItemId: cleanText(raw.pendingItemId, 180),\n      awaitingResponse: Boolean(raw.awaitingResponse),\n      sawGeneration: Boolean(raw.sawGeneration),\n      baselineFingerprint: cleanText(raw.baselineFingerprint, 180),\n      lastAssistantFingerprint: cleanText(raw.lastAssistantFingerprint, 180),\n      promptFingerprint: cleanText(raw.promptFingerprint, 180),\n      responseCandidateFingerprint: Boolean(raw.awaitingResponse) ? cleanText(raw.responseCandidateFingerprint, 180) : "",\n      responseCandidateSince: Boolean(raw.awaitingResponse) ? Math.max(0, finite(raw.responseCandidateSince, 0)) : 0,\n      runnerId: status === "running" ? cleanText(raw.runnerId, 220) : "",\n      runnerExpiresAt: status === "running" ? Math.max(0, finite(raw.runnerExpiresAt, 0)) : 0,\n      lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),\n      lastResponseAt: Math.max(0, finite(raw.lastResponseAt, 0)),\n      reason: cleanText(raw.reason, 500),\n      createdAt: finite(raw.createdAt, at),\n      updatedAt: finite(raw.updatedAt, at)\n    };\n  }\n\n  function startWorkflow(kind, input, { at = Date.now(), baselineFingerprint = "" } = {}) {\n    if (!WORKFLOW_KINDS.has(kind)) return { ok: false, reason: "Unsupported workflow type" };\n    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: MAX_ITERATIONS };\n    if (!parsed.objective) return { ok: false, reason: `/${kind} requires an objective` };\n    return {\n      ok: true,\n      workflow: normalizeWorkflow({\n        id: makeId(kind),\n        kind,\n        objective: parsed.objective,\n        status: "running",\n        maxIterations: parsed.maxIterations,\n        iteration: 0,\n        baselineFingerprint,\n        lastAssistantFingerprint: baselineFingerprint,\n        createdAt: at,\n        updatedAt: at\n      }, at)\n    };\n  }\n\n  function setWorkflowStatus(raw, status, reason = "", at = Date.now()) {\n    const workflow = normalizeWorkflow(raw, at);\n    if (workflow.status === "idle") return workflow;\n    workflow.status = WORKFLOW_STATUSES.has(status) ? status : workflow.status;\n    workflow.reason = cleanText(reason, 500);\n    workflow.updatedAt = at;\n    if (workflow.status !== "running") {\n      workflow.pendingItemId = "";\n      workflow.awaitingResponse = false;\n      workflow.sawGeneration = false;\n      workflow.responseCandidateFingerprint = "";\n      workflow.responseCandidateSince = 0;\n      workflow.runnerId = "";\n      workflow.runnerExpiresAt = 0;\n    }\n    return workflow;\n  }\n\n  function goalInitialPrompt(workflow) {\n    return [\n      "You are now working in YOLO Goal mode.",\n      `Persistent objective: ${workflow.objective}`,\n      "Work toward the objective concretely. Inspect the current conv'... 7716 more characters,
+    expected: /Goal response omitted the required terminal control marker/,
+    operator: 'match',
+    diff: 'simple'
+  }
