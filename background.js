@@ -117,9 +117,10 @@ function normalizeTemplate(raw, fallbackId = "") {
 async function readTemplates() {
   const stored = await storageGet([Config.STORAGE_KEYS.templates]);
   const raw = stored[Config.STORAGE_KEYS.templates];
-  const source = Array.isArray(raw) && raw.length ? raw : Config.DEFAULT_TEMPLATES;
-  const templates = source.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
-  return templates.length ? templates : Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));
+  if (Array.isArray(raw)) {
+    return raw.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
+  }
+  return Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));
 }
 
 async function writeTemplates(templates) {

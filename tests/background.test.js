@@ -315,3 +315,11 @@ test("fresh installs open only the local onboarding page", () => {
   assert.match(source, /chrome\.runtime\.getURL\("onboarding\.html"\)/);
   assert.doesNotMatch(source, /reason === "update"[^\n]*tabs/);
 });
+
+test("an intentionally empty template library remains empty", async () => {
+  const { invoke, storage } = loadBackground();
+  storage.yoloTemplatesV1 = [];
+  const response = await invoke({ type: "YOLO_TEMPLATES_GET" });
+  assert.equal(response.ok, true);
+  assert.deepEqual(response.templates, []);
+});
