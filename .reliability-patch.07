@@ -1,0 +1,43 @@
+
++
++## Remaining external boundary
++
++ChatGPT does not publish a stable DOM contract. Every release therefore still requires a manual unpacked-extension smoke pass against the live interface, in addition to deterministic state-machine, concurrency, fault-injection, package, and security tests.
+diff --git a/options.html b/options.html
+index d36b25f..ec881db 100644
+--- a/options.html
++++ b/options.html
+@@ -98,11 +98,11 @@
+ 
+         <section id="approvals" class="settings-section" data-settings-section data-search-text="github approval permission policy safe writes destructive delay cooldown hourly limit">
+           <header class="section-header">
+-            <div><p class="section-eyebrow">GITHUB ACTIONS</p><h2>Approvals</h2><p>Choose which permission and repository action cards YOLO may accept.</p></div>
++            <div><p class="section-eyebrow">GITHUB ACTIONS</p><h2>Approvals</h2><p>Explicit opt-in for accepting narrowly classified action cards. Keep this off unless you understand the risk.</p></div>
+             <label class="section-switch"><span>Enabled</span><input data-setting="approvalsEnabled" data-kind="boolean" type="checkbox" role="switch" aria-label="Enable approvals"></label>
+           </header>
+           <div class="settings-card">
+-            <label class="setting-row stacked"><span class="control-copy"><strong>Approval policy</strong><small>Safe accepts permissions only. Writes includes repository changes. All includes destructive actions.</small></span><select data-setting="approvalPolicy" data-kind="string"><option value="safe">Safe permissions only</option><option value="writes">Include repository writes</option><option value="all">Include destructive actions</option></select></label>
++            <label class="setting-row stacked"><span class="control-copy"><strong>Approval policy</strong><small>Safe accepts only non-sensitive confirmations. Writes also accepts repository modifications. All additionally permits sensitive permissions and destructive actions.</small></span><select data-setting="approvalPolicy" data-kind="string"><option value="safe">Non-sensitive confirmations only</option><option value="writes">Include repository writes</option><option value="all">Include sensitive and destructive actions</option></select></label>
+             <div class="setting-row"><span class="control-copy"><strong>Approval delay</strong><small>Random pause before re-checking and clicking the card.</small></span><div class="range-controls"><label><span>Minimum</span><div class="number-control"><input data-setting="approvalDelayMinSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label><label><span>Maximum</span><div class="number-control"><input data-setting="approvalDelayMaxSec" data-kind="number" type="number" min="0" step="0.5"><em>sec</em></div></label></div></div>
+             <label class="setting-row"><span class="control-copy"><strong>Cooldown</strong><small>Minimum time between approval actions.</small></span><div class="number-control"><input data-setting="approvalCooldownSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+             <label class="setting-row"><span class="control-copy"><strong>Hourly limit</strong><small>Maximum approval actions during a rolling hour.</small></span><div class="number-control"><input data-setting="approvalLimitPerHour" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+@@ -154,7 +154,7 @@
+             <label class="setting-row"><span class="control-copy"><strong>Page-load grace</strong><small>Wait after navigation before automation begins scanning.</small></span><div class="number-control"><input data-setting="loadGraceSec" data-kind="number" type="number" min="0" step="1"><em>sec</em></div></label>
+             <label class="setting-row"><span class="control-copy"><strong>Scan interval</strong><small>How often the automation engine checks page state.</small></span><div class="number-control"><input data-setting="scanIntervalSec" data-kind="number" type="number" min="1" step="1"><em>sec</em></div></label>
+             <label class="setting-row"><span class="control-copy"><strong>Session action limit</strong><small>Hard cap across automatic actions until runtime history is reset.</small></span><div class="number-control"><input data-setting="maxActionsPerSession" data-kind="number" type="number" min="0" step="1"><em>actions</em></div></label>
+-            <label class="setting-row"><span class="control-copy"><strong>Protect composer drafts</strong><small>Never replace text already typed into ChatGPT.</small></span><input data-setting="pauseOnComposerText" data-kind="boolean" type="checkbox" role="switch" aria-label="Pause when composer has text"></label>
++            <label class="setting-row"><span class="control-copy"><strong>Protect composer drafts</strong><small>Always on. YOLO never replaces text already typed into ChatGPT.</small></span><input data-setting="pauseOnComposerText" data-kind="boolean" type="checkbox" role="switch" aria-label="Composer draft protection is always enabled" checked disabled></label>
+           </div>
+         </section>
+ 
+diff --git a/package.json b/package.json
+index 6705dc4..a350aaf 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "private": true,
+   "license": "MIT",
+   "scripts": {
+-    "check": "node --check config.js && node --check queue.js && node --check commands.js && node --check background.js && node --check background-wrapper.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs",
++    "check": "node --check config.js && node --check coordinator.js && node --check queue.js && node --check commands.js && node --check background.js && node --check background-wrapper.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs",
+     "test": "node --te
