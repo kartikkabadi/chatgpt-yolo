@@ -20,16 +20,30 @@ jobs:
       - name: Apply and validate truthful command semantics
         shell: bash
         run: |
-          set -euo pipefail
-          python .yolo-command-viability.py
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm -f .yolo-command-viability.py
-          npm run validate
-          npm run package
-          git diff --check
-          git add -A
-          git diff --cached --check
+          set -uo pipefail
+          set +e
+          (
+            set -euo pipefail
+            python .yolo-command-viability.py
+            git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
+            rm -f .yolo-command-viability.py .yolo-command-viability-error.txt
+            npm run validate
+            npm run package
+            git diff --check
+          ) > /tmp/yolo-command-viability.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/yolo-command-viability.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ $status -ne 0 ]]; then
+            tail -n 220 /tmp/yolo-command-viability.log > .yolo-command-viability-error.txt
+            git add .yolo-command-viability-error.txt
+            git commit -m "Capture command viability failure" || true
+            git push origin HEAD:fix/command-viability
+            exit "$status"
+          fi
+          git add -A
+          git diff --cached --check
           git commit -m "Make slash actions truthful and fail closed"
           git push origin HEAD:fix/command-viability
