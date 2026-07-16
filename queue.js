@@ -22,6 +22,19 @@
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   }
 
+  function isWorkflowOwned(item) {
+    return Boolean(item && String(item.source || "").startsWith("workflow:") && item.sourceId);
+  }
+
+  function workflowOwnedError(state, operation = "modify") {
+    return {
+      state,
+      ok: false,
+      reason: `Workflow messages cannot be ${operation} from the queue; pause, edit, or stop the workflow instead`,
+      code: "queue.workflow_owned"
+    };
+  }
+
   function freshState(at = Date.now()) {
     return {
       version: 1,
@@ -247,6 +260,7 @@
     if (!clean) return { state, ok: false, reason: "Message is empty", code: "queue.empty" };
     const item = state.items.find((entry) => entry.id === itemId);
     if (!item) return { state, ok: false, reason: "Queue item not found", code: "queue.not_found" };
+    if (isWorkflowOwned(item)) return workflowOwnedError(state, "edited");
     if (item.state === "sending") return { state, ok: false, reason: "Message is currently sending", code: "queue.sending" };
     const totalWithoutItem = state.items.reduce((sum, entry) => sum + (entry.id === item.id ? 0 : entry.text.length), 0);
     if (totalWithoutItem + clean.length > MAX_QUEUE_TEXT_LENGTH) {
@@ -285,6 +299,7 @@
 
   function reorderItems(rawState, orderedIds, at = Date.now()) {
     let state = normalizeState(rawState, at);
+    if (state.items.some(isWorkflowOwned)) return workflowOwnedError(state, "reordered");
     const ids = Array.isArray(orderedIds) ? orderedIds.map(String) : [];
     const movableById = new Map(state.items.filter((item) => item.state !== "sending").map((item) => [item.id, item]));
     const movable = [];
@@ -336,6 +351,7 @@
 
   function clearItems(rawState, at = Date.now()) {
     let state = normalizeState(rawState, at);
+    if (state.items.some(isWorkflowOwned)) return workflowOwnedError(state, "cleared");
     const sending = state.items.filter((item) => item.state === "sending");
     state.items = sending;
     if (state.pauseReason === "failure") {
@@ -351,6 +367,7 @@
     let state = normalizeState(rawState, at);
     const item = state.items.find((entry) => entry.id === itemId);
     if (!item) return { state, ok: false, reason: "Queue item not found", code: "queue.not_found" };
+    if (isWorkflowOwned(item)) return workflowOwnedError(state, "retried");
     if (item.state === "sending") return { state, ok: false, reason: "Message is currently sending", code: "queue.sending" };
     item.state = "pending";
     item.error = "";
@@ -531,6 +548,7 @@
     MAX_EVENTS,
     CLAIM_TTL_MS,
     makeId,
+    isWorkflowOwned,
     freshState,
     normalizeState,
     appendEvent,
