@@ -29,14 +29,25 @@ test("portability UI builds explicit controls and delegates persistence to backg
   assert.match(source, /YOLODATA_EXPORT/);
   assert.match(source, /YOLODATA_IMPORT_PREVIEW/);
   assert.match(source, /YOLODATA_IMPORT_APPLY/);
+  assert.match(source, /previewToken: preview\.previewToken/);
   assert.match(source, /YOLO_QUEUE_GET/);
+  assert.match(source, /YOLO_SET_SETTINGS/);
   assert.doesNotMatch(source, /chrome\.storage/);
   assert.doesNotMatch(source, /queueState\.items.*text/);
 });
 
-test("data controls are progressively added to the existing maintenance section", () => {
+test("data controls mount once and update settings search", () => {
   const source = read("options-portability.js");
+  assert.match(source, /document\.querySelector\("#exportBackup"\)/);
   assert.match(source, /querySelector\("#data"\)/);
   assert.match(source, /insertBefore\(card, danger \|\| null\)/);
   assert.match(source, /backup export import diagnostics privacy/);
+  assert.match(source, /dispatchEvent\(new SearchEvent\("input"/);
+  assert.match(source, /YOLOOptionsPortability = api/);
+});
+
+test("failed current-tab synchronization is reported without undoing a completed import", () => {
+  const source = read("options-portability.js");
+  assert.match(source, /Backup imported\. Refresh the ChatGPT tab/);
+  assert.match(source, /level === "warning"/);
 });
