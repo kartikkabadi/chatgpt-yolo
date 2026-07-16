@@ -1,0 +1,199 @@
+name: Apply ambiguous delivery safety fix
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.head_ref == 'agent/reliability-observability'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/reliability-observability
+          fetch-depth: 0
+      - name: Apply reviewed fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f .delivery-fix.ready ]]; then
+            echo "Fix payload is not ready yet."
+            exit 0
+          fi
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected source fragment missing in {path}")
+              if text.count(old) != 1:
+                  raise SystemExit(f"Expected exactly one source fragment in {path}, found {text.count(old)}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "queue.js",
+              '    const backoffSec = Math.max(1, finite(options.backoffSec, 30));\n    item.attempts += 1;',
+              '    const backoffSec = Math.max(1, finite(options.backoffSec, 30));\n    const ambiguousDelivery = Boolean(options.deliveryAmbiguous)\n      || ["composer.unconfirmed", "route.changed", "queue.exception"].includes(cleanText(options.errorCode, 120));\n    item.attempts += 1;'
+          )
+
+          replace_once(
+              "queue.js",
+              '    if (item.attempts <= maxRetries) {',
+              '''    if (ambiguousDelivery) {
+      const detail = item.error;
+      item.state = "failed";
+      item.nextAttemptAt = 0;
+      item.error = cleanText(`Delivery status is unknown; manual retry required. ${detail}`, 500);
+      item.errorCode = "queue.delivery_unknown";
+      state.paused = true;
+      state.pauseReason = "failure";
+      state = appendEvent(state, {
+        code: "queue.delivery_unknown",
+        message: "Queue paused because delivery could not be confirmed; manual retry is required",
+        level: "error"
+      }, at);
+      state.updatedAt = at;
+      return { state, ok: true, item: clone(item) };
+    }
+
+    if (item.attempts <= maxRetries) {'''
+          )
+
+          replace_once(
+              "background.js",
+              '      pauseOnFailure: message.pauseOnFailure\n',
+              '      pauseOnFailure: message.pauseOnFailure,\n      deliveryAmbiguous: message.deliveryAmbiguous\n'
+          )
+
+          queue_tests = Path("tests/queue.test.js")
+          queue_text = queue_tests.read_text()
+          queue_sentinel = 'test("ambiguous delivery outcomes fail closed and require manual retry"'
+          if queue_sentinel not in queue_text:
+              queue_text += '''
+
+test("ambiguous delivery outcomes fail closed and require manual retry", () => {
+  for (const errorCode of ["composer.unconfirmed", "route.changed", "queue.exception"]) {
+    let state = Queue.addItem(Queue.freshState(1000), { text: `send once: ${errorCode}` }, { id: errorCode, at: 1001 }).state;
+    const claim = Queue.claimNext(state, "owner", { at: 1100 });
+    const submitting = Queue.markSubmitting(claim.state, errorCode, claim.item.claimToken, 1150);
+    const failed = Queue.failClaim(submitting.state, errorCode, claim.item.claimToken, {
+      at: 1200,
+      maxRetries: 5,
+      backoffSec: 1,
+      pauseOnFailure: false,
+      error: `ambiguous outcome: ${errorCode}`,
+      errorCode
+    });
+
+    assert.equal(failed.ok, true);
+    assert.equal(failed.state.items[0].state, "failed");
+    assert.equal(failed.state.items[0].errorCode, "queue.delivery_unknown");
+    assert.equal(failed.state.items[0].nextAttemptAt, 0);
+    assert.equal(failed.state.paused, true);
+    assert.equal(failed.state.pauseReason, "failure");
+    assert.match(failed.state.items[0].error, /manual retry required/i);
+
+    const automaticClaim = Queue.claimNext(failed.state, "other", { at: 5000 });
+    assert.equal(automaticClaim.ok, false);
+    assert.equal(automaticClaim.code, "queue.paused");
+
+    const retried = Queue.retryItem(failed.state, errorCode, 6000);
+    assert.equal(retried.state.paused, false);
+    assert.equal(retried.state.items[0].state, "pending");
+  }
+});
+
+test("proven pre-submit failures retain automatic retry backoff", () => {
+  let state = Queue.addItem(Queue.freshState(1000), { text: "retry safely" }, { id: "safe-retry", at: 1001 }).state;
+  const claim = Queue.claimNext(state, "owner", { at: 1100 });
+  const submitting = Queue.markSubmitting(claim.state, "safe-retry", claim.item.claimToken, 1150);
+  const failed = Queue.failClaim(submitting.state, "safe-retry", claim.item.claimToken, {
+    at: 1200,
+    maxRetries: 2,
+    backoffSec: 10,
+    pauseOnFailure: true,
+    error: "composer not found before submit",
+    errorCode: "composer.missing"
+  });
+
+  assert.equal(failed.state.items[0].state, "pending");
+  assert.equal(failed.state.items[0].errorCode, "composer.missing");
+  assert.equal(failed.state.items[0].nextAttemptAt, 11200);
+  assert.equal(failed.state.paused, false);
+});
+'''
+              queue_tests.write_text(queue_text)
+
+          background_tests = Path("tests/background.test.js")
+          background_text = background_tests.read_text()
+          background_sentinel = 'test("background persists ambiguous delivery as terminal manual recovery"'
+          if background_sentinel not in background_text:
+              background_text += '''
+
+test("background persists ambiguous delivery as terminal manual recovery", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/ambiguous-delivery";
+  await invoke({ type: "YOLO_QUEUE_ADD", pageId, item: { text: "send once" } });
+  const claim = await invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "tab" });
+  await invoke({
+    type: "YOLO_QUEUE_MARK_SUBMITTING",
+    pageId,
+    itemId: claim.item.id,
+    claimToken: claim.item.claimToken
+  });
+  const failed = await invoke({
+    type: "YOLO_QUEUE_FAIL",
+    pageId,
+    itemId: claim.item.id,
+    claimToken: claim.item.claimToken,
+    error: "submission could not be observed",
+    errorCode: "composer.unconfirmed",
+    maxRetries: 5,
+    backoffSec: 1,
+    pauseOnFailure: false
+  });
+
+  assert.equal(failed.ok, true);
+  assert.equal(failed.state.items[0].state, "failed");
+  assert.equal(failed.state.items[0].errorCode, "queue.delivery_unknown");
+  assert.equal(failed.state.paused, true);
+  const nextClaim = await invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "other-tab" });
+  assert.equal(nextClaim.ok, false);
+  assert.equal(nextClaim.code, "queue.paused");
+});
+'''
+              background_tests.write_text(background_text)
+
+          replace_once(
+              "README.md",
+              '- A submit action that does not clear the composer or begin generation remains failed/retryable instead of being silently dequeued.',
+              '- A submit action that cannot be confirmed fails closed with delivery status unknown and requires an explicit manual retry; it is never automatically retried.'
+          )
+
+          readme = Path("README.md")
+          readme_text = readme.read_text()
+          reliability_anchor = '- Completion is idempotent, so a lost acknowledgment cannot cause the same message to be sent twice.\n'
+          reliability_line = '- Ambiguous post-submit outcomes pause the queue and require explicit manual recovery instead of automatic retry.\n'
+          if reliability_line not in readme_text:
+              if reliability_anchor not in readme_text:
+                  raise SystemExit("README reliability anchor missing")
+              readme.write_text(readme_text.replace(reliability_anchor, reliability_anchor + reliability_line, 1))
+          PY
+
+          npm run validate
+          git diff --check
+          rm -f .delivery-fix.ready .github/workflows/fix-ambiguous-delivery.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fail ambiguous queue delivery closed"
+          git push origin HEAD:agent/reliability-observability
