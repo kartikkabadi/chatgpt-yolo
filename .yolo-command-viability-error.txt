@@ -1,210 +1,172 @@
-    '})(typeof globalThis !== "undefined" ? globalThis : this, () => {\n' +
-    '  "use strict";\n' +
-    '\n' +
-    '  const MAX_OBJECTIVE_LENGTH = 4000;\n' +
-    '  const MAX_ITERATIONS = 50;\n' +
-    '  const DEFAULT_MAX_ITERATIONS = 12;\n' +
-    '  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);\n' +
-    '  const WORKFLOW_KINDS = new Set(["goal", "loop"]);\n' +
-    '  const MARKER_RE = /(?:^|\\n)\\[YOLO:(CONTINUE|DONE|BLOCKED)\\][ \\t]*$/i;\n' +
-    '\n' +
-    '  const COMMANDS = Object.freeze([\n' +
-    '    Object.freeze({ name: "goal", title: "Goal", description: "Start a marker-driven objective that YOLO can continue for bounded turns.", args: "objective", group: "Automated workflows", kind: "workflow" }),\n' +
-    '    Object.freeze({ name: "loop", title: "Loop", description: "Run bounded, marker-driven iterations toward one objective.", args: "[iterations] objective", group: "Automated workflows", kind: "workflow" }),\n' +
-    '    Object.freeze({ name: "plan", title: "Plan", description: "Queue a prompt asking ChatGPT to produce an execution plan.", args: "objective", group: "Prompt shortcuts", kind: "prompt" }),\n' +
-    '    Object.freeze({ name: "review", title: "Review", description: "Queue an adversarial review prompt for the current work or scope.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
-    '    Object.freeze({ name: "fix", title: "Fix", description: "Queue a prompt asking ChatGPT to diagnose, repair, and validate work.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
-    '    Object.freeze({ name: "handoff", title: "Handoff", description: "Ask ChatGPT to write a continuation brief; this does not compact ChatGPT context.", args: "[focus]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
-    '    Object.freeze({ name: "continue", title: "Continue", description: "Queue a prompt to continue the current task, optionally with a direction.", args: "[direction]", group: "Prompt shortcuts", kind: "prompt" }),\n' +
-    '    Object.freeze({ name: "status", title: "Status", description: "Show YOLO workflow, queue, generation, limits, and last-action state.", args: "", group: "YOLO controls", kind: "control" }),\n' +
-    '    Object.freeze({ name: "pause", title: "Pause", description: "Pause the active YOLO goal or loop without deleting it.", args: "", group: "YOLO controls", kind: "control" }),\n' +
-    '    Object.freeze({ name: "resume", title: "Resume", description: "Resume the active paused or blocked YOLO workflow.", args: "", group: "YOLO controls", kind: "control" }),\n' +
-    '    Object.freeze({ name: "stop", title: "Stop", description: "Stop and clear the active YOLO goal or loop after confirmation.", args: "", group: "YOLO controls", kind: "control" }),\n' +
-    '    Object.freeze({ name: "settings", title: "Settings", description: "Open YOLO Advanced settings.", args: "", group: "YOLO controls", kind: "control" }),\n' +
-    '    Object.freeze({ name: "help", title: "Help", description: "Open the YOLO action palette and reference.", args: "", group: "YOLO controls", kind: "control" })\n' +
-    '  ]);\n' +
-    '\n' +
-    '  const COMMAND_BY_NAME = new Map(COMMANDS.map((command) => [command.name, command]));\n' +
-    '\n' +
-    '  const cleanText = (value, max = MAX_OBJECTIVE_LENGTH) => String(value ?? "").trim().slice(0, max);\n' +
-    '  const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;\n' +
-    '  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));\n' +
-    '\n' +
-    '  function makeId(prefix = "workflow") {\n' +
-    '    if (globalThis.crypto?.randomUUID) return `${prefix}_${globalThis.crypto.randomUUID()}`;\n' +
-    '    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;\n' +
-    '  }\n' +
-    '\n' +
-    '  function command(name) {\n' +
-    '    return COMMAND_BY_NAME.get(String(name || "").toLowerCase()) || null;\n' +
-    '  }\n' +
-    '\n' +
-    '  function filterCommands(query = "") {\n' +
-    '    const needle = cleanText(query, 120).replace(/^\\//, "").toLowerCase();\n' +
-    '    if (!needle) return [...COMMANDS];\n' +
-    '    return COMMANDS\n' +
-    '      .map((entry) => {\n' +
-    '        const name = entry.name.toLowerCase();\n' +
-    '        const title = entry.title.toLowerCase();\n' +
-    '        const description = entry.description.toLowerCase();\n' +
-    '        let score = 0;\n' +
-    '        if (name === needle) score += 100;\n' +
-    '        if (name.startsWith(needle)) score += 60;\n' +
-    '        if (title.startsWith(needle)) score += 40;\n' +
-    '        if (name.includes(needle)) score += 25;\n' +
-    '        if (description.includes(needle)) score += 10;\n' +
-    '        return { entry, score };\n' +
-    '      })\n' +
-    '      .filter(({ score }) => score > 0)\n' +
-    '      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))\n' +
-    '      .map(({ entry }) => entry);\n' +
-    '  }\n' +
-    '\n' +
-    '  function parseInvocation(input) {\n' +
-    '    const text = String(input || "").trim();\n' +
-    '    const match = text.match(/^\\/([a-z][a-z0-9-]*)(?:\\s+([\\s\\S]*))?$/i);\n' +
-    '    if (!match) return null;\n' +
-    '    const entry = command(match[1]);\n' +
-    '    if (!entry) return null;\n' +
-    '    return { command: entry, args: cleanText(match[2] || "") };\n' +
-    '  }\n' +
-    '\n' +
-    '  function parseLoopArgs(input) {\n' +
-    '    const text = cleanText(input);\n' +
-    '    const match = text.match(/^(\\d{1,3})\\s+([\\s\\S]+)$/);\n' +
-    '    if (!match) return { objective: text, maxIterations: DEFAULT_MAX_ITERATIONS };\n' +
-    '    return {\n' +
-    '      objective: cleanText(match[2]),\n' +
-    '      maxIterations: clamp(Math.round(Number(match[1])), 1, MAX_ITERATIONS)\n' +
-    '    };\n' +
-    '  }\n' +
-    '\n' +
-    '  function fingerprint(text) {\n' +
-    '    const value = String(text || "").replace(/\\s+/g, " ").trim();\n' +
-    '    let hash = 2166136261;\n' +
-    '    for (let index = 0; index < value.length; index += 1) {\n' +
-    '      hash ^= value.charCodeAt(index);\n' +
-    '      hash = Math.imul(hash, 16777619);\n' +
-    '    }\n' +
-    '    return `${value.length}:${(hash >>> 0).toString(36)}`;\n' +
-    '  }\n' +
-    '\n' +
-    '  function freshWorkflow(at = Date.now()) {\n' +
-    '    return {\n' +
-    '      version: 1,\n' +
-    '      revision: 0,\n' +
-    '      id: "",\n' +
-    '      kind: "",\n' +
-    '      objective: "",\n' +
-    '      status: "idle",\n' +
-    '      maxIterations: DEFAULT_MAX_ITERATIONS,\n' +
-    '      iteration: 0,\n' +
-    '      pendingItemId: "",\n' +
-    '      awaitingResponse: false,\n' +
-    '      sawGeneration: false,\n' +
-    '      baselineFingerprint: "",\n' +
-    '      lastAssistantFingerprint: "",\n' +
-    '      promptFingerprint: "",\n' +
-    '      responseCandidateFingerprint: "",\n' +
-    '      responseCandidateSince: 0,\n' +
-    '      runnerId: "",\n' +
-    '      runnerExpiresAt: 0,\n' +
-    '      lastPromptAt: 0,\n' +
-    '      lastResponseAt: 0,\n' +
-    '      reason: "",\n' +
-    '      createdAt: at,\n' +
-    '      updatedAt: at\n' +
-    '    };\n' +
-    '  }\n' +
-    '\n' +
-    '  function normalizeWorkflow(raw, at = Date.now()) {\n' +
-    '    const fallback = freshWorkflow(at);\n' +
-    '    if (!raw || typeof raw !== "object") return fallback;\n' +
-    '    const kind = WORKFLOW_KINDS.has(raw.kind) ? raw.kind : "";\n' +
-    '    const objective = cleanText(raw.objective);\n' +
-    '    const status = WORKFLOW_STATUSES.has(raw.status) ? raw.status : (kind && objective ? "paused" : "idle");\n' +
-    '    const revision = Math.max(0, Math.round(finite(raw.revision, 0)));\n' +
-    '    if (!kind || !objective || status === "idle") {\n' +
-    '      return {\n' +
-    '        ...fallback,\n' +
-    '        revision,\n' +
-    '        createdAt: finite(raw.createdAt, fallback.createdAt),\n' +
-    '        updatedAt: finite(raw.updatedAt, at)\n' +
-    '      };\n' +
-    '    }\n' +
-    '    return {\n' +
-    '      version: 1,\n' +
-    '      revision,\n' +
-    '      id: cleanText(raw.id, 180) || makeId(kind),\n' +
-    '      kind,\n' +
-    '      objective,\n' +
-    '      status,\n' +
-    '      maxIterations: clamp(Math.round(finite(raw.maxIterations, DEFAULT_MAX_ITERATIONS)), 1, MAX_ITERATIONS),\n' +
-    '      iteration: clamp(Math.round(finite(raw.iteration, 0)), 0, MAX_ITERATIONS),\n' +
-    '      pendingItemId: cleanText(raw.pendingItemId, 180),\n' +
-    '      awaitingResponse: Boolean(raw.awaitingResponse),\n' +
-    '      sawGeneration: Boolean(raw.sawGeneration),\n' +
-    '      baselineFingerprint: cleanText(raw.baselineFingerprint, 180),\n' +
-    '      lastAssistantFingerprint: cleanText(raw.lastAssistantFingerprint, 180),\n' +
-    '      promptFingerprint: cleanText(raw.promptFingerprint, 180),\n' +
-    '      responseCandidateFingerprint: Boolean(raw.awaitingResponse) ? cleanText(raw.responseCandidateFingerprint, 180) : "",\n' +
-    '      responseCandidateSince: Boolean(raw.awaitingResponse) ? Math.max(0, finite(raw.responseCandidateSince, 0)) : 0,\n' +
-    '      runnerId: status === "running" ? cleanText(raw.runnerId, 220) : "",\n' +
-    '      runnerExpiresAt: status === "running" ? Math.max(0, finite(raw.runnerExpiresAt, 0)) : 0,\n' +
-    '      lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),\n' +
-    '      lastResponseAt: Math.max(0, finite(raw.lastResponseAt, 0)),\n' +
-    '      reason: cleanText(raw.reason, 500),\n' +
-    '      createdAt: finite(raw.createdAt, at),\n' +
-    '      updatedAt: finite(raw.updatedAt, at)\n' +
-    '    };\n' +
-    '  }\n' +
-    '\n' +
-    '  function startWorkflow(kind, input, { at = Date.now(), baselineFingerprint = "" } = {}) {\n' +
-    '    if (!WORKFLOW_KINDS.has(kind)) return { ok: false, reason: "Unsupported workflow type" };\n' +
-    '    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: MAX_ITERATIONS };\n' +
-    '    if (!parsed.objective) return { ok: false, reason: `/${kind} requires an objective` };\n' +
-    '    return {\n' +
-    '      ok: true,\n' +
-    '      workflow: normalizeWorkflow({\n' +
-    '        id: makeId(kind),\n' +
-    '        kind,\n' +
-    '        objective: parsed.objective,\n' +
-    '        status: "running",\n' +
-    '        maxIterations: parsed.maxIterations,\n' +
-    '        iteration: 0,\n' +
-    '        baselineFingerprint,\n' +
-    '        lastAssistantFingerprint: baselineFingerprint,\n' +
-    '        createdAt: at,\n' +
-    '        updatedAt: at\n' +
-    '      }, at)\n' +
-    '    };\n' +
-    '  }\n' +
-    '\n' +
-    '  function setWorkflowStatus(raw, status, reason = "", at = Date.now()) {\n' +
-    '    const workflow = normalizeWorkflow(raw, at);\n' +
-    '    if (workflow.status === "idle") return workflow;\n' +
-    '    workflow.status = WORKFLOW_STATUSES.has(status) ? status : workflow.status;\n' +
-    '    workflow.reason = cleanText(reason, 500);\n' +
-    '    workflow.updatedAt = at;\n' +
-    '    if (workflow.status !== "running") {\n' +
-    '      workflow.pendingItemId = "";\n' +
-    '      workflow.awaitingResponse = false;\n' +
-    '      workflow.sawGeneration = false;\n' +
-    '      workflow.responseCandidateFingerprint = "";\n' +
-    '      workflow.responseCandidateSince = 0;\n' +
-    '      workflow.runnerId = "";\n' +
-    '      workflow.runnerExpiresAt = 0;\n' +
-    '    }\n' +
-    '    return workflow;\n' +
-    '  }\n' +
-    '\n' +
-    '  function goalInitialPrompt(workflow) {\n' +
-    '    return [\n' +
-    '      "You are now working in YOLO Goal mode.",\n' +
-    '      `Persistent objective: ${workflow.objective}`,\n' +
-    '      "Work toward the objective concretely. Inspect the current conv'... 7716 more characters
+Command viability corrections applied
+Shared workflow marker regression aligned
+
+> chatgpt-yolo@1.0.0 validate
+> npm run check && npm test && node scripts/package.mjs --check
+
+
+> chatgpt-yolo@1.0.0 check
+> node --check config.js && node --check queue.js && node --check commands.js && node --check background.js && node --check background-wrapper.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs
+
+
+> chatgpt-yolo@1.0.0 test
+> node --test
+
+✔ background serializes queue mutations and claim lifecycle (17.487875ms)
+✔ background reports storage write failures instead of acknowledging lost queue data (5.589867ms)
+✔ background bounds active conversation queues and does not persist read-only visits (15.042094ms)
+✔ background persists ambiguous delivery as terminal manual recovery (5.951243ms)
+✔ tab-backed queue messages must match the sender conversation (4.217252ms)
+✔ install-time template initialization uses the template lock (0.332271ms)
+✔ background persists sender-bound command workflow state (4.956754ms)
+✔ background bounds active command workflows (11.773714ms)
+✔ workflow prompt enqueue commits queue and workflow together (4.225627ms)
+✔ clearing a workflow removes its per-conversation storage key (2.326018ms)
+✔ fresh installs open only the local onboarding page (0.441255ms)
+✔ an intentionally empty template library remains empty (2.323182ms)
+✔ filters and parses the truthful slash-action catalog (4.552018ms)
+✔ parses bounded loop iteration counts (0.809323ms)
+✔ creates normalized persistent goal and loop workflows (7.112203ms)
+✔ goal response markers are explicit and case-insensitive (0.536683ms)
+✖ one-shot commands build concrete prompts (1.585463ms)
+✔ workflow normalization fails closed for malformed state (0.443579ms)
+✔ fingerprints are stable and content-sensitive (0.44421ms)
+✔ workflow revisions and runner leases normalize safely (0.503992ms)
+✔ workflow response decisions enforce ownership, markers, and caps (1.045384ms)
+✔ awaiting workflows retain and clear response stability candidates safely (0.459669ms)
+✔ both automated workflows pause when the terminal marker is missing (0.436806ms)
+✔ normalizes and clamps settings with interval invariants (2.138537ms)
+✔ migrates legacy boolean setting names (0.440834ms)
+✔ normalizes conversation URLs into stable page IDs (0.47591ms)
+✔ supports only ChatGPT URLs (0.355644ms)
+✔ enforces hourly and session action limits with reason codes (1.828177ms)
+✔ applies named profiles without changing the conversation master switch (0.395169ms)
+✔ renders supported template variables (55.177241ms)
+✔ uses collision-resistant per-conversation storage keys (0.302195ms)
+✔ data background exports and imports without touching live automation (16.726172ms)
+✔ imports reject replay, changed files, and concurrent portable storage changes (8.039166ms)
+✔ failed imports restore previous portable storage (5.591341ms)
+✔ the original YOLO message namespace remains separate (3.487899ms)
+✔ imports delete stale page overrides while preserving live automation state (6.065166ms)
+✔ onboarding opens once for a fresh install and never for updates (13.024714ms)
+✔ manifest and package versions match the runtime version (1.603006ms)
+✔ every manifest entry point exists (0.591466ms)
+✔ content scripts load shared configuration before the engine (1.296643ms)
+✔ manifest grants host access only to ChatGPT (0.472002ms)
+✔ public v1 metadata and permissions stay intentionally narrow (0.303096ms)
+✔ import confirmation is explicit about scope and exclusions (1.395628ms)
+✔ settings controller loads only packaged local portability scripts (0.424023ms)
+✔ portability UI builds explicit controls and delegates persistence to background (0.601164ms)
+✔ data controls mount once and update settings search (0.359602ms)
+✔ failed current-tab synchronization is reported without undoing a completed import (1.986112ms)
+✔ imports lock and flush settings then synchronize without persisting (0.881488ms)
+✔ normalizes settings search terms (0.955255ms)
+✔ matches every search token across metadata and visible copy (0.274222ms)
+✔ maps save messages to explicit visual states (0.281306ms)
+✔ options page resolves a conversation source and fails closed when none exists (7.342894ms)
+✔ release package uses an explicit runtime allowlist (1.820552ms)
+✔ every manifest runtime entry point is packaged (0.326239ms)
+✔ onboarding is entirely local and packaged (0.418191ms)
+✔ selects platform adapters only for supported hosts (1.472612ms)
+✔ fixture-based approval detection respects every risk policy (5.536367ms)
+✔ generic safe button labels cannot hide destructive context (0.260187ms)
+✔ submission observation requires a cleared composer or active generation (0.816256ms)
+✔ a missing composer is not treated as delivery confirmation (0.257381ms)
+✔ reads the latest ChatGPT assistant response for workflow markers (0.485718ms)
+✔ reads the latest ChatGPT user prompt for workflow ownership (0.309158ms)
+✔ popup starts initialization and disables itself on unsupported pages (8.809201ms)
+✔ background composition preserves the existing engine before adding data portability (1.494503ms)
+✔ data portability adds no browser or host permissions (1.220281ms)
+✔ the release allowlist includes every portability runtime file (0.329876ms)
+✔ the data listener cannot claim existing YOLO messages (0.225561ms)
+✔ portable backups contain settings and templates but never live automation state (4.736983ms)
+✔ backup validation rejects unsupported versions, invalid pages, and duplicate templates (3.262748ms)
+✔ backup validation normalizes settings and enforces size and collection limits (25.045422ms)
+✔ import payload targets only portable storage keys (0.800226ms)
+✔ privacy-safe diagnostics redact identifiers and all user-authored text (2.14555ms)
+✔ missing template timestamps normalize deterministically across preview and apply (0.892338ms)
+✔ storage plan removes stale page overrides and the legacy page map (1.103983ms)
+✔ effective imported settings use globals when the current page has no override (0.589792ms)
+✔ adds, edits, reorders, and removes queued messages (10.833959ms)
+✔ claims and completes exactly one queue item (0.911313ms)
+✔ does not grant concurrent claims for one conversation queue (0.447386ms)
+✔ retry backoff preserves strict pending order (0.431436ms)
+✔ reordering keeps a sending item in its fixed slot (0.522717ms)
+✔ expired pre-submit claims return to pending safely (0.526624ms)
+✔ expired submitting claims fail closed instead of risking duplicate delivery (0.558734ms)
+✔ failures retry with backoff then pause after final failure (0.632492ms)
+✔ retrying a failed item also resumes the queue (0.381783ms)
+✔ event history is bounded and consecutive duplicates are collapsed (3.832042ms)
+✔ randomized queue operations preserve structural invariants (83.181ms)
+✔ queue rejects payloads that exceed bounded text capacity (0.662508ms)
+✔ normalization deduplicates ids and recovers multiple sender leases (0.421408ms)
+✔ queue completion is idempotent after an acknowledgement is lost (0.309809ms)
+✔ ambiguous delivery outcomes fail closed and require manual retry (0.847774ms)
+✔ proven pre-submit failures retain automatic retry backoff (0.340186ms)
+✔ delivery-unknown failures remain a hard block until explicitly resolved (0.37449ms)
+✔ retrying one failed item does not clear a failure pause while another failure remains (0.193181ms)
+✔ queue completion records exact command workflow identity (0.735254ms)
+✔ recent completion identity remains available after later sends (0.343672ms)
+✔ completion identity history remains bounded (3.061512ms)
+✔ public repository includes the essential open-source policy files (1.806516ms)
+✔ ordinary pull-request CI is immutable and read-only (0.343281ms)
+✔ release workflow validates tag identity and emits an archive checksum (0.28374ms)
+✔ temporary review and diagnostic files are absent (2.853903ms)
+✔ documentation promises match the local-only permission model (0.593199ms)
+✔ release package carries user-facing legal and privacy documents (0.295873ms)
+✔ popup and advanced page have unique element identifiers (2.37009ms)
+✔ advanced page exposes every configurable setting while popup stays compact (1.811355ms)
+✔ extension pages use external scripts only (0.659092ms)
+✔ queue engine persists submission intent before touching the composer (0.419534ms)
+✔ popup commits content and queue state atomically (1.371173ms)
+✔ popup initialization and editing shortcuts fail closed (0.349022ms)
+✔ template rendering receives the current conversation (0.329977ms)
+✔ primary controls and dynamic option statuses are accessibly named (0.476491ms)
+✔ queue failures forward explicit delivery ambiguity (0.439431ms)
+✔ ChatGPT content scripts include the composer-native command system (0.43311ms)
+✔ command palette supports slash and Codex-style command shortcuts (0.481029ms)
+✔ command workflows reuse the reliable queue and fail closed (0.28353ms)
+✔ content exposes only a narrow lifecycle-safe command API (0.299109ms)
+✔ command workflow runtime enforces ownership, CAS, and a single runner (0.274894ms)
+✔ command palette preserves failed direct commands and exposes feedback (0.28332ms)
+✔ command UI handles blocked resume, IME, and shortcut scope safely (0.336017ms)
+✔ runtime uses the pure workflow response decision and completion ring (0.225472ms)
+✔ workflow prompt creation is atomic and responses must settle (0.327752ms)
+✔ fallback injection restores the full command content-script stack (0.408844ms)
+✔ palette filter text is not leaked into optional command arguments (0.266619ms)
+✔ command palette exposes active keyboard selection and restores every workflow action (0.262621ms)
+✔ pause and clear preserve prompts that are already sending (0.245368ms)
+✔ workflow response baseline is captured only before prompt delivery (0.298138ms)
+✔ premium popup keeps one dominant action and progressive disclosure (0.263252ms)
+✔ advanced settings has searchable persistent section navigation (1.502959ms)
+✔ premium visual systems include focus, reduced motion, and responsive layouts (0.328144ms)
+✔ settings controller provides filtering, active navigation, and save-state mapping (0.209552ms)
+✔ queue item controls are explicitly named and respect reorder boundaries (0.271959ms)
+✔ settings navigation preserves scope and respects reduced motion (0.19227ms)
+✔ template feedback and empty state remain explicit (0.303057ms)
+✔ settings navigation stays available during template operations (0.212657ms)
+✔ destructive settings actions require confirmation and always report outcomes (0.286836ms)
+✔ slash actions expose only viable product semantics (0.707633ms)
+ℹ tests 135
+ℹ suites 0
+ℹ pass 134
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 616.246509
+
+✖ failing tests:
+
+test at tests/commands.test.js:57:1
+✖ one-shot commands build concrete prompts (1.585463ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /does not claim that ChatGPT context was compacted/i. Input:
   
-      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/ui.test.js:109:10)
+  'Write a continuation handoff for the current work.\n' +
+    '\n' +
+    'Summarize the objective, decisions, constraints, completed work, exact current state, unresolved defects, risks, relevant identifiers, validation evidence, and next actions. Remove incidental repetition. This is a written handoff only; do not claim that ChatGPT context was compacted, truncated, or changed.'
+  
+      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/commands.test.js:62:10)
       at Test.runInAsyncScope (node:async_hooks:227:14)
       at Test.run (node:internal/test_runner/test:1325:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
@@ -213,8 +175,8 @@
       at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
     generatedMessage: true,
     code: 'ERR_ASSERTION',
-    actual: '((root, factory) => {\n  const api = factory();\n  if (typeof module === "object" && module.exports) module.exports = api;\n  else root.YOLOCommands = api;\n})(typeof globalThis !== "undefined" ? globalThis : this, () => {\n  "use strict";\n\n  const MAX_OBJECTIVE_LENGTH = 4000;\n  const MAX_ITERATIONS = 50;\n  const DEFAULT_MAX_ITERATIONS = 12;\n  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);\n  const WORKFLOW_KINDS = new Set(["goal", "loop"]);\n  const MARKER_RE = /(?:^|\\n)\\[YOLO:(CONTINUE|DONE|BLOCKED)\\][ \\t]*$/i;\n\n  const COMMANDS = Object.freeze([\n    Object.freeze({ name: "goal", title: "Goal", description: "Start a marker-driven objective that YOLO can continue for bounded turns.", args: "objective", group: "Automated workflows", kind: "workflow" }),\n    Object.freeze({ name: "loop", title: "Loop", description: "Run bounded, marker-driven iterations toward one objective.", args: "[iterations] objective", group: "Automated workflows", kind: "workflow" }),\n    Object.freeze({ name: "plan", title: "Plan", description: "Queue a prompt asking ChatGPT to produce an execution plan.", args: "objective", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "review", title: "Review", description: "Queue an adversarial review prompt for the current work or scope.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "fix", title: "Fix", description: "Queue a prompt asking ChatGPT to diagnose, repair, and validate work.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "handoff", title: "Handoff", description: "Ask ChatGPT to write a continuation brief; this does not compact ChatGPT context.", args: "[focus]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "continue", title: "Continue", description: "Queue a prompt to continue the current task, optionally with a direction.", args: "[direction]", group: "Prompt shortcuts", kind: "prompt" }),\n    Object.freeze({ name: "status", title: "Status", description: "Show YOLO workflow, queue, generation, limits, and last-action state.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "pause", title: "Pause", description: "Pause the active YOLO goal or loop without deleting it.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "resume", title: "Resume", description: "Resume the active paused or blocked YOLO workflow.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "stop", title: "Stop", description: "Stop and clear the active YOLO goal or loop after confirmation.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "settings", title: "Settings", description: "Open YOLO Advanced settings.", args: "", group: "YOLO controls", kind: "control" }),\n    Object.freeze({ name: "help", title: "Help", description: "Open the YOLO action palette and reference.", args: "", group: "YOLO controls", kind: "control" })\n  ]);\n\n  const COMMAND_BY_NAME = new Map(COMMANDS.map((command) => [command.name, command]));\n\n  const cleanText = (value, max = MAX_OBJECTIVE_LENGTH) => String(value ?? "").trim().slice(0, max);\n  const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;\n  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));\n\n  function makeId(prefix = "workflow") {\n    if (globalThis.crypto?.randomUUID) return `${prefix}_${globalThis.crypto.randomUUID()}`;\n    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;\n  }\n\n  function command(name) {\n    return COMMAND_BY_NAME.get(String(name || "").toLowerCase()) || null;\n  }\n\n  function filterCommands(query = "") {\n    const needle = cleanText(query, 120).replace(/^\\//, "").toLowerCase();\n    if (!needle) return [...COMMANDS];\n    return COMMANDS\n      .map((entry) => {\n        const name = entry.name.toLowerCase();\n        const title = entry.title.toLowerCase();\n        const description = entry.description.toLowerCase();\n        let score = 0;\n        if (name === needle) score += 100;\n        if (name.startsWith(needle)) score += 60;\n        if (title.startsWith(needle)) score += 40;\n        if (name.includes(needle)) score += 25;\n        if (description.includes(needle)) score += 10;\n        return { entry, score };\n      })\n      .filter(({ score }) => score > 0)\n      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))\n      .map(({ entry }) => entry);\n  }\n\n  function parseInvocation(input) {\n    const text = String(input || "").trim();\n    const match = text.match(/^\\/([a-z][a-z0-9-]*)(?:\\s+([\\s\\S]*))?$/i);\n    if (!match) return null;\n    const entry = command(match[1]);\n    if (!entry) return null;\n    return { command: entry, args: cleanText(match[2] || "") };\n  }\n\n  function parseLoopArgs(input) {\n    const text = cleanText(input);\n    const match = text.match(/^(\\d{1,3})\\s+([\\s\\S]+)$/);\n    if (!match) return { objective: text, maxIterations: DEFAULT_MAX_ITERATIONS };\n    return {\n      objective: cleanText(match[2]),\n      maxIterations: clamp(Math.round(Number(match[1])), 1, MAX_ITERATIONS)\n    };\n  }\n\n  function fingerprint(text) {\n    const value = String(text || "").replace(/\\s+/g, " ").trim();\n    let hash = 2166136261;\n    for (let index = 0; index < value.length; index += 1) {\n      hash ^= value.charCodeAt(index);\n      hash = Math.imul(hash, 16777619);\n    }\n    return `${value.length}:${(hash >>> 0).toString(36)}`;\n  }\n\n  function freshWorkflow(at = Date.now()) {\n    return {\n      version: 1,\n      revision: 0,\n      id: "",\n      kind: "",\n      objective: "",\n      status: "idle",\n      maxIterations: DEFAULT_MAX_ITERATIONS,\n      iteration: 0,\n      pendingItemId: "",\n      awaitingResponse: false,\n      sawGeneration: false,\n      baselineFingerprint: "",\n      lastAssistantFingerprint: "",\n      promptFingerprint: "",\n      responseCandidateFingerprint: "",\n      responseCandidateSince: 0,\n      runnerId: "",\n      runnerExpiresAt: 0,\n      lastPromptAt: 0,\n      lastResponseAt: 0,\n      reason: "",\n      createdAt: at,\n      updatedAt: at\n    };\n  }\n\n  function normalizeWorkflow(raw, at = Date.now()) {\n    const fallback = freshWorkflow(at);\n    if (!raw || typeof raw !== "object") return fallback;\n    const kind = WORKFLOW_KINDS.has(raw.kind) ? raw.kind : "";\n    const objective = cleanText(raw.objective);\n    const status = WORKFLOW_STATUSES.has(raw.status) ? raw.status : (kind && objective ? "paused" : "idle");\n    const revision = Math.max(0, Math.round(finite(raw.revision, 0)));\n    if (!kind || !objective || status === "idle") {\n      return {\n        ...fallback,\n        revision,\n        createdAt: finite(raw.createdAt, fallback.createdAt),\n        updatedAt: finite(raw.updatedAt, at)\n      };\n    }\n    return {\n      version: 1,\n      revision,\n      id: cleanText(raw.id, 180) || makeId(kind),\n      kind,\n      objective,\n      status,\n      maxIterations: clamp(Math.round(finite(raw.maxIterations, DEFAULT_MAX_ITERATIONS)), 1, MAX_ITERATIONS),\n      iteration: clamp(Math.round(finite(raw.iteration, 0)), 0, MAX_ITERATIONS),\n      pendingItemId: cleanText(raw.pendingItemId, 180),\n      awaitingResponse: Boolean(raw.awaitingResponse),\n      sawGeneration: Boolean(raw.sawGeneration),\n      baselineFingerprint: cleanText(raw.baselineFingerprint, 180),\n      lastAssistantFingerprint: cleanText(raw.lastAssistantFingerprint, 180),\n      promptFingerprint: cleanText(raw.promptFingerprint, 180),\n      responseCandidateFingerprint: Boolean(raw.awaitingResponse) ? cleanText(raw.responseCandidateFingerprint, 180) : "",\n      responseCandidateSince: Boolean(raw.awaitingResponse) ? Math.max(0, finite(raw.responseCandidateSince, 0)) : 0,\n      runnerId: status === "running" ? cleanText(raw.runnerId, 220) : "",\n      runnerExpiresAt: status === "running" ? Math.max(0, finite(raw.runnerExpiresAt, 0)) : 0,\n      lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),\n      lastResponseAt: Math.max(0, finite(raw.lastResponseAt, 0)),\n      reason: cleanText(raw.reason, 500),\n      createdAt: finite(raw.createdAt, at),\n      updatedAt: finite(raw.updatedAt, at)\n    };\n  }\n\n  function startWorkflow(kind, input, { at = Date.now(), baselineFingerprint = "" } = {}) {\n    if (!WORKFLOW_KINDS.has(kind)) return { ok: false, reason: "Unsupported workflow type" };\n    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: MAX_ITERATIONS };\n    if (!parsed.objective) return { ok: false, reason: `/${kind} requires an objective` };\n    return {\n      ok: true,\n      workflow: normalizeWorkflow({\n        id: makeId(kind),\n        kind,\n        objective: parsed.objective,\n        status: "running",\n        maxIterations: parsed.maxIterations,\n        iteration: 0,\n        baselineFingerprint,\n        lastAssistantFingerprint: baselineFingerprint,\n        createdAt: at,\n        updatedAt: at\n      }, at)\n    };\n  }\n\n  function setWorkflowStatus(raw, status, reason = "", at = Date.now()) {\n    const workflow = normalizeWorkflow(raw, at);\n    if (workflow.status === "idle") return workflow;\n    workflow.status = WORKFLOW_STATUSES.has(status) ? status : workflow.status;\n    workflow.reason = cleanText(reason, 500);\n    workflow.updatedAt = at;\n    if (workflow.status !== "running") {\n      workflow.pendingItemId = "";\n      workflow.awaitingResponse = false;\n      workflow.sawGeneration = false;\n      workflow.responseCandidateFingerprint = "";\n      workflow.responseCandidateSince = 0;\n      workflow.runnerId = "";\n      workflow.runnerExpiresAt = 0;\n    }\n    return workflow;\n  }\n\n  function goalInitialPrompt(workflow) {\n    return [\n      "You are now working in YOLO Goal mode.",\n      `Persistent objective: ${workflow.objective}`,\n      "Work toward the objective concretely. Inspect the current conv'... 7716 more characters,
-    expected: /Goal response omitted the required terminal control marker/,
+    actual: 'Write a continuation handoff for the current work.\n\nSummarize the objective, decisions, constraints, completed work, exact current state, unresolved defects, risks, relevant identifiers, validation evidence, and next actions. Remove incidental repetition. This is a written handoff only; do not claim that ChatGPT context was compacted, truncated, or changed.',
+    expected: /does not claim that ChatGPT context was compacted/i,
     operator: 'match',
     diff: 'simple'
   }
