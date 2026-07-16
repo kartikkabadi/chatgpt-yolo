@@ -8,8 +8,10 @@ function loadDataBackground() {
   const storage = {};
   let listener = null;
   let failNextSet = false;
+  let id = 0;
   const context = {
     console, Date, Promise, Math, JSON, URL, TextEncoder, setTimeout, clearTimeout,
+    crypto: { randomUUID: () => `preview-${++id}` },
     chrome: {
       runtime: {
         lastError: null,
@@ -47,9 +49,7 @@ function loadDataBackground() {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   const dispatch = (message, sendResponse = () => {}) => listener(message, {}, sendResponse);
-  const invoke = (message) => new Promise((resolve) => {
-    assert.equal(dispatch(message, resolve), true);
-  });
+  const invoke = (message) => new Promise((resolve) => assert.equal(dispatch(message, resolve), true));
   return { dispatch, invoke, storage, failStorageWrite() { failNextSet = true; } };
 }
 
@@ -68,6 +68,13 @@ function backup(overrides = {}) {
   };
 }
 
+async function preview(invoke, value) {
+  const response = await invoke({ type: "YOLODATA_IMPORT_PREVIEW", backup: JSON.stringify(value) });
+  assert.equal(response.ok, true);
+  assert.match(response.previewToken, /^preview-/);
+  return response.previewToken;
+}
+
 test("data background exports and imports without touching live automation", async () => {
   const { invoke, storage } = loadDataBackground();
   storage.yoloGlobal = { queueLimitPerHour: 11 };
@@ -83,19 +90,41 @@ test("data background exports and imports without touching live automation", asy
   const next = exported.backup;
   next.globalSettings.queueLimitPerHour = 23;
   next.templates = [];
-  assert.equal((await invoke({ type: "YOLODATA_IMPORT_PREVIEW", backup: JSON.stringify(next) })).ok, true);
-  assert.equal((await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(next) })).ok, true);
+  const previewToken = await preview(invoke, next);
+  const applied = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(next), previewToken });
+  assert.equal(applied.ok, true);
   assert.equal(storage.yoloGlobal.queueLimitPerHour, 23);
   assert.deepEqual(storage.yoloTemplatesV1, []);
   assert.equal(storage.yoloQueuesV1[pageId].items[0].text, "QUEUE-SECRET");
   assert.equal(storage[`yoloWorkflow:${encodeURIComponent(pageId)}`].objective, "WORKFLOW-SECRET");
 });
 
+test("imports reject replay, changed files, and concurrent portable storage changes", async () => {
+  const { invoke, storage } = loadDataBackground();
+  storage.yoloGlobal = { queueLimitPerHour: 9 };
+
+  const value = backup();
+  let token = await preview(invoke, value);
+  const changed = backup({ globalSettings: { queueLimitPerHour: 31 } });
+  let response = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(changed), previewToken: token });
+  assert.equal(response.code, "data.backup_changed");
+
+  token = await preview(invoke, value);
+  storage.yoloGlobal = { queueLimitPerHour: 10 };
+  response = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(value), previewToken: token });
+  assert.equal(response.code, "data.storage_conflict");
+
+  response = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(value), previewToken: token });
+  assert.equal(response.code, "data.preview_expired");
+});
+
 test("failed imports restore previous portable storage", async () => {
   const { invoke, storage, failStorageWrite } = loadDataBackground();
   storage.yoloGlobal = { queueLimitPerHour: 9 };
+  const value = backup();
+  const previewToken = await preview(invoke, value);
   failStorageWrite();
-  const response = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(backup()) });
+  const response = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(value), previewToken });
   assert.equal(response.ok, false);
   assert.equal(storage.yoloGlobal.queueLimitPerHour, 9);
   assert.equal(storage[`yoloPage:${encodeURIComponent(pageId)}`], undefined);
