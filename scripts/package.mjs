@@ -7,7 +7,6 @@ export const RUNTIME_FILES = Object.freeze([
   "background-wrapper.js",
   "tab-supervisor.js",
   "background.js",
-  "counter-background.js",
   "data-background.js",
   "portability.js",
   "config.js",
