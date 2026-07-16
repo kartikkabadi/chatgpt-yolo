@@ -121,3 +121,14 @@ test("reads the latest ChatGPT assistant response for workflow markers", () => {
   assert.match(Platforms.latestAssistantText(adapter, documentLike), /latest response/);
   assert.match(Platforms.latestAssistantText(adapter, documentLike), /YOLO:CONTINUE/);
 });
+
+test("reads the latest ChatGPT user prompt for workflow ownership", () => {
+  const first = { textContent: "manual prompt" };
+  const second = { textContent: "workflow prompt" };
+  const documentLike = {
+    querySelectorAll(selector) {
+      return selector === "user" ? [first, second] : [];
+    }
+  };
+  assert.equal(Platforms.latestUserText({ userSelectors: ["user"] }, documentLike), "workflow prompt");
+});

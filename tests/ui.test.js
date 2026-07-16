@@ -115,3 +115,20 @@ test("content exposes only a narrow lifecycle-safe command API", () => {
   assert.match(source, /runAction: runManualAction/);
   assert.match(source, /state\.clients\.clear\(\)/);
 });
+
+test("command workflow runtime enforces ownership, CAS, and a single runner", () => {
+  const runtime = read("command-runtime.js");
+  assert.match(runtime, /expectedRevision: normalized\.revision/);
+  assert.match(runtime, /YOLO_WORKFLOW_CLAIM/);
+  assert.match(runtime, /latestUserFingerprint\(\) !== workflow\.promptFingerprint/);
+  assert.match(runtime, /lastCompletedItemId === workflow\.pendingItemId/);
+  assert.doesNotMatch(runtime, /lastSentAt >= workflow\.lastPromptAt/);
+});
+
+test("command palette preserves failed direct commands and exposes feedback", () => {
+  const source = read("command-ui.js");
+  assert.match(source, /role", "status"/);
+  assert.match(source, /originalComposerText/);
+  assert.match(source, /Commands\.requiresArgs\(entry\.name\)/);
+  assert.match(source, /\["paused", "blocked"\]\.includes\(currentWorkflow\.status\)/);
+});

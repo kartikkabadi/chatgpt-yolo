@@ -48,6 +48,8 @@
       .slash { color: #a1a1aa; font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; }
       .search { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: inherit; font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       .search::placeholder { color: #71717a; }
+      .feedback { display: none; padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,.08); color: #fca5a5; font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .feedback[data-visible="true"] { display: block; }
       .escape { border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 2px 6px; color: #71717a; font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
       .list { max-height: 390px; overflow: auto; padding: 7px; }
       .empty { padding: 18px; color: #a1a1aa; text-align: center; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -103,6 +105,11 @@
     searchRow.appendChild(search);
     searchRow.appendChild(element("span", "escape", "esc"));
     palette.appendChild(searchRow);
+    const feedback = element("div", "feedback");
+    feedback.setAttribute("role", "status");
+    feedback.setAttribute("aria-live", "polite");
+    feedback.dataset.visible = "false";
+    palette.appendChild(feedback);
     const list = element("div", "list");
     list.setAttribute("role", "listbox");
     palette.appendChild(list);
@@ -191,6 +198,7 @@
         const button = element("button", "item");
         button.type = "button";
         button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", String(index === selectedIndex));
         button.dataset.active = String(index === selectedIndex);
         const command = element("span", "command", `/${entry.name}`);
         const meta = element("span", "meta");
@@ -211,6 +219,8 @@
 
     function resetPalette() {
       argumentCommand = null;
+      feedback.textContent = "";
+      feedback.dataset.visible = "false";
       search.value = "";
       search.placeholder = "Type a command";
       selectedIndex = 0;
@@ -242,12 +252,32 @@
       if (restoreComposer) callbacks.getComposer()?.focus?.();
     }
 
-    async function run(entry, args = "") {
+    function showFeedback(message) {
+      feedback.textContent = String(message || "");
+      feedback.dataset.visible = String(Boolean(message));
+    }
+
+    async function run(entry, args = "", { originalComposerText = "" } = {}) {
+      if (!entry || search.disabled) return { ok: false };
       search.disabled = true;
+      showFeedback("");
       try {
         const result = await callbacks.execute(entry.name, args);
-        if (result?.keepOpen) return;
-        closePalette({ restoreComposer: result?.focusComposer !== false });
+        if (!result?.ok) {
+          showFeedback(result?.reason || `/${entry.name} could not run`);
+          if (originalComposerText) {
+            callbacks.setComposerText(originalComposerText);
+            callbacks.getComposer()?.focus?.();
+          }
+          return result || { ok: false };
+        }
+        if (!result.keepOpen) closePalette({ restoreComposer: result.focusComposer !== false });
+        return result;
+      } catch (error) {
+        const reason = String(error?.message || error || `/${entry.name} failed`);
+        showFeedback(reason);
+        if (originalComposerText) callbacks.setComposerText(originalComposerText);
+        return { ok: false, reason };
       } finally {
         search.disabled = false;
       }
@@ -255,7 +285,7 @@
 
     function select(entry) {
       if (!entry) return;
-      if (entry.args && !argumentCommand) {
+      if (Commands.requiresArgs(entry.name) && !argumentCommand) {
         argumentCommand = entry;
         search.value = "";
         search.placeholder = entry.args;
@@ -289,8 +319,8 @@
       workflowTitle.textContent = currentWorkflow.objective;
       const waiting = currentWorkflow.pendingItemId ? "queued" : (currentWorkflow.awaitingResponse ? "waiting for response" : currentWorkflow.status);
       workflowSub.textContent = `${waiting} · iteration ${currentWorkflow.iteration}/${currentWorkflow.maxIterations}${currentWorkflow.reason ? ` · ${currentWorkflow.reason}` : ""}`;
-      pauseButton.textContent = currentWorkflow.status === "paused" ? "Resume" : "Pause";
-      pauseButton.disabled = !["running", "paused"].includes(currentWorkflow.status);
+      pauseButton.textContent = ["paused", "blocked"].includes(currentWorkflow.status) ? "Resume" : "Pause";
+      pauseButton.disabled = !["running", "paused", "blocked"].includes(currentWorkflow.status);
       editButton.disabled = !["running", "paused", "blocked"].includes(currentWorkflow.status);
       position();
     }
@@ -318,14 +348,22 @@
           if (invocation) {
             event.preventDefault();
             event.stopImmediatePropagation();
+            const originalComposerText = composerText;
             callbacks.setComposerText("");
-            run(invocation.command, invocation.args);
+            run(invocation.command, invocation.args, { originalComposerText });
             return;
           }
         }
       }
 
-      if (!open) return;
+      if (!open) {
+        if (event.key === "Escape" && status.dataset.open === "true") {
+          event.preventDefault();
+          status.dataset.open = "false";
+          callbacks.getComposer()?.focus?.();
+        }
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         closePalette();

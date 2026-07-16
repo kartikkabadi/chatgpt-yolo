@@ -25,6 +25,8 @@ test("creates normalized persistent goal and loop workflows", () => {
   assert.equal(goal.workflow.kind, "goal");
   assert.equal(goal.workflow.status, "running");
   assert.equal(goal.workflow.lastAssistantFingerprint, "old");
+  assert.equal(goal.workflow.maxIterations, Commands.MAX_ITERATIONS);
+  assert.equal(goal.workflow.revision, 0);
   assert.match(Commands.workflowPrompt(goal.workflow, "initial"), /\[YOLO:CONTINUE\]/);
 
   const loop = Commands.startWorkflow("loop", "4 review again", { at: 1000 });
@@ -36,6 +38,7 @@ test("creates normalized persistent goal and loop workflows", () => {
 test("goal response markers are explicit and case-insensitive", () => {
   assert.equal(Commands.evaluateResponse("done\n[YOLO:DONE]"), "done");
   assert.equal(Commands.evaluateResponse("[yolo:blocked]"), "blocked");
+  assert.equal(Commands.evaluateResponse("[YOLO:DONE]\nbut actually keep going"), "missing");
   assert.equal(Commands.evaluateResponse("no marker"), "missing");
 });
 
@@ -58,4 +61,23 @@ test("workflow normalization fails closed for malformed state", () => {
 test("fingerprints are stable and content-sensitive", () => {
   assert.equal(Commands.fingerprint("hello   world"), Commands.fingerprint("hello world"));
   assert.notEqual(Commands.fingerprint("hello"), Commands.fingerprint("world"));
+});
+
+test("workflow revisions and runner leases normalize safely", () => {
+  const workflow = Commands.normalizeWorkflow({
+    revision: 7,
+    kind: "goal",
+    objective: "ship",
+    status: "running",
+    runnerId: "tab-a",
+    runnerExpiresAt: 5000,
+    promptFingerprint: "prompt"
+  }, 1000);
+  assert.equal(workflow.revision, 7);
+  assert.equal(workflow.runnerId, "tab-a");
+  assert.equal(workflow.promptFingerprint, "prompt");
+
+  const paused = Commands.setWorkflowStatus(workflow, "paused", "manual", 2000);
+  assert.equal(paused.runnerId, "");
+  assert.equal(paused.runnerExpiresAt, 0);
 });

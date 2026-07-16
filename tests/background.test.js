@@ -181,6 +181,7 @@ test("background persists sender-bound command workflow state", async () => {
   const started = await invoke({
     type: "YOLO_WORKFLOW_SET",
     pageId,
+    expectedRevision: 0,
     workflow: { kind: "goal", objective: "Ship it", status: "running", maxIterations: 5 }
   }, sender);
   assert.equal(started.ok, true);
@@ -197,6 +198,27 @@ test("background persists sender-bound command workflow state", async () => {
   assert.equal(mismatch.ok, false);
   assert.equal(mismatch.code, "workflow.page_mismatch");
 
-  const cleared = await invoke({ type: "YOLO_WORKFLOW_CLEAR", pageId }, sender);
+  const stale = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "stale overwrite", status: "running" }
+  }, sender);
+  assert.equal(stale.ok, false);
+  assert.equal(stale.code, "workflow.conflict");
+
+  const claimed = await invoke({ type: "YOLO_WORKFLOW_CLAIM", pageId, ownerId: "tab-a" }, sender);
+  assert.equal(claimed.ok, true);
+  assert.equal(claimed.workflow.runnerId, "tab-a");
+  const competing = await invoke({ type: "YOLO_WORKFLOW_CLAIM", pageId, ownerId: "tab-b" }, sender);
+  assert.equal(competing.ok, false);
+  assert.equal(competing.code, "workflow.busy");
+
+  const cleared = await invoke({
+    type: "YOLO_WORKFLOW_CLEAR",
+    pageId,
+    expectedRevision: claimed.workflow.revision
+  }, sender);
   assert.equal(cleared.workflow.status, "idle");
+  assert.equal(cleared.workflow.revision, claimed.workflow.revision + 1);
 });

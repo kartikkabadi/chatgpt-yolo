@@ -308,3 +308,24 @@ test("retrying one failed item does not clear a failure pause while another fail
   assert.equal(retried.state.paused, true);
   assert.equal(retried.state.pauseReason, "failure");
 });
+
+test("queue completion records exact command workflow identity", () => {
+  let state = Queue.addItem(Queue.freshState(1000), {
+    text: "workflow prompt",
+    source: "workflow:goal",
+    sourceId: "goal-1"
+  }, { id: "workflow-item", at: 1001 }).state;
+  const claim = Queue.claimNext(state, "owner", { at: 1100 });
+  const completed = Queue.completeClaim(claim.state, "workflow-item", claim.item.claimToken, 1200);
+  assert.equal(completed.ok, true);
+  assert.equal(completed.state.lastCompletedItemId, "workflow-item");
+  assert.equal(completed.state.lastCompletedSource, "workflow:goal");
+  assert.equal(completed.state.lastCompletedSourceId, "goal-1");
+
+  const duplicate = Queue.completeClaim(completed.state, "workflow-item", claim.item.claimToken, 1201);
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.alreadyCompleted, true);
+  const unknown = Queue.completeClaim(completed.state, "other-item", "missing", 1202);
+  assert.equal(unknown.ok, false);
+  assert.equal(unknown.code, "queue.not_found");
+});

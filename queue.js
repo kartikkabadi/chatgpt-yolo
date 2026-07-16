@@ -29,6 +29,9 @@
       items: [],
       events: [],
       lastSentAt: 0,
+      lastCompletedItemId: "",
+      lastCompletedSource: "",
+      lastCompletedSourceId: "",
       updatedAt: at
     };
   }
@@ -147,6 +150,9 @@
         .sort((a, b) => a.at - b.at)
         .slice(-MAX_EVENTS),
       lastSentAt: Math.max(0, finite(source.lastSentAt, fallback.lastSentAt)),
+      lastCompletedItemId: cleanText(source.lastCompletedItemId, 180),
+      lastCompletedSource: cleanText(source.lastCompletedSource, 120),
+      lastCompletedSourceId: cleanText(source.lastCompletedSourceId, 180),
       updatedAt: finite(source.updatedAt, at)
     };
   }
@@ -382,12 +388,18 @@
   function completeClaim(rawState, itemId, claimToken, at = Date.now()) {
     let state = normalizeState(rawState, at);
     const item = state.items.find((entry) => entry.id === itemId);
-    if (!item) return { state, ok: true, alreadyCompleted: true };
+    if (!item) {
+      if (state.lastCompletedItemId === itemId) return { state, ok: true, alreadyCompleted: true };
+      return { state, ok: false, reason: "Queue item was not found", code: "queue.not_found" };
+    }
     if (item.state !== "sending" || item.claimToken !== claimToken) {
       return { state, ok: false, reason: "Queue claim is no longer valid", code: "queue.claim_invalid" };
     }
     state.items = state.items.filter((entry) => entry.id !== itemId);
     state.lastSentAt = at;
+    state.lastCompletedItemId = item.id;
+    state.lastCompletedSource = item.source;
+    state.lastCompletedSourceId = item.sourceId;
     state.updatedAt = at;
     state = appendEvent(state, { code: "queue.sent", message: "Queued message sent", level: "success" }, at);
     return { state, ok: true, item };

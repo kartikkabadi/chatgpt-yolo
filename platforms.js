@@ -46,6 +46,11 @@
         "[data-message-author-role='assistant']",
         "article[data-testid^='conversation-turn'] [data-message-author-role='assistant']",
         "main article [data-message-author-role='assistant']"
+      ],
+      userSelectors: [
+        "[data-message-author-role='user']",
+        "article[data-testid^='conversation-turn'] [data-message-author-role='user']",
+        "main article [data-message-author-role='user']"
       ]
     })
   });
@@ -146,11 +151,18 @@
     }) || null;
   }
 
-  function latestAssistantText(adapter, documentLike = document) {
-    if (!adapter) return "";
-    const selectors = Array.isArray(adapter.assistantSelectors) ? adapter.assistantSelectors : [];
-    const candidates = uniqueElements(selectors.flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+  function latestMessageText(selectors, documentLike = document) {
+    const candidates = uniqueElements((Array.isArray(selectors) ? selectors : [])
+      .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
     return normalizedText(candidates.at(-1));
+  }
+
+  function latestAssistantText(adapter, documentLike = document) {
+    return adapter ? latestMessageText(adapter.assistantSelectors, documentLike) : "";
+  }
+
+  function latestUserText(adapter, documentLike = document) {
+    return adapter ? latestMessageText(adapter.userSelectors, documentLike) : "";
   }
 
   function isTextControl(element) {
@@ -316,6 +328,7 @@
     isGenerating,
     findErrorState,
     latestAssistantText,
+    latestUserText,
     composerText,
     setComposerValue,
     submitComposer,

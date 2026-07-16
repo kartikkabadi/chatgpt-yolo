@@ -10,7 +10,7 @@
   const DEFAULT_MAX_ITERATIONS = 12;
   const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
-  const MARKER_RE = /\[YOLO:(CONTINUE|DONE|BLOCKED)\]/i;
+  const MARKER_RE = /\[YOLO:(CONTINUE|DONE|BLOCKED)\]\s*$/i;
 
   const COMMANDS = Object.freeze([
     Object.freeze({ name: "goal", title: "Goal", description: "Start a persistent objective that continues until done, blocked, paused, or capped.", args: "objective", group: "Workflows" }),
@@ -97,6 +97,7 @@
   function freshWorkflow(at = Date.now()) {
     return {
       version: 1,
+      revision: 0,
       id: "",
       kind: "",
       objective: "",
@@ -108,6 +109,9 @@
       sawGeneration: false,
       baselineFingerprint: "",
       lastAssistantFingerprint: "",
+      promptFingerprint: "",
+      runnerId: "",
+      runnerExpiresAt: 0,
       lastPromptAt: 0,
       lastResponseAt: 0,
       reason: "",
@@ -122,9 +126,18 @@
     const kind = WORKFLOW_KINDS.has(raw.kind) ? raw.kind : "";
     const objective = cleanText(raw.objective);
     const status = WORKFLOW_STATUSES.has(raw.status) ? raw.status : (kind && objective ? "paused" : "idle");
-    if (!kind || !objective || status === "idle") return fallback;
+    const revision = Math.max(0, Math.round(finite(raw.revision, 0)));
+    if (!kind || !objective || status === "idle") {
+      return {
+        ...fallback,
+        revision,
+        createdAt: finite(raw.createdAt, fallback.createdAt),
+        updatedAt: finite(raw.updatedAt, at)
+      };
+    }
     return {
       version: 1,
+      revision,
       id: cleanText(raw.id, 180) || makeId(kind),
       kind,
       objective,
@@ -136,6 +149,9 @@
       sawGeneration: Boolean(raw.sawGeneration),
       baselineFingerprint: cleanText(raw.baselineFingerprint, 180),
       lastAssistantFingerprint: cleanText(raw.lastAssistantFingerprint, 180),
+      promptFingerprint: cleanText(raw.promptFingerprint, 180),
+      runnerId: status === "running" ? cleanText(raw.runnerId, 220) : "",
+      runnerExpiresAt: status === "running" ? Math.max(0, finite(raw.runnerExpiresAt, 0)) : 0,
       lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),
       lastResponseAt: Math.max(0, finite(raw.lastResponseAt, 0)),
       reason: cleanText(raw.reason, 500),
@@ -146,7 +162,7 @@
 
   function startWorkflow(kind, input, { at = Date.now(), baselineFingerprint = "" } = {}) {
     if (!WORKFLOW_KINDS.has(kind)) return { ok: false, reason: "Unsupported workflow type" };
-    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: DEFAULT_MAX_ITERATIONS };
+    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: MAX_ITERATIONS };
     if (!parsed.objective) return { ok: false, reason: `/${kind} requires an objective` };
     return {
       ok: true,
@@ -175,6 +191,8 @@
       workflow.pendingItemId = "";
       workflow.awaitingResponse = false;
       workflow.sawGeneration = false;
+      workflow.runnerId = "";
+      workflow.runnerExpiresAt = 0;
     }
     return workflow;
   }

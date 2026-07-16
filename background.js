@@ -9,6 +9,8 @@ const queueLock = { current: Promise.resolve() };
 const templateLock = { current: Promise.resolve() };
 const workflowLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
+const WORKFLOW_LEASE_MS = 15 * 1000;
+const WORKFLOW_RENEW_WINDOW_MS = 5 * 1000;
 
 const storageGet = (keys) => new Promise((resolve, reject) => {
   chrome.storage.local.get(keys, (items) => {
@@ -172,20 +174,67 @@ async function handleWorkflowMessage(message, sender) {
 
   return withLock(workflowLock, async () => {
     const key = Config.workflowKey(pageId);
-    if (message.type === "YOLO_WORKFLOW_GET") {
-      const stored = await storageGet([key]);
-      return { ok: true, workflow: Commands.normalizeWorkflow(stored[key]) };
-    }
+    const stored = await storageGet([key]);
+    const current = Commands.normalizeWorkflow(stored[key]);
+
+    if (message.type === "YOLO_WORKFLOW_GET") return { ok: true, workflow: current };
+
     if (message.type === "YOLO_WORKFLOW_SET") {
-      const workflow = Commands.normalizeWorkflow(message.workflow);
+      const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+      if (expectedRevision !== current.revision) {
+        return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
+      }
+      const workflow = Commands.normalizeWorkflow({ ...message.workflow, revision: current.revision + 1 });
       await storageSet({ [key]: workflow });
       return { ok: true, workflow };
     }
+
     if (message.type === "YOLO_WORKFLOW_CLEAR") {
-      const workflow = Commands.freshWorkflow();
+      const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+      if (expectedRevision !== current.revision) {
+        return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
+      }
+      const workflow = Commands.normalizeWorkflow({ ...Commands.freshWorkflow(), revision: current.revision + 1 });
       await storageSet({ [key]: workflow });
       return { ok: true, workflow };
     }
+
+    if (message.type === "YOLO_WORKFLOW_CLAIM") {
+      if (current.status !== "running") return { ok: false, reason: "Workflow is not running", code: "workflow.not_running", workflow: current };
+      const ownerId = String(message.ownerId || "").trim().slice(0, 220);
+      if (!ownerId) return { ok: false, reason: "Workflow runner identifier is required", code: "workflow.owner_invalid", workflow: current };
+      const timestamp = Date.now();
+      if (current.runnerId && current.runnerId !== ownerId && current.runnerExpiresAt > timestamp) {
+        return { ok: false, reason: "Workflow is active in another tab", code: "workflow.busy", workflow: current };
+      }
+      if (current.runnerId === ownerId && current.runnerExpiresAt > timestamp + WORKFLOW_RENEW_WINDOW_MS) {
+        return { ok: true, workflow: current, renewed: false };
+      }
+      const workflow = Commands.normalizeWorkflow({
+        ...current,
+        revision: current.revision + 1,
+        runnerId: ownerId,
+        runnerExpiresAt: timestamp + WORKFLOW_LEASE_MS,
+        updatedAt: timestamp
+      });
+      await storageSet({ [key]: workflow });
+      return { ok: true, workflow, renewed: true };
+    }
+
+    if (message.type === "YOLO_WORKFLOW_RELEASE") {
+      const ownerId = String(message.ownerId || "").trim().slice(0, 220);
+      if (current.runnerId !== ownerId) return { ok: true, workflow: current, released: false };
+      const workflow = Commands.normalizeWorkflow({
+        ...current,
+        revision: current.revision + 1,
+        runnerId: "",
+        runnerExpiresAt: 0,
+        updatedAt: Date.now()
+      });
+      await storageSet({ [key]: workflow });
+      return { ok: true, workflow, released: true };
+    }
+
     return { ok: false, reason: "Unknown workflow operation" };
   });
 }
