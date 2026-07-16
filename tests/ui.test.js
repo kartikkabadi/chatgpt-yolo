@@ -82,3 +82,46 @@ test("queue failures forward explicit delivery ambiguity", () => {
   assert.match(source, /submitted\.code, deliveryAmbiguous/);
   assert.match(source, /"queue\.exception", deliveryAmbiguous/);
 });
+
+test("premium popup keeps one dominant action and progressive disclosure", () => {
+  const popup = read("popup.html");
+  assert.equal((popup.match(/class="primary-button"/g) || []).length, 1);
+  assert.match(popup, /class="brand-lockup"/);
+  assert.match(popup, /class="compose-panel"/);
+  assert.match(popup, /class="queue-panel"/);
+  assert.match(popup, /class="activity-panel"/);
+  assert.match(popup, /id="advanced"[^>]*aria-label="Open Advanced settings"/);
+});
+
+test("advanced settings has searchable persistent section navigation", () => {
+  const options = read("options.html");
+  const links = [...options.matchAll(/data-section-link="([^"]+)"/g)].map((match) => match[1]);
+  const sections = [...options.matchAll(/id="([^"]+)"[^>]*data-settings-section/g)].map((match) => match[1]);
+  assert.deepEqual(links, ["overview", "queue", "approvals", "recovery", "nudges", "refresh", "safety", "templates", "data"]);
+  assert.deepEqual(sections, links);
+  assert.match(options, /id="settingsSearch"[^>]*type="search"/);
+  assert.match(options, /id="searchEmpty"/);
+  assert.match(options, /class="workspace-header"/);
+  assert.match(options, /<script src="options-ui\.js"><\/script>/);
+});
+
+test("premium visual systems include focus, reduced motion, and responsive layouts", () => {
+  const popupCss = read("styles.css");
+  const optionsCss = read("options.css");
+  for (const css of [popupCss, optionsCss]) {
+    assert.match(css, /:focus-visible/);
+    assert.match(css, /prefers-reduced-motion/);
+    assert.match(css, /--surface:/);
+  }
+  assert.match(optionsCss, /@media \(max-width: 680px\)/);
+  assert.match(optionsCss, /position: sticky/);
+});
+
+test("settings controller provides filtering, active navigation, and save-state mapping", () => {
+  const source = read("options-ui.js");
+  assert.match(source, /sectionMatches/);
+  assert.match(source, /aria-current/);
+  assert.match(source, /IntersectionObserver/);
+  assert.match(source, /MutationObserver/);
+  assert.match(source, /saveStateFor/);
+});
