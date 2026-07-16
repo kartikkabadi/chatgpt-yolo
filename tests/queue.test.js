@@ -308,3 +308,51 @@ test("retrying one failed item does not clear a failure pause while another fail
   assert.equal(retried.state.paused, true);
   assert.equal(retried.state.pauseReason, "failure");
 });
+
+test("queue completion records exact command workflow identity", () => {
+  let state = Queue.addItem(Queue.freshState(1000), {
+    text: "workflow prompt",
+    source: "workflow:goal",
+    sourceId: "goal-1"
+  }, { id: "workflow-item", at: 1001 }).state;
+  const claim = Queue.claimNext(state, "owner", { at: 1100 });
+  const completed = Queue.completeClaim(claim.state, "workflow-item", claim.item.claimToken, 1200);
+  assert.equal(completed.ok, true);
+  assert.equal(completed.state.lastCompletedItemId, "workflow-item");
+  assert.equal(completed.state.lastCompletedSource, "workflow:goal");
+  assert.equal(completed.state.lastCompletedSourceId, "goal-1");
+
+  const duplicate = Queue.completeClaim(completed.state, "workflow-item", claim.item.claimToken, 1201);
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.alreadyCompleted, true);
+  const unknown = Queue.completeClaim(completed.state, "other-item", "missing", 1202);
+  assert.equal(unknown.ok, false);
+  assert.equal(unknown.code, "queue.not_found");
+});
+
+test("recent completion identity remains available after later sends", () => {
+  let state = Queue.addItem(Queue.freshState(1000), {
+    text: "first",
+    source: "workflow:goal",
+    sourceId: "goal-1"
+  }, { id: "first", at: 1001 }).state;
+  state = Queue.addItem(state, { text: "second" }, { id: "second", at: 1002 }).state;
+  const firstClaim = Queue.claimNext(state, "owner", { at: 1100 });
+  state = Queue.completeClaim(firstClaim.state, "first", firstClaim.item.claimToken, 1200).state;
+  const secondClaim = Queue.claimNext(state, "owner", { at: 1300 });
+  state = Queue.completeClaim(secondClaim.state, "second", secondClaim.item.claimToken, 1400).state;
+  assert.equal(state.completions.some((entry) => entry.itemId === "first" && entry.sourceId === "goal-1"), true);
+});
+
+test("completion identity history remains bounded", () => {
+  let state = Queue.freshState(1000);
+  for (let index = 0; index < 30; index += 1) {
+    const id = `completion-${index}`;
+    state = Queue.addItem(state, { text: id }, { id, at: 1100 + index * 10 }).state;
+    const claim = Queue.claimNext(state, "owner", { at: 1101 + index * 10 });
+    state = Queue.completeClaim(claim.state, id, claim.item.claimToken, 1102 + index * 10).state;
+  }
+  assert.equal(state.completions.length, 20);
+  assert.equal(state.completions[0].itemId, "completion-10");
+  assert.equal(state.completions.at(-1).itemId, "completion-29");
+});

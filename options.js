@@ -51,7 +51,7 @@
     try {
       chrome.scripting.executeScript({
         target: { tabId: sourceTabId },
-        files: ["config.js", "platforms.js", "content.js"]
+        files: ["config.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]
       }, () => resolve(!chrome.runtime.lastError));
     } catch {
       resolve(false);
@@ -83,7 +83,9 @@
   function setBusy(nextBusy) {
     busy = nextBusy;
     for (const control of controls) control.disabled = nextBusy || !contentState;
-    for (const button of document.querySelectorAll("button")) button.disabled = nextBusy;
+    for (const button of document.querySelectorAll("button:not([data-section-link]):not(#clearSearch)")) {
+      button.disabled = nextBusy;
+    }
     els.resetDefaults.disabled = nextBusy || !contentState;
     els.resetRuntime.disabled = nextBusy || !contentState;
   }
@@ -164,7 +166,7 @@
 
   function setTemplateStatus(message = "", error = false) {
     els.templateStatus.textContent = message;
-    els.templateStatus.style.color = error ? "var(--danger)" : "var(--muted)";
+    els.templateStatus.dataset.level = error ? "error" : "info";
   }
 
   function compact(text, max = 180) {
@@ -174,6 +176,13 @@
 
   function renderTemplates() {
     els.templateList.replaceChildren();
+    if (!templates.length) {
+      const empty = document.createElement("li");
+      empty.className = "template-empty";
+      empty.textContent = "No templates yet. Create one from the editor.";
+      els.templateList.append(empty);
+      return;
+    }
     for (const template of templates) {
       const li = document.createElement("li");
       const copy = document.createElement("div");
@@ -245,6 +254,7 @@
   }
 
   async function removeTemplate(templateId) {
+    if (!window.confirm("Delete this template? This cannot be undone.")) return;
     setBusy(true);
     try {
       const response = await sendBackground({ type: "YOLO_TEMPLATE_REMOVE", templateId });
@@ -252,6 +262,7 @@
         templates = response.templates;
         if (editingTemplateId === templateId) cancelTemplateEdit();
         renderTemplates();
+        setTemplateStatus("Template deleted.");
       } else setTemplateStatus(response?.reason || "Could not delete template.", true);
     } finally {
       setBusy(false);
@@ -259,6 +270,7 @@
   }
 
   async function resetTemplates() {
+    if (!window.confirm("Replace all templates with the built-in defaults?")) return;
     setBusy(true);
     try {
       const response = await sendBackground({ type: "YOLO_TEMPLATES_RESET" });
@@ -267,6 +279,8 @@
         cancelTemplateEdit();
         renderTemplates();
         setTemplateStatus("Default templates restored.");
+      } else {
+        setTemplateStatus(response?.reason || "Could not restore default templates.", true);
       }
     } finally {
       setBusy(false);
@@ -309,6 +323,7 @@
   }
 
   els.resetDefaults.addEventListener("click", () => {
+    if (!window.confirm("Restore every automation setting to its default value?")) return;
     const next = Config.normalizeSettings({ ...Config.DEFAULT_SETTINGS, enabled: settings.enabled });
     renderControls(next);
     saveSettings(next);

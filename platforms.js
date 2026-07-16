@@ -41,6 +41,16 @@
         ".text-red-600",
         ".border-red-500",
         ".border-red-600"
+      ],
+      assistantSelectors: [
+        "[data-message-author-role='assistant']",
+        "article[data-testid^='conversation-turn'] [data-message-author-role='assistant']",
+        "main article [data-message-author-role='assistant']"
+      ],
+      userSelectors: [
+        "[data-message-author-role='user']",
+        "article[data-testid^='conversation-turn'] [data-message-author-role='user']",
+        "main article [data-message-author-role='user']"
       ]
     })
   });
@@ -139,6 +149,29 @@
       const context = normalizedText(button.closest?.("[role='alert']") || button.parentElement || button);
       return /\bretry\b/i.test(buttonText(button)) && /\b(error|went wrong|try again|retry|failed)\b/i.test(context);
     }) || null;
+  }
+
+  function normalizedMultilineText(element) {
+    return String(element?.innerText || element?.textContent || "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/[^\S\n]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function latestMessageText(selectors, documentLike = document) {
+    const candidates = uniqueElements((Array.isArray(selectors) ? selectors : [])
+      .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    return normalizedMultilineText(candidates.at(-1));
+  }
+
+  function latestAssistantText(adapter, documentLike = document) {
+    return adapter ? latestMessageText(adapter.assistantSelectors, documentLike) : "";
+  }
+
+  function latestUserText(adapter, documentLike = document) {
+    return adapter ? latestMessageText(adapter.userSelectors, documentLike) : "";
   }
 
   function isTextControl(element) {
@@ -303,6 +336,8 @@
     findSendButton,
     isGenerating,
     findErrorState,
+    latestAssistantText,
+    latestUserText,
     composerText,
     setComposerValue,
     submitComposer,

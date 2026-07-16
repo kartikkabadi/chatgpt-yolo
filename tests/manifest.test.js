@@ -25,7 +25,14 @@ test("every manifest entry point exists", () => {
 });
 
 test("content scripts load shared configuration before the engine", () => {
-  assert.deepEqual(manifest.content_scripts[0].js, ["config.js", "platforms.js", "content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, [
+    "config.js",
+    "platforms.js",
+    "commands.js",
+    "command-ui.js",
+    "content.js",
+    "command-runtime.js"
+  ]);
 });
 
 test("manifest grants host access only to ChatGPT", () => {
@@ -34,4 +41,11 @@ test("manifest grants host access only to ChatGPT", () => {
   assert.deepEqual(manifest.content_scripts[0].matches, hosts);
   assert.doesNotMatch(manifest.description, /grok/i);
   assert.doesNotMatch(pkg.description, /grok/i);
+});
+
+test("public v1 metadata and permissions stay intentionally narrow", () => {
+  assert.equal(manifest.version, "1.0.0");
+  assert.equal(manifest.homepage_url, "https://github.com/kartikkabadi/chatgpt-yolo");
+  assert.deepEqual(manifest.permissions, ["scripting", "storage"]);
+  assert.equal(manifest.minimum_chrome_version, "114");
 });

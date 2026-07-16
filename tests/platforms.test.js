@@ -108,3 +108,26 @@ test("a missing composer is not treated as delivery confirmation", () => {
   const documentLike = { querySelectorAll() { return []; } };
   assert.equal(Platforms.submissionObserved(adapter, documentLike), false);
 });
+
+test("reads the latest ChatGPT assistant response for workflow markers", () => {
+  const first = { textContent: "first response" };
+  const second = { textContent: "latest response\n[YOLO:CONTINUE]" };
+  const documentLike = {
+    querySelectorAll(selector) {
+      return selector === "assistant" ? [first, second] : [];
+    }
+  };
+  const adapter = { assistantSelectors: ["assistant"] };
+  assert.equal(Platforms.latestAssistantText(adapter, documentLike), "latest response\n[YOLO:CONTINUE]");
+});
+
+test("reads the latest ChatGPT user prompt for workflow ownership", () => {
+  const first = { textContent: "manual prompt" };
+  const second = { textContent: "workflow prompt" };
+  const documentLike = {
+    querySelectorAll(selector) {
+      return selector === "user" ? [first, second] : [];
+    }
+  };
+  assert.equal(Platforms.latestUserText({ userSelectors: ["user"] }, documentLike), "workflow prompt");
+});

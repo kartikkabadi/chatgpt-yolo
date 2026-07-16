@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Welcome to YOLO</title>
+    <link rel="stylesheet" href="onboarding.css">
+  </head>
+  <body>
+    <main class="welcome-shell">
+      <header>
+        <span class="mark" aria-hidden="true">Y</span>
+        <p class="eyebrow">LOCAL-FIRST CHATGPT AUTOMATION</p>
+        <h1>Long conversations, without babysitting them.</h1>
+        <p class="lead">Queue the next instruction, use Codex-style commands, or run a bounded goal. YOLO stays local and starts conservative.</p>
+      </header>
+
+      <section class="steps" aria-label="Getting started">
+        <article><span>1</span><div><h2>Open ChatGPT</h2><p>YOLO only runs on ChatGPT conversation pages.</p></div></article>
+        <article><span>2</span><div><h2>Keep a safe mode</h2><p>Safe and Balanced use conservative limits and approval rules.</p></div></article>
+        <article><span>3</span><div><h2>Queue or type /</h2><p>Add work from the popup, or type <code>/</code> in an empty ChatGPT composer.</p></div></article>
+      </section>
+
+      <aside>
+        <strong>Your data stays in the browser.</strong>
+        <p>No project server, analytics, account, API key, or remote code. YOLO stores queues and settings in local extension storage.</p>
+      </aside>
+
+      <div class="actions">
+        <button id="openChatGPT" class="primary" type="button">Open ChatGPT</button>
+        <button id="openSettings" type="button">Review settings</button>
+        <button id="finish" class="quiet" type="button">Done</button>
+      </div>
+
+      <footer>Independent open-source project · Not affiliated with OpenAI · MIT licensed</footer>
+    </main>
+    <script src="onboarding.js"></script>
+  </body>
+</html>

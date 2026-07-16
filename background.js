@@ -1,12 +1,17 @@
 "use strict";
 
-importScripts("config.js", "queue.js");
+importScripts("config.js", "queue.js", "commands.js");
 
 const Config = globalThis.YOLOConfig;
 const Queue = globalThis.YOLOQueue;
+const Commands = globalThis.YOLOCommands;
 const queueLock = { current: Promise.resolve() };
 const templateLock = { current: Promise.resolve() };
+const workflowLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
+const MAX_ACTIVE_WORKFLOWS = 25;
+const WORKFLOW_LEASE_MS = 15 * 1000;
+const WORKFLOW_RENEW_WINDOW_MS = 5 * 1000;
 
 const storageGet = (keys) => new Promise((resolve, reject) => {
   chrome.storage.local.get(keys, (items) => {
@@ -19,6 +24,13 @@ const storageSet = (items) => new Promise((resolve, reject) => {
   chrome.storage.local.set(items, () => {
     const error = chrome.runtime.lastError;
     if (error) reject(new Error(error.message || "Extension storage write failed"));
+    else resolve(true);
+  });
+});
+const storageRemove = (keys) => new Promise((resolve, reject) => {
+  chrome.storage.local.remove(keys, () => {
+    const error = chrome.runtime.lastError;
+    if (error) reject(new Error(error.message || "Extension storage remove failed"));
     else resolve(true);
   });
 });
@@ -43,31 +55,32 @@ async function readQueueState(pageId) {
   });
 }
 
+function ensureQueueCapacity(map, pageId, current) {
+  if (Object.prototype.hasOwnProperty.call(map, pageId) || Object.keys(map).length < MAX_CONVERSATION_QUEUES) return null;
+  const emptyQueues = Object.entries(map)
+    .filter(([, value]) => Queue.normalizeState(value).items.length === 0)
+    .sort((a, b) => (a[1]?.updatedAt || 0) - (b[1]?.updatedAt || 0));
+  while (Object.keys(map).length >= MAX_CONVERSATION_QUEUES && emptyQueues.length) {
+    delete map[emptyQueues.shift()[0]];
+  }
+  if (Object.keys(map).length < MAX_CONVERSATION_QUEUES) return null;
+  return {
+    ok: false,
+    reason: `Active queue limit of ${MAX_CONVERSATION_QUEUES} conversations reached; clear an old queue first`,
+    code: "queue.conversation_limit",
+    state: current,
+    summary: Queue.summary(current)
+  };
+}
+
 async function mutateQueue(pageId, mutator) {
   return withLock(queueLock, async () => {
     const map = await readQueueMap();
-    const existed = Object.prototype.hasOwnProperty.call(map, pageId);
     const current = Queue.normalizeState(map[pageId]);
     const result = await mutator(current);
     const state = Queue.normalizeState(result?.state || current);
-
-    if (!existed && Object.keys(map).length >= MAX_CONVERSATION_QUEUES) {
-      const emptyQueues = Object.entries(map)
-        .filter(([, value]) => Queue.normalizeState(value).items.length === 0)
-        .sort((a, b) => (a[1]?.updatedAt || 0) - (b[1]?.updatedAt || 0));
-      while (Object.keys(map).length >= MAX_CONVERSATION_QUEUES && emptyQueues.length) {
-        delete map[emptyQueues.shift()[0]];
-      }
-      if (Object.keys(map).length >= MAX_CONVERSATION_QUEUES) {
-        return {
-          ok: false,
-          reason: `Active queue limit of ${MAX_CONVERSATION_QUEUES} conversations reached; clear an old queue first`,
-          code: "queue.conversation_limit",
-          state: current,
-          summary: Queue.summary(current)
-        };
-      }
-    }
+    const capacityError = ensureQueueCapacity(map, pageId, current);
+    if (capacityError) return capacityError;
 
     delete map[pageId];
     map[pageId] = state;
@@ -104,9 +117,10 @@ function normalizeTemplate(raw, fallbackId = "") {
 async function readTemplates() {
   const stored = await storageGet([Config.STORAGE_KEYS.templates]);
   const raw = stored[Config.STORAGE_KEYS.templates];
-  const source = Array.isArray(raw) && raw.length ? raw : Config.DEFAULT_TEMPLATES;
-  const templates = source.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
-  return templates.length ? templates : Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));
+  if (Array.isArray(raw)) {
+    return raw.map((template) => normalizeTemplate(template)).filter(Boolean).slice(0, 50);
+  }
+  return Config.DEFAULT_TEMPLATES.map((template) => normalizeTemplate(template));
 }
 
 async function writeTemplates(templates) {
@@ -158,6 +172,148 @@ async function handleTemplateMessage(message) {
       return { ok: true, templates: await writeTemplates(ordered) };
     }
     return { ok: false, reason: "Unknown template operation" };
+  });
+}
+
+async function activeWorkflowLimitError(key, current, workflow) {
+  if (current.status !== "idle" || workflow.status === "idle") return null;
+  const allStored = await storageGet(null);
+  const activeCount = Object.entries(allStored)
+    .filter(([storedKey]) => storedKey.startsWith("yoloWorkflow:") && storedKey !== key)
+    .map(([, value]) => Commands.normalizeWorkflow(value))
+    .filter((entry) => entry.status !== "idle")
+    .length;
+  if (activeCount < MAX_ACTIVE_WORKFLOWS) return null;
+  return {
+    ok: false,
+    reason: `Active workflow limit of ${MAX_ACTIVE_WORKFLOWS} conversations reached; clear an old workflow first`,
+    code: "workflow.conversation_limit",
+    workflow: current
+  };
+}
+
+async function enqueueWorkflowPrompt(pageId, key, current, message) {
+  return withLock(queueLock, async () => {
+    const map = await readQueueMap();
+    const queueCurrent = Queue.normalizeState(map[pageId]);
+    const queueResult = Queue.addItem(queueCurrent, message.item, { front: true });
+    if (!queueResult.ok) return { ...queueResult, workflow: current, summary: Queue.summary(queueCurrent) };
+    const capacityError = ensureQueueCapacity(map, pageId, queueCurrent);
+    if (capacityError) return { ...capacityError, workflow: current };
+
+    const timestamp = Date.now();
+    const ownerId = String(message.ownerId || "").trim().slice(0, 220);
+    const workflow = Commands.normalizeWorkflow({
+      ...message.workflow,
+      revision: current.revision + 1,
+      pendingItemId: queueResult.item.id,
+      awaitingResponse: false,
+      sawGeneration: false,
+      responseCandidateFingerprint: "",
+      responseCandidateSince: 0,
+      runnerId: ownerId,
+      runnerExpiresAt: ownerId ? timestamp + WORKFLOW_LEASE_MS : 0,
+      updatedAt: timestamp
+    });
+    const limitError = await activeWorkflowLimitError(key, current, workflow);
+    if (limitError) return limitError;
+
+    delete map[pageId];
+    map[pageId] = queueResult.state;
+    await storageSet({
+      [Config.STORAGE_KEYS.queues]: map,
+      [key]: workflow
+    });
+    return {
+      ok: true,
+      workflow,
+      item: queueResult.item,
+      state: queueResult.state,
+      summary: Queue.summary(queueResult.state)
+    };
+  });
+}
+
+async function handleWorkflowMessage(message, sender) {
+  const pageId = message.pageId;
+  if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "workflow.page_invalid" };
+  if (!senderMatchesPageId(sender, pageId)) {
+    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "workflow.page_mismatch" };
+  }
+
+  return withLock(workflowLock, async () => {
+    const key = Config.workflowKey(pageId);
+    const stored = await storageGet([key]);
+    const current = Commands.normalizeWorkflow(stored[key]);
+
+    if (message.type === "YOLO_WORKFLOW_GET") return { ok: true, workflow: current };
+
+    if (message.type === "YOLO_WORKFLOW_SET") {
+      const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+      if (expectedRevision !== current.revision) {
+        return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
+      }
+      const workflow = Commands.normalizeWorkflow({ ...message.workflow, revision: current.revision + 1 });
+      const limitError = await activeWorkflowLimitError(key, current, workflow);
+      if (limitError) return limitError;
+      await storageSet({ [key]: workflow });
+      return { ok: true, workflow };
+    }
+
+    if (message.type === "YOLO_WORKFLOW_QUEUE_ADD") {
+      const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+      if (expectedRevision !== current.revision) {
+        return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
+      }
+      return enqueueWorkflowPrompt(pageId, key, current, message);
+    }
+
+    if (message.type === "YOLO_WORKFLOW_CLEAR") {
+      const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+      if (expectedRevision !== current.revision) {
+        return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
+      }
+      await storageRemove([key]);
+      return { ok: true, workflow: Commands.freshWorkflow() };
+    }
+
+    if (message.type === "YOLO_WORKFLOW_CLAIM") {
+      if (current.status !== "running") return { ok: false, reason: "Workflow is not running", code: "workflow.not_running", workflow: current };
+      const ownerId = String(message.ownerId || "").trim().slice(0, 220);
+      if (!ownerId) return { ok: false, reason: "Workflow runner identifier is required", code: "workflow.owner_invalid", workflow: current };
+      const timestamp = Date.now();
+      if (current.runnerId && current.runnerId !== ownerId && current.runnerExpiresAt > timestamp) {
+        return { ok: false, reason: "Workflow is active in another tab", code: "workflow.busy", workflow: current };
+      }
+      if (current.runnerId === ownerId && current.runnerExpiresAt > timestamp + WORKFLOW_RENEW_WINDOW_MS) {
+        return { ok: true, workflow: current, renewed: false };
+      }
+      const workflow = Commands.normalizeWorkflow({
+        ...current,
+        revision: current.revision + 1,
+        runnerId: ownerId,
+        runnerExpiresAt: timestamp + WORKFLOW_LEASE_MS,
+        updatedAt: timestamp
+      });
+      await storageSet({ [key]: workflow });
+      return { ok: true, workflow, renewed: true };
+    }
+
+    if (message.type === "YOLO_WORKFLOW_RELEASE") {
+      const ownerId = String(message.ownerId || "").trim().slice(0, 220);
+      if (current.runnerId !== ownerId) return { ok: true, workflow: current, released: false };
+      const workflow = Commands.normalizeWorkflow({
+        ...current,
+        revision: current.revision + 1,
+        runnerId: "",
+        runnerExpiresAt: 0,
+        updatedAt: Date.now()
+      });
+      await storageSet({ [key]: workflow });
+      return { ok: true, workflow, released: true };
+    }
+
+    return { ok: false, reason: "Unknown workflow operation" };
   });
 }
 
@@ -220,15 +376,20 @@ async function handleQueueMessage(message, sender) {
   return { ok: false, reason: "Unknown queue operation" };
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   withLock(templateLock, async () => writeTemplates(await readTemplates())).catch(() => {});
+  if (details?.reason === "install") {
+    chrome.tabs?.create?.({ url: chrome.runtime.getURL("onboarding.html") });
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type?.startsWith("YOLO_")) return false;
   const task = message.type.includes("TEMPLATE")
     ? handleTemplateMessage(message)
-    : handleQueueMessage(message, sender);
+    : message.type.includes("WORKFLOW")
+      ? handleWorkflowMessage(message, sender)
+      : handleQueueMessage(message, sender);
   Promise.resolve(task)
     .then((response) => sendResponse(response))
     .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));

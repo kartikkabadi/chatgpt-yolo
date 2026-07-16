@@ -1,12 +1,20 @@
 {
   "name": "chatgpt-yolo",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Reliable Chromium message queues and automation controls for ChatGPT.",
+  "license": "MIT",
+  "description": "Local-first Codex-style workflows, queues, and bounded Chromium automation for ChatGPT.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kartikkabadi/chatgpt-yolo.git"
+  },
+  "homepage": "https://github.com/kartikkabadi/chatgpt-yolo#readme",
+  "bugs": "https://github.com/kartikkabadi/chatgpt-yolo/issues",
   "scripts": {
-    "check": "node --check config.js && node --check queue.js && node --check background.js && node --check platforms.js && node --check content.js && node --check popup.js && node --check options.js",
+    "check": "node --check config.js && node --check queue.js && node --check commands.js && node --check background.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check onboarding.js && node --check scripts/package.mjs",
     "test": "node --test",
-    "validate": "npm run check && npm test"
+    "package": "node scripts/package.mjs",
+    "validate": "npm run check && npm test && node scripts/package.mjs --check"
   },
   "engines": {
     "node": ">=20"

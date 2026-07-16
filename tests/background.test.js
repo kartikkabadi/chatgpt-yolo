@@ -20,6 +20,10 @@ function loadBackground() {
       storage: {
         local: {
           get(keys, callback) {
+            if (keys === null) {
+              callback({ ...storage });
+              return;
+            }
             const list = Array.isArray(keys) ? keys : [keys];
             callback(Object.fromEntries(list.filter((key) => key in storage).map((key) => [key, storage[key]])));
           },
@@ -33,6 +37,11 @@ function loadBackground() {
             }
             Object.assign(storage, items);
             callback?.();
+          },
+          remove(keys, callback) {
+            const list = Array.isArray(keys) ? keys : [keys];
+            for (const key of list) delete storage[key];
+            callback?.();
           }
         }
       }
@@ -41,7 +50,7 @@ function loadBackground() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "queue.js", "background.js"]) {
+  for (const file of ["config.js", "queue.js", "commands.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   const invoke = (message, sender = {}) => new Promise((resolve) => {
@@ -172,4 +181,145 @@ test("tab-backed queue messages must match the sender conversation", async () =>
 test("install-time template initialization uses the template lock", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
   assert.match(source, /onInstalled[\s\S]*withLock\(templateLock/);
+});
+
+test("background persists sender-bound command workflow state", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/workflow";
+  const sender = { tab: { url: `${pageId}?temporary-chat=true` } };
+  const started = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Ship it", status: "running", maxIterations: 5 }
+  }, sender);
+  assert.equal(started.ok, true);
+  assert.equal(started.workflow.kind, "goal");
+
+  const loaded = await invoke({ type: "YOLO_WORKFLOW_GET", pageId }, sender);
+  assert.equal(loaded.workflow.objective, "Ship it");
+  assert.equal(loaded.workflow.maxIterations, 5);
+
+  const mismatch = await invoke(
+    { type: "YOLO_WORKFLOW_GET", pageId },
+    { tab: { url: "https://chatgpt.com/c/other" } }
+  );
+  assert.equal(mismatch.ok, false);
+  assert.equal(mismatch.code, "workflow.page_mismatch");
+
+  const stale = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "stale overwrite", status: "running" }
+  }, sender);
+  assert.equal(stale.ok, false);
+  assert.equal(stale.code, "workflow.conflict");
+
+  const claimed = await invoke({ type: "YOLO_WORKFLOW_CLAIM", pageId, ownerId: "tab-a" }, sender);
+  assert.equal(claimed.ok, true);
+  assert.equal(claimed.workflow.runnerId, "tab-a");
+  const competing = await invoke({ type: "YOLO_WORKFLOW_CLAIM", pageId, ownerId: "tab-b" }, sender);
+  assert.equal(competing.ok, false);
+  assert.equal(competing.code, "workflow.busy");
+
+  const cleared = await invoke({
+    type: "YOLO_WORKFLOW_CLEAR",
+    pageId,
+    expectedRevision: claimed.workflow.revision
+  }, sender);
+  assert.equal(cleared.workflow.status, "idle");
+  assert.equal(cleared.workflow.revision, 0);
+  const afterClear = await invoke({ type: "YOLO_WORKFLOW_GET", pageId }, sender);
+  assert.equal(afterClear.workflow.status, "idle");
+  assert.equal(afterClear.workflow.revision, 0);
+});
+
+test("background bounds active command workflows", async () => {
+  const { invoke } = loadBackground();
+  for (let index = 0; index < 25; index += 1) {
+    const pageId = `https://chatgpt.com/c/workflow-${index}`;
+    const response = await invoke({
+      type: "YOLO_WORKFLOW_SET",
+      pageId,
+      expectedRevision: 0,
+      workflow: { kind: "loop", objective: `work ${index}`, status: "running" }
+    });
+    assert.equal(response.ok, true);
+  }
+  const rejected = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId: "https://chatgpt.com/c/workflow-overflow",
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "overflow", status: "running" }
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.code, "workflow.conversation_limit");
+});
+
+test("workflow prompt enqueue commits queue and workflow together", async () => {
+  const { invoke, storage } = loadBackground();
+  const pageId = "https://chatgpt.com/c/atomic-workflow";
+  const response = await invoke({
+    type: "YOLO_WORKFLOW_QUEUE_ADD",
+    pageId,
+    expectedRevision: 0,
+    ownerId: "tab-a",
+    workflow: { kind: "goal", objective: "atomic", status: "running", promptFingerprint: "prompt" },
+    item: { text: "workflow prompt", source: "workflow:goal", sourceId: "goal-a" }
+  });
+  assert.equal(response.ok, true);
+  assert.equal(response.workflow.pendingItemId, response.item.id);
+  assert.equal(response.workflow.runnerId, "tab-a");
+  assert.equal(storage.yoloQueuesV1[pageId].items[0].id, response.item.id);
+  const workflowKey = Object.keys(storage).find((key) => key.startsWith("yoloWorkflow:"));
+  assert.equal(storage[workflowKey].pendingItemId, response.item.id);
+
+  const stale = await invoke({
+    type: "YOLO_WORKFLOW_QUEUE_ADD",
+    pageId,
+    expectedRevision: 0,
+    ownerId: "tab-b",
+    workflow: { kind: "goal", objective: "stale", status: "running" },
+    item: { text: "must not queue" }
+  });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.code, "workflow.conflict");
+  assert.equal(storage.yoloQueuesV1[pageId].items.length, 1);
+});
+
+test("clearing a workflow removes its per-conversation storage key", async () => {
+  const { invoke, storage } = loadBackground();
+  const pageId = "https://chatgpt.com/c/removable-workflow";
+  const started = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "remove me", status: "paused" }
+  });
+  assert.equal(started.ok, true);
+  assert.equal(Object.keys(storage).some((key) => key.startsWith("yoloWorkflow:")), true);
+  const cleared = await invoke({
+    type: "YOLO_WORKFLOW_CLEAR",
+    pageId,
+    expectedRevision: started.workflow.revision
+  });
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.workflow.status, "idle");
+  assert.equal(Object.keys(storage).some((key) => key.startsWith("yoloWorkflow:")), false);
+});
+
+test("fresh installs open only the local onboarding page", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
+  assert.match(source, /details\?\.reason === "install"/);
+  assert.match(source, /chrome\.runtime\.getURL\("onboarding\.html"\)/);
+  assert.doesNotMatch(source, /reason === "update"[^\n]*tabs/);
+});
+
+test("an intentionally empty template library remains empty", async () => {
+  const { invoke, storage } = loadBackground();
+  storage.yoloTemplatesV1 = [];
+  const response = await invoke({ type: "YOLO_TEMPLATES_GET" });
+  assert.equal(response.ok, true);
+  assert.deepEqual(response.templates, []);
 });

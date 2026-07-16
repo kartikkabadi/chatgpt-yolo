@@ -1,17 +1,25 @@
-# Security model
+# Security policy
 
-YOLO is a local browser extension with no remote backend, analytics, or bundled model access. Settings, queues, templates, counters, and bounded activity events remain in Chromium extension storage.
+## Supported versions
 
-## Sensitive behavior
+Security fixes are provided for the latest released version and the current `main` branch.
 
-YOLO can type messages, refresh pages, and optionally click supported GitHub approval cards. These actions are bounded by per-conversation enablement, cooldowns, rolling limits, a total session cap, composer protection, route identity checks, and approval policies.
+## Reporting a vulnerability
 
-`Safe` approval policy is the default. Write actions require `Writes`; destructive actions require `All`. Classification considers the entire card text, not only the affirmative button label.
+Do not open a public issue for a vulnerability that could expose data, cause unintended ChatGPT actions, weaken approval classification, or bypass queue/workflow safety limits.
 
-## Queue privacy
+Use GitHub’s **Report a vulnerability** / private security advisory flow for this repository. Include:
 
-Full queued messages and templates are stored locally because persistence is the product feature. Activity events deliberately store only reason codes and short status messages, never full queued-message contents.
+- Affected version or commit.
+- Browser and operating system.
+- Reproduction steps.
+- Expected and actual behavior.
+- Security impact and whether the issue requires user interaction.
 
-## Reporting
+Please avoid accessing anyone else’s conversations or data while testing.
 
-Treat unexpected clicks, duplicated queue sends, cross-conversation actions, and message leakage as security defects. Disable the conversation master switch immediately and preserve the activity log and reproduction steps when reporting them.
+## Security boundaries
+
+YOLO is a browser extension, not a sandbox. When enabled, it can write to the ChatGPT composer and click narrowly classified controls on ChatGPT. Safe defaults, limits, draft protection, route identity, and fail-closed delivery are security controls and must not be weakened for convenience.
+
+YOLO contains no remote code or update channel outside the browser’s extension mechanism.

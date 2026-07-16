@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  validate-node-20:
+    name: Validate on Node 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,3 +19,31 @@ jobs:
         with:
           node-version: 20
       - run: npm run validate
+
+  validate-node-24:
+    name: Validate on Node 24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run validate
+
+  package:
+    name: Package extension
+    needs:
+      - validate-node-20
+      - validate-node-24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yolo-preview
+          path: dist/yolo
+          retention-days: 7
