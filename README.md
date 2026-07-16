@@ -1,6 +1,6 @@
 # YOLO for ChatGPT
 
-A local-first Chromium extension that turns long ChatGPT conversations into a reliable, queue-driven workspace with Codex-style commands, bounded autonomous workflows, safety controls, and a quiet task-first interface.
+A local-first Chromium extension that turns long ChatGPT conversations into a reliable, queue-driven workspace with bounded workflows, honest prompt shortcuts, safety controls, and a quiet task-first interface.
 
 > **Independent project:** YOLO is not affiliated with or endorsed by OpenAI. It does not use the OpenAI API, run a backend, inject remote code, or collect telemetry.
 
@@ -9,7 +9,7 @@ A local-first Chromium extension that turns long ChatGPT conversations into a re
 YOLO adds four layers to ChatGPT:
 
 1. **A persistent queue** for instructions that should run when the conversation is ready.
-2. **Composer-native commands** such as `/goal`, `/loop`, `/plan`, and `/review`.
+2. **Extension-owned slash commands** for bounded workflows, prompt shortcuts, and YOLO controls.
 3. **Bounded automation** for safe approval cards, recovery, nudges, and stale-tab refreshes.
 4. **A Codex/ChatGPT-style interface** that keeps everyday actions simple and moves detailed controls into a searchable settings workspace.
 
@@ -20,8 +20,8 @@ Everything runs in your browser. Settings, queues, templates, and workflow state
 - Per-conversation persistent queues with drag ordering, editing, retry, pause, send-next, and fail-closed delivery recovery.
 - `/goal <objective>` for marker-driven persistent objectives.
 - `/loop [iterations] <objective>` for bounded iterative work; defaults to 12 and is hard-capped at 50 turns.
-- `/plan`, `/review`, `/fix`, `/compact`, and `/continue` one-shot commands.
-- `/status`, `/queue`, `/pause`, `/resume`, `/clear`, `/settings`, and `/help` controls.
+- `/plan`, `/review`, `/fix`, `/handoff`, and `/continue` prompt shortcuts.
+- `/status`, `/pause`, `/resume`, `/stop`, `/settings`, and `/help` YOLO controls.
 - Command palette from `/` in an empty composer or `Cmd/Ctrl + Shift + P`.
 - Safe, Balanced, Fast, and Custom profiles.
 - Conservative approval classification with Safe/Writes/All policies.
@@ -64,20 +64,39 @@ YOLO scopes queues, settings, and workflows to the normalized conversation URL.
 
 ## Commands
 
+YOLO commands are extension-owned conveniences. They are **not** undocumented ChatGPT or Codex commands.
+
+### Automated workflows
+
 | Command | Purpose |
 | --- | --- |
-| `/goal <objective>` | Run a persistent objective. ChatGPT must finish each turn with `[YOLO:CONTINUE]`, `[YOLO:DONE]`, or `[YOLO:BLOCKED]`. |
-| `/loop [count] <objective>` | Continue iteratively for a bounded number of turns. |
-| `/plan <task>` | Ask ChatGPT to inspect context and produce an execution plan. |
-| `/review <scope>` | Perform an adversarial review before changing more work. |
-| `/fix <problem>` | Diagnose, fix, validate, and summarize a concrete problem. |
-| `/compact [focus]` | Produce a compact handoff that preserves decisions and next actions. |
-| `/continue [direction]` | Continue the current task without repeating earlier commentary. |
-| `/status` or `/queue` | Show workflow, queue, runner, generation, profile, and limit state. |
-| `/pause`, `/resume`, `/clear` | Control the active goal or loop. |
+| `/goal <objective>` | Run a persistent objective with a 50-turn safety cap. |
+| `/loop [count] <objective>` | Run a fixed-cap iterative workflow. |
+
+Every automated response must finish with exactly one standalone `[YOLO:CONTINUE]`, `[YOLO:DONE]`, or `[YOLO:BLOCKED]` marker. Missing or malformed markers pause the workflow; YOLO never treats silence as permission to continue.
+
+### Prompt shortcuts
+
+| Command | Purpose |
+| --- | --- |
+| `/plan <task>` | Queue an ordinary prompt asking ChatGPT to produce an execution plan. |
+| `/review [scope]` | Queue an adversarial review prompt. |
+| `/fix [scope]` | Queue a repair-and-validation prompt. |
+| `/handoff [focus]` | Queue a durable written summary for another person or agent. It does not compact ChatGPT context. |
+| `/continue [direction]` | Queue a continuation prompt with an optional emphasis. |
+
+Prompt shortcuts do not activate hidden model modes, grant tools, change the context window, or guarantee access to external systems.
+
+### YOLO controls
+
+| Command | Purpose |
+| --- | --- |
+| `/status` | Show workflow, queue, runner, generation, profile, and limit state. |
+| `/pause`, `/resume` | Pause or resume the active YOLO workflow. |
+| `/stop` | Stop and clear the active YOLO workflow after confirmation. |
 | `/settings`, `/help` | Open settings or the command palette. |
 
-Only standalone terminal workflow markers control `/goal`. Inline marker-shaped text is ignored.
+`/compact`, `/queue`, and `/clear` are intentionally not public commands: `/compact` claimed a capability YOLO does not have, `/queue` duplicated `/status`, and `/clear` was ambiguous about what it removed. See [docs/COMMAND_VIABILITY.md](docs/COMMAND_VIABILITY.md).
 
 ## Queue reliability
 
