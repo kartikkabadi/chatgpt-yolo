@@ -24,9 +24,9 @@ Everything runs in your browser. Settings, queues, templates, and workflow state
 - `/status`, `/pause`, `/resume`, `/stop`, `/settings`, and `/help` YOLO controls.
 - Command palette from `/` in an empty composer or `Cmd/Ctrl + Shift + P`.
 - Safe, Balanced, Fast, and Custom profiles.
-- Conservative approval classification with Safe/Writes/All policies.
-- Exact queue-delivery identity, multi-tab leases, optimistic workflow revisions, and bounded storage.
-- Draft protection: automatic input pauses when the composer contains your text.
+- Approvals are off by default and require explicit opt-in; sensitive permissions and destructive actions require the All policy.
+- Exact message receipts, durable queue-delivery identity, cross-tab side-effect leases, optimistic workflow revisions, and bounded storage.
+- Draft protection is mandatory: YOLO never replaces text already present in the composer.
 - Templates with `{{date}}`, `{{time}}`, `{{platform}}`, and `{{conversation}}` variables.
 - Versioned settings/template backups and privacy-safe diagnostics.
 - No runtime dependencies, no build step, no analytics, and no remote code.
@@ -61,7 +61,7 @@ YOLO opens a local welcome page after a fresh install. The simplest setup is:
 3. Add an instruction to the queue, or type `/` in the ChatGPT composer.
 4. Enable automation for that conversation only when you are ready.
 
-YOLO scopes queues, settings, and workflows to the normalized conversation URL.
+YOLO runs durable automation only inside saved ChatGPT conversations with a stable `/c/<conversation-id>` URL. New-chat and transient routes remain manual until ChatGPT assigns a durable conversation URL.
 
 ## Slash actions
 
@@ -96,13 +96,15 @@ Only standalone terminal markers control automated workflows. Inline marker-shap
 
 ## Queue reliability
 
-A background service worker owns every queue mutation. A content script must claim a queue item before sending it, persist submission intent before touching the composer, and then complete, release, or fail the exact claim.
+A background service worker owns every queue mutation. **Every automatic text submission**—queued instructions, workflow turns, recovery Continue prompts, and deep nudges—uses this one durable outbox. A content script must claim an item, persist submission intent before touching the composer, verify the composer retained the exact text, and observe a new matching user message before completing the exact claim.
 
-YOLO fails closed when delivery is ambiguous. It does not automatically retry a message that may already have been submitted.
+YOLO fails closed when delivery is ambiguous. It does not automatically retry a message that may already have been submitted. Repeated automatic prompts are deduplicated across tabs during their cooldown window.
 
 Other safeguards include:
 
 - One active queue sender lease per conversation.
+- One background-owned cross-tab guard for approvals and refreshes.
+- Executing side effects that lose their outcome become **unknown** and remain blocked until an explicit runtime reset.
 - Idempotent completion after lost acknowledgments.
 - Strict pending order during retries.
 - Bounded queue size, text capacity, completion history, events, and active conversations.
@@ -112,9 +114,9 @@ Other safeguards include:
 
 ## Profiles and automation
 
-- **Safe:** slower queue cadence, conservative limits, safe approval policy, no automatic nudges or refreshes.
-- **Balanced:** normal cadence, safe approvals, and recovery enabled.
-- **Fast:** faster cadence and higher limits while retaining safe approval policy.
+- **Safe:** slower queue cadence, conservative limits, approvals off, no automatic nudges or refreshes.
+- **Balanced:** normal cadence, approvals off, and recovery enabled.
+- **Fast:** faster cadence and higher limits, with approvals still off until explicitly enabled.
 - **Custom:** any manually adjusted configuration.
 
 Advanced settings expose queue timing, retries, approvals, recovery, nudges, refresh, engine limits, templates, data portability, and reset actions. Search and section navigation keep those controls out of the everyday path.
@@ -150,7 +152,7 @@ npm run package
 
 `npm run package` creates a clean, allowlisted extension directory at `dist/yolo`. It packages only runtime files plus the README, MIT license, notice, and privacy policy; it excludes tests, repository metadata, review scripts, and contributor-only documentation.
 
-Architecture and invariants are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Contributions must preserve fail-closed delivery, conversation scoping, bounded automation, and the content-script order in `manifest.json`.
+Architecture and invariants are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the [reliability model](https://github.com/kartikkabadi/chatgpt-yolo/blob/main/docs/RELIABILITY_MODEL.md). Contributions must preserve fail-closed delivery, durable conversation scoping, mandatory draft protection, bounded automation, and the content-script order in `manifest.json`.
 
 ## Release verification
 

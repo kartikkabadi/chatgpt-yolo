@@ -21,7 +21,7 @@
       execute: typeof options.execute === "function" ? options.execute : async () => ({ ok: false }),
       pause: typeof options.pause === "function" ? options.pause : noop,
       resume: typeof options.resume === "function" ? options.resume : noop,
-      clear: typeof options.clear === "function" ? options.clear : noop,
+      stop: typeof options.stop === "function" ? options.stop : noop,
       edit: typeof options.edit === "function" ? options.edit : noop,
       getComposer: typeof options.getComposer === "function" ? options.getComposer : () => null,
       getComposerText: typeof options.getComposerText === "function" ? options.getComposerText : () => "",
@@ -137,7 +137,7 @@
     const actions = element("div", "actions");
     const pauseButton = element("button", "action", "Pause");
     const editButton = element("button", "action", "Edit");
-    const clearButton = element("button", "action", "Clear");
+    const clearButton = element("button", "action", "Stop");
     pauseButton.type = editButton.type = clearButton.type = "button";
     actions.append(pauseButton, editButton, clearButton);
     workflow.append(workflowMain, actions);
@@ -425,7 +425,7 @@
     pauseButton.addEventListener("click", () => runWorkflowAction(() =>
       ["paused", "blocked"].includes(currentWorkflow.status) ? callbacks.resume() : callbacks.pause()));
     editButton.addEventListener("click", () => callbacks.edit(currentWorkflow));
-    clearButton.addEventListener("click", () => runWorkflowAction(() => callbacks.clear(currentWorkflow)));
+    clearButton.addEventListener("click", () => runWorkflowAction(() => callbacks.stop(currentWorkflow)));
 
     document.addEventListener("keydown", keydown, true);
     window.addEventListener("resize", position);
