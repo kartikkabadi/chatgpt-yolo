@@ -3,7 +3,10 @@
   if (typeof module === "object" && module.exports) module.exports = api;
   else {
     root.YOLOOptionsUI = api;
-    if (typeof document !== "undefined") api.mount(document, root);
+    if (typeof document !== "undefined") {
+      api.mount(document, root);
+      api.loadPortability(document, root).catch((error) => console.error("YOLO portability failed to load", error));
+    }
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, () => {
   "use strict";
@@ -26,6 +29,23 @@
     if (text.includes("no conversation")) return "limited";
     if (text.includes("could not") || text.includes("failed") || text.includes("unavailable")) return "error";
     return "saved";
+  }
+
+  function loadScript(doc, win, file) {
+    return new Promise((resolve, reject) => {
+      const script = doc.createElement("script");
+      script.src = win.chrome.runtime.getURL(file);
+      script.addEventListener("load", resolve, { once: true });
+      script.addEventListener("error", () => reject(new Error(`Could not load ${file}`)), { once: true });
+      doc.head.append(script);
+    });
+  }
+
+  async function loadPortability(doc = document, win = window) {
+    if (!win.chrome?.runtime?.getURL) return false;
+    if (!win.YOLOPortability) await loadScript(doc, win, "portability.js");
+    if (!win.YOLOOptionsPortability) await loadScript(doc, win, "options-portability.js");
+    return true;
   }
 
   function mount(doc = document, win = window) {
@@ -161,5 +181,5 @@
     };
   }
 
-  return Object.freeze({ normalizeSearch, sectionMatches, saveStateFor, mount });
+  return Object.freeze({ normalizeSearch, sectionMatches, saveStateFor, loadPortability, mount });
 });
