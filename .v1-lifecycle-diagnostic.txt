@@ -1,0 +1,222 @@
+exit_status=0
+
+# Subtest: normalization deduplicates ids and recovers multiple sender leases
+ok 62 - normalization deduplicates ids and recovers multiple sender leases
+  ---
+  duration_ms: 0.331799
+  ...
+# Subtest: queue completion is idempotent after an acknowledgement is lost
+ok 63 - queue completion is idempotent after an acknowledgement is lost
+  ---
+  duration_ms: 0.381103
+  ...
+# Subtest: ambiguous delivery outcomes fail closed and require manual retry
+ok 64 - ambiguous delivery outcomes fail closed and require manual retry
+  ---
+  duration_ms: 0.762321
+  ...
+# Subtest: proven pre-submit failures retain automatic retry backoff
+ok 65 - proven pre-submit failures retain automatic retry backoff
+  ---
+  duration_ms: 0.306771
+  ...
+# Subtest: delivery-unknown failures remain a hard block until explicitly resolved
+ok 66 - delivery-unknown failures remain a hard block until explicitly resolved
+  ---
+  duration_ms: 0.200331
+  ...
+# Subtest: retrying one failed item does not clear a failure pause while another failure remains
+ok 67 - retrying one failed item does not clear a failure pause while another failure remains
+  ---
+  duration_ms: 0.221753
+  ...
+# Subtest: queue completion records exact command workflow identity
+ok 68 - queue completion records exact command workflow identity
+  ---
+  duration_ms: 0.222604
+  ...
+# Subtest: recent completion identity remains available after later sends
+ok 69 - recent completion identity remains available after later sends
+  ---
+  duration_ms: 0.504087
+  ...
+# Subtest: completion identity history remains bounded
+ok 70 - completion identity history remains bounded
+  ---
+  duration_ms: 3.005957
+  ...
+# Subtest: popup and advanced page have unique element identifiers
+ok 71 - popup and advanced page have unique element identifiers
+  ---
+  duration_ms: 2.031573
+  ...
+# Subtest: advanced page exposes every configurable setting while popup stays compact
+ok 72 - advanced page exposes every configurable setting while popup stays compact
+  ---
+  duration_ms: 1.367184
+  ...
+# Subtest: extension pages use external scripts only
+ok 73 - extension pages use external scripts only
+  ---
+  duration_ms: 0.528714
+  ...
+# Subtest: queue engine persists submission intent before touching the composer
+ok 74 - queue engine persists submission intent before touching the composer
+  ---
+  duration_ms: 0.308984
+  ...
+# Subtest: popup commits content and queue state atomically
+ok 75 - popup commits content and queue state atomically
+  ---
+  duration_ms: 0.27947
+  ...
+# Subtest: popup initialization and editing shortcuts fail closed
+ok 76 - popup initialization and editing shortcuts fail closed
+  ---
+  duration_ms: 0.316416
+  ...
+# Subtest: template rendering receives the current conversation
+ok 77 - template rendering receives the current conversation
+  ---
+  duration_ms: 0.929036
+  ...
+# Subtest: primary controls and dynamic option statuses are accessibly named
+ok 78 - primary controls and dynamic option statuses are accessibly named
+  ---
+  duration_ms: 0.368073
+  ...
+# Subtest: queue failures forward explicit delivery ambiguity
+ok 79 - queue failures forward explicit delivery ambiguity
+  ---
+  duration_ms: 0.344708
+  ...
+# Subtest: ChatGPT content scripts include the composer-native command system
+ok 80 - ChatGPT content scripts include the composer-native command system
+  ---
+  duration_ms: 0.338559
+  ...
+# Subtest: command palette supports slash and Codex-style command shortcuts
+ok 81 - command palette supports slash and Codex-style command shortcuts
+  ---
+  duration_ms: 0.340762
+  ...
+# Subtest: command workflows reuse the reliable queue and fail closed
+ok 82 - command workflows reuse the reliable queue and fail closed
+  ---
+  duration_ms: 0.317147
+  ...
+# Subtest: content exposes only a narrow lifecycle-safe command API
+ok 83 - content exposes only a narrow lifecycle-safe command API
+  ---
+  duration_ms: 0.25948
+  ...
+# Subtest: command workflow runtime enforces ownership, CAS, and a single runner
+ok 84 - command workflow runtime enforces ownership, CAS, and a single runner
+  ---
+  duration_ms: 0.293441
+  ...
+# Subtest: command palette preserves failed direct commands and exposes feedback
+ok 85 - command palette preserves failed direct commands and exposes feedback
+  ---
+  duration_ms: 0.261473
+  ...
+# Subtest: command UI handles blocked resume, IME, and shortcut scope safely
+ok 86 - command UI handles blocked resume, IME, and shortcut scope safely
+  ---
+  duration_ms: 0.300121
+  ...
+# Subtest: runtime uses the pure workflow response decision and completion ring
+ok 87 - runtime uses the pure workflow response decision and completion ring
+  ---
+  duration_ms: 0.243155
+  ...
+# Subtest: workflow prompt creation is atomic and responses must settle
+ok 88 - workflow prompt creation is atomic and responses must settle
+  ---
+  duration_ms: 0.416526
+  ...
+# Subtest: fallback injection restores the full command content-script stack
+ok 89 - fallback injection restores the full command content-script stack
+  ---
+  duration_ms: 0.349986
+  ...
+# Subtest: palette filter text is not leaked into optional command arguments
+ok 90 - palette filter text is not leaked into optional command arguments
+  ---
+  duration_ms: 0.803637
+  ...
+# Subtest: command palette exposes active keyboard selection and restores every workflow action
+ok 91 - command palette exposes active keyboard selection and restores every workflow action
+  ---
+  duration_ms: 0.259019
+  ...
+# Subtest: pause and clear preserve prompts that are already sending
+ok 92 - pause and clear preserve prompts that are already sending
+  ---
+  duration_ms: 0.224337
+  ...
+# Subtest: workflow response baseline is captured only before prompt delivery
+ok 93 - workflow response baseline is captured only before prompt delivery
+  ---
+  duration_ms: 0.235484
+  ...
+# Subtest: premium popup keeps one dominant action and progressive disclosure
+ok 94 - premium popup keeps one dominant action and progressive disclosure
+  ---
+  duration_ms: 0.260131
+  ...
+# Subtest: advanced settings has searchable persistent section navigation
+ok 95 - advanced settings has searchable persistent section navigation
+  ---
+  duration_ms: 1.199753
+  ...
+# Subtest: premium visual systems include focus, reduced motion, and responsive layouts
+ok 96 - premium visual systems include focus, reduced motion, and responsive layouts
+  ---
+  duration_ms: 0.321544
+  ...
+# Subtest: settings controller provides filtering, active navigation, and save-state mapping
+ok 97 - settings controller provides filtering, active navigation, and save-state mapping
+  ---
+  duration_ms: 0.18582
+  ...
+# Subtest: queue item controls are explicitly named and respect reorder boundaries
+ok 98 - queue item controls are explicitly named and respect reorder boundaries
+  ---
+  duration_ms: 0.224006
+  ...
+# Subtest: settings navigation preserves scope and respects reduced motion
+ok 99 - settings navigation preserves scope and respects reduced motion
+  ---
+  duration_ms: 0.168353
+  ...
+# Subtest: template feedback and empty state remain explicit
+ok 100 - template feedback and empty state remain explicit
+  ---
+  duration_ms: 0.337267
+  ...
+# Subtest: settings navigation stays available during template operations
+ok 101 - settings navigation stays available during template operations
+  ---
+  duration_ms: 0.194662
+  ...
+# Subtest: destructive settings actions require confirmation and always report outcomes
+ok 102 - destructive settings actions require confirmation and always report outcomes
+  ---
+  duration_ms: 0.217056
+  ...
+1..102
+# tests 102
+# suites 0
+# pass 102
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 359.467542
+Verified 23 runtime files
+
+> chatgpt-yolo@1.0.0 package
+> node scripts/package.mjs
+
+Packaged YOLO at /home/runner/work/chatgpt-yolo/chatgpt-yolo/dist/yolo
