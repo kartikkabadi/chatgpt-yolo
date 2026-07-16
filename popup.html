@@ -7,83 +7,112 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <div>
-          <div class="eyebrow">AUTOMATION QUEUE</div>
-          <h1>YOLO</h1>
-          <p id="scope">Current conversation</p>
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true">Y</span>
+          <div class="brand-copy">
+            <div class="brand-row">
+              <h1>YOLO</h1>
+              <span id="status" class="status-badge" role="status">Loading</span>
+            </div>
+            <p id="scope">Current conversation</p>
+          </div>
         </div>
-        <label class="master-switch" title="Run automation for this conversation">
-          <input id="enabled" type="checkbox" role="switch" aria-label="Run automation for this conversation">
-          <span></span>
-        </label>
+        <div class="header-actions">
+          <button id="advanced" class="icon-button" type="button" aria-label="Open Advanced settings" title="Advanced settings">•••</button>
+          <label class="master-switch" title="Run automation for this conversation">
+            <span class="sr-only">Run automation for this conversation</span>
+            <input id="enabled" type="checkbox" role="switch" aria-label="Run automation for this conversation">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
       </header>
 
-      <section class="status-strip" aria-label="Status">
-        <span id="status" class="status-pill">Loading</span>
+      <section class="control-strip" aria-label="Conversation controls">
         <label class="profile-control">
-          <span>Profile</span>
-          <select id="profile">
+          <span>Mode</span>
+          <select id="profile" aria-label="Automation profile">
             <option value="safe">Safe</option>
             <option value="balanced">Balanced</option>
             <option value="fast">Fast</option>
             <option value="custom">Custom</option>
           </select>
         </label>
+        <span class="control-divider" aria-hidden="true"></span>
         <span id="queueCount" class="queue-count">0 queued</span>
+        <span class="control-spacer"></span>
+        <span class="shortcut-hint">⌘↵ queue</span>
       </section>
 
-      <section class="composer-card">
-        <textarea id="message" rows="4" maxlength="8000" placeholder="Queue a message for this conversation…"></textarea>
-        <div class="template-row">
-          <select id="templateSelect" aria-label="Message template">
-            <option value="">Template…</option>
-          </select>
-          <button id="manageTemplates" class="ghost" type="button">Manage</button>
+      <section class="compose-panel" aria-labelledby="composeHeading">
+        <div class="section-kicker">
+          <div>
+            <h2 id="composeHeading">Next instruction</h2>
+            <p>YOLO sends it when ChatGPT is ready.</p>
+          </div>
         </div>
-        <div class="composer-actions">
-          <button id="addQueue" class="primary" type="button">Add to queue</button>
-          <button id="addAndSend" type="button">Add &amp; send</button>
-          <button id="cancelEdit" class="ghost" type="button" hidden>Cancel edit</button>
+        <textarea id="message" rows="4" maxlength="8000" aria-label="Message to queue" placeholder="Describe what ChatGPT should do next…"></textarea>
+        <div class="compose-toolbar">
+          <div class="template-control">
+            <select id="templateSelect" aria-label="Message template">
+              <option value="">Use template…</option>
+            </select>
+            <button id="manageTemplates" class="text-button" type="button">Manage</button>
+          </div>
+          <div class="compose-actions">
+            <button id="cancelEdit" class="secondary-button" type="button" hidden>Cancel</button>
+            <button id="addAndSend" class="secondary-button" type="button">Send now</button>
+            <button id="addQueue" class="primary-button" type="button">Add to queue</button>
+          </div>
         </div>
         <p id="composeStatus" class="inline-status" aria-live="polite"></p>
       </section>
 
-      <section class="queue-card" aria-label="Message queue">
-        <div class="section-heading">
+      <section class="queue-panel" aria-labelledby="queueHeading">
+        <div class="queue-header">
           <div>
-            <strong>Queue</strong>
-            <small>Drag to reorder. Messages send only when the chat is idle.</small>
+            <h2 id="queueHeading">Queue</h2>
+            <p>Ordered work for this conversation</p>
           </div>
-          <div class="queue-actions">
-            <button id="togglePause" class="ghost" type="button">Pause</button>
-            <button id="sendNext" class="ghost" type="button">Send next</button>
-            <button id="clearQueue" class="ghost danger" type="button">Clear</button>
+          <div class="queue-actions" aria-label="Queue actions">
+            <button id="togglePause" class="compact-button" type="button">Pause</button>
+            <button id="sendNext" class="compact-button" type="button">Send next</button>
+            <button id="clearQueue" class="compact-button danger" type="button">Clear</button>
           </div>
         </div>
-        <div id="emptyQueue" class="empty-state">Nothing queued.</div>
+        <div id="emptyQueue" class="empty-state">
+          <span class="empty-icon" aria-hidden="true">＋</span>
+          <strong>No queued work</strong>
+          <span>Add an instruction above. You can reorder, edit, retry, or send it manually.</span>
+        </div>
         <ol id="queueList" class="queue-list"></ol>
       </section>
 
-      <details class="activity-card">
+      <details class="activity-panel">
         <summary>
-          <span><strong>Activity</strong><small id="lastAction">No activity yet</small></span>
-          <span id="blockedReason" class="warning-dot" hidden title="Automation is blocked">!</span>
+          <span class="activity-summary">
+            <span class="activity-label">Activity</span>
+            <span id="lastAction">No activity yet</span>
+          </span>
+          <span class="activity-summary-end">
+            <span id="blockedReason" class="warning-badge" hidden>Blocked</span>
+            <span class="disclosure" aria-hidden="true">⌄</span>
+          </span>
         </summary>
         <div class="activity-body">
-          <div class="metrics">
-            <p><span id="sessionActions">0</span><small>session actions</small></p>
-            <p><span id="hourlyActions">0</span><small>last hour</small></p>
-            <p><span id="nextSend">—</span><small>next queue send</small></p>
+          <div class="metrics" aria-label="Automation metrics">
+            <div><strong id="sessionActions">0</strong><span>Session</span></div>
+            <div><strong id="hourlyActions">0</strong><span>Last hour</span></div>
+            <div><strong id="nextSend">—</strong><span>Next send</span></div>
           </div>
           <p id="blockedText" class="notice" hidden></p>
           <ul id="eventList" class="event-list"></ul>
         </div>
       </details>
 
-      <footer>
-        <button id="advanced" class="link-button" type="button">Advanced settings</button>
+      <footer class="app-footer">
+        <span>Local-only automation</span>
         <span id="version"></span>
       </footer>
     </main>
