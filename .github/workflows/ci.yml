@@ -26,7 +26,21 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          python .yolo-chatgpt-only.py > /tmp/yolo-chatgpt-only.log 2>&1
+          (
+            python .yolo-chatgpt-only.py
+            python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/options.test.js')
+          text = path.read_text(encoding='utf-8')
+          old = 'assert.match(getElement("#scope").textContent, /Open a ChatGPT or Grok conversation/);'
+          new = 'assert.match(getElement("#scope").textContent, /Open a ChatGPT conversation/);'
+          if text.count(old) != 1:
+              raise RuntimeError('Expected one stale options-page platform assertion')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+            npm run validate
+            git diff --check
+          ) > /tmp/yolo-chatgpt-only.log 2>&1
           status=$?
           set -e
           cat /tmp/yolo-chatgpt-only.log
@@ -35,13 +49,13 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add .yolo-chatgpt-only.error.txt
+            if git diff --cached --quiet; then
+              exit "$status"
+            fi
             git commit -m "Capture ChatGPT-only scope patch failure"
             git push origin HEAD:agent/reliability-observability
             exit "$status"
           fi
-
-          npm run validate
-          git diff --check
 
           cat > .github/workflows/ci.yml <<'YAML'
           name: CI
