@@ -1,0 +1,261 @@
+Failed stage: validate
+    '\n' +
+    '  const sendBackground = (message) => new Promise((resolve) => {\n' +
+    '    chrome.runtime.sendMessage(message, (response) => {\n' +
+    '      if (chrome.runtime.lastError) resolve(null);\n' +
+    '      else resolve(response || null);\n' +
+    '    });\n' +
+    '  });\n' +
+    '\n' +
+    '  const sendContent = (message) => new Promise((resolve) => {\n' +
+    '    if (!sourceTabId) return resolve(null);\n' +
+    '    chrome.tabs.sendMessage(sourceTabId, message, (response) => {\n' +
+    '      if (chrome.runtime.lastError) resolve(null);\n' +
+    '      else resolve(response || null);\n' +
+    '    });\n' +
+    '  });\n' +
+    '\n' +
+    '  const injectContent = () => new Promise((resolve) => {\n' +
+    '    if (!sourceTabId) return resolve(false);\n' +
+    '    try {\n' +
+    '      chrome.scripting.executeScript({\n' +
+    '        target: { tabId: sourceTabId },\n' +
+    '        files: ["config.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]\n' +
+    '      }, () => resolve(!chrome.runtime.lastError));\n' +
+    '    } catch {\n' +
+    '      resolve(false);\n' +
+    '    }\n' +
+    '  });\n' +
+    '\n' +
+    '  async function sendContentWithInject(message) {\n' +
+    '    const first = await sendContent(message);\n' +
+    '    if (first) return first;\n' +
+    '    if (!await injectContent()) return null;\n' +
+    '    await new Promise((resolve) => window.setTimeout(resolve, 400));\n' +
+    '    return sendContent(message);\n' +
+    '  }\n' +
+    '\n' +
+    '  async function resolveSourceTab() {\n' +
+    '    if (sourceTabId) {\n' +
+    '      const state = await sendContentWithInject({ type: "YOLO_GET_STATE" });\n' +
+    '      if (state) return state;\n' +
+    '    }\n' +
+    '    const tabs = await new Promise((resolve) => chrome.tabs.query({\n' +
+    '      url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*"]\n' +
+    '    }, resolve));\n' +
+    '    const candidate = [...tabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];\n' +
+    '    if (!candidate?.id) return null;\n' +
+    '    sourceTabId = candidate.id;\n' +
+    '    return sendContentWithInject({ type: "YOLO_GET_STATE" });\n' +
+    '  }\n' +
+    '\n' +
+    '  function setBusy(nextBusy) {\n' +
+    '    busy = nextBusy;\n' +
+    '    for (const control of controls) control.disabled = nextBusy || !contentState;\n' +
+    '    for (const button of document.querySelectorAll("button:not([data-section-link]):not(#clearSearch)")) {\n' +
+    '      button.disabled = nextBusy;\n' +
+    '    }\n' +
+    '    els.resetDefaults.disabled = nextBusy || !contentState;\n' +
+    '    els.resetRuntime.disabled = nextBusy || !contentState;\n' +
+    '  }\n' +
+    '\n' +
+    '  function valueFromControl(control) {\n' +
+    '    if (control.dataset.kind === "boolean") return control.checked;\n' +
+    '    if (control.dataset.kind === "number") return control.value === "" ? undefined : Number(control.value);\n' +
+    '    return control.value;\n' +
+    '  }\n' +
+    '\n' +
+    '  function collectSettings() {\n' +
+    '    const next = { ...settings };\n' +
+    '    for (const control of controls) {\n' +
+    '      const value = valueFromControl(control);\n' +
+    '      if (value !== undefined) next[control.dataset.setting] = value;\n' +
+    '    }\n' +
+    '    return Config.normalizeSettings(next);\n' +
+    '  }\n' +
+    '\n' +
+    '  function renderControls(nextSettings) {\n' +
+    '    settings = Config.normalizeSettings(nextSettings);\n' +
+    '    for (const control of controls) {\n' +
+    '      if (document.activeElement === control) continue;\n' +
+    '      const value = settings[control.dataset.setting];\n' +
+    '      if (control.dataset.kind === "boolean") control.checked = Boolean(value);\n' +
+    '      else control.value = String(value ?? "");\n' +
+    '    }\n' +
+    '  }\n' +
+    '\n' +
+    '  function saveSettings(nextSettings = collectSettings()) {\n' +
+    '    if (!sourceTabId) return Promise.resolve(false);\n' +
+    '    const requested = Config.normalizeSettings(nextSettings);\n' +
+    '    const revision = ++saveRevision;\n' +
+    '    settings = requested;\n' +
+    '    els.saveStatus.textContent = "Saving…";\n' +
+    '\n' +
+    '    const task = async () => {\n' +
+    '      const response = await sendContentWithInject({ type: "YOLO_SET_SETTINGS", settings: requested });\n' +
+    '      if (!response?.ok) {\n' +
+    '        if (revision === saveRevision) els.saveStatus.textContent = "Could not save settings.";\n' +
+    '        return false;\n' +
+    '      }\n' +
+    '      contentState = response.state;\n' +
+    '      if (revision === saveRevision) {\n' +
+    '        renderControls(response.settings);\n' +
+    '        els.scope.textContent = `${contentState.platform} · ${contentState.pageId}`;\n' +
+    '        els.saveStatus.textContent = "Saved";\n' +
+    '      }\n' +
+    '      return true;\n' +
+    '    };\n' +
+    '\n' +
+    '    const result = saveChain.catch(() => {}).then(task);\n' +
+    '    saveChain = result.catch(() => {});\n' +
+    '    return result;\n' +
+    '  }\n' +
+    '\n' +
+    '  function scheduleSave(event) {\n' +
+    '    const setting = event.target?.dataset?.setting;\n' +
+    '    if (event.target !== els.profile && setting !== "enabled") {\n' +
+    '      settings = { ...collectSettings(), profile: "custom" };\n' +
+    '      els.profile.value = "custom";\n' +
+    '    }\n' +
+    '    window.clearTimeout(saveTimer);\n' +
+    '    saveTimer = window.setTimeout(() => {\n' +
+    '      saveTimer = null;\n' +
+    '      saveSettings();\n' +
+    '    }, event.type === "input" ? 350 : 0);\n' +
+    '  }\n' +
+    '\n' +
+    '  async function flushScheduledSave() {\n' +
+    '    if (saveTimer) {\n' +
+    '      window.clearTimeout(saveTimer);\n' +
+    '      saveTimer = null;\n' +
+    '      await saveSettings();\n' +
+    '    }\n' +
+    '    await saveChain.catch(() => {});\n' +
+    '  }\n' +
+    '\n' +
+    '  function setTemplateStatus(message = "", error = false) {\n' +
+    '    els.templateStatus.textContent = message;\n' +
+    '    els.templateStatus.dataset.level = error ? "error" : "info";\n' +
+    '  }\n' +
+    '\n' +
+    '  function compact(text, max = 180) {\n' +
+    '    const clean = String(text || "").replace(/\\s+/g, " ").trim();\n' +
+    '    return clean.length <= max ? clean : `${clean.slice(0, max - 1)}…`;\n' +
+    '  }\n' +
+    '\n' +
+    '  function renderTemplates() {\n' +
+    '    els.templateList.replaceChildren();\n' +
+    '    if (!templates.length) {\n' +
+    '      const empty = document.createElement("li");\n' +
+    '      empty.className = "template-empty";\n' +
+    '      empty.textContent = "No templates yet. Create one from the editor.";\n' +
+    '      els.templateList.append(empty);\n' +
+    '      return;\n' +
+    '    }\n' +
+    '    for (const template of templates) {\n' +
+    '      const li = document.createElement("li");\n' +
+    '      const copy = document.createElement("div");\n' +
+    '      copy.className = "template-copy";\n' +
+    '      const name = document.createElement("strong");\n' +
+    '      name.textContent = template.name;\n' +
+    '      const text = document.createElement("p");\n' +
+    '      text.textContent = compact(template.text);\n' +
+    '      copy.append(name, text);\n' +
+    '      const actions = document.createElement("div");\n' +
+    '      actions.className = "template-actions";\n' +
+    '      const edit = document.createElement("button");\n' +
+    '      edit.type = "button";\n' +
+    '      edit.textContent = "Edit";\n' +
+    '      edit.addEventListener("click", () => beginTemplateEdit(template));\n' +
+    '      const remove = document.createElement("button");\n' +
+    '      remove.type = "button";\n' +
+    '      remove.textContent = "Delete";\n' +
+    '      remove.className = "danger";\n' +
+    '      remove.addEventListener("click", () => removeTemplate(template.id));\n' +
+    '      actions.append(edit, remove);\n' +
+    '      li.append(copy, actions);\n' +
+    '      els.templateList.append(li);\n' +
+    '    }\n' +
+    '  }\n' +
+    '\n' +
+    '  function beginTemplateEdit(template) {\n' +
+    '    editingTemplateId = template.id;\n' +
+    '    pendingTemplateId = "";\n' +
+    '    els.templateName.value = template.name;\n' +
+    '    els.templateText.value = template.text;\n' +
+    '    els.saveTemplate.textContent = "Save template";\n' +
+    '    els.cancelTemplate.hidden = false;\n' +
+    '    els.templateName.focus();\n' +
+    '    setTemplateStatus("Editing template.");\n' +
+    '  }\n' +
+    '\n' +
+    '  function cancelTemplateEdit() {\n' +
+    '    editingTemplateId = "";\n' +
+    '    pendingTemplateId = "";\n' +
+    '    els.templateName.value = "";\n' +
+    '    els.templateText.value = "";\n' +
+    '    els.saveTemplate.textContent = "Add template";\n' +
+    '    els.cancelTemplate.hidden = true;\n' +
+    '    setTemplateStatus("");\n' +
+    '  }\n' +
+    '\n' +
+    '  async function saveTemplate() {\n' +
+    '    const name = els.templateName.value.trim();\n' +
+    '    const text = els.templateText.value.trim();\n' +
+    '    if (!name || !text) {\n' +
+    '      setTemplateStatus("Template name and message are required.", true);\n' +
+    '      return;\n' +
+    '    }\n' +
+    '    const adding = !editingTemplateId;\n' +
+    '    if (adding && !pendingTemplateId) pendingTemplateId = crypto.randomUUID();\n' +
+    '    setBusy(true);\n' +
+    '    try {\n' +
+    '      let response = await sendBackground(adding\n' +
+    '        ? { type: "YOLO_TEMPLATE_ADD", template: { id: pendingTemplateId, name, text } }\n' +
+    '        : { type: "YOLO_TEMPLATE_UPDATE", template: { id: editingTemplateId, name, text } });\n' +
+    '      if (response?.ok && adding && response.deduplicated\n' +
+    '        && (response.template?.name !== name || response.template?.text !== text)) {\n' +
+    '        response = await sendBackground({\n' +
+    '          type: "YOLO_TEMPLATE_UPDATE",\n' +
+    '          template: { id: pendingTemplateId, name, text }\n' +
+    '        });\n' +
+    '      }\n' +
+    '      if (!response?.ok) {\n' +
+    '        setTemplateStatus(response?.reason || "Could not save template.", true);\n' +
+    '        return;\n' +
+    '      }\n' +
+    '      templates = response.templates;\n' +
+    '      cancelTemplateEdit();\n' +
+    '      renderTemplates();\n' +
+    '      setTemplateStatus("Template saved.");\n' +
+    '    } finally {\n' +
+    '      setBusy(false);\n' +
+    '    }\n' +
+    '  }\n' +
+    '\n' +
+    '  async function removeTemplate(templateId) {\n' +
+    '    if (!window.confirm("Delete this template? This cannot be undone.")) return;\n' +
+    '    setBusy(true);\n' +
+    '    try {\n' +
+    '      const response = await sendBackground({ type: "YOLO_TEMPLATE_REMOVE", templateId });\n' +
+    '      if (response?.ok) {\n' +
+    '        templates = response.templates;\n' +
+    '        if (editingTemplateId === templateId) cancelTemplateEdit();\n' +
+    '        renderTemplates();\n' +
+    '        setTemplateStatus("Template deleted.");\n' +
+    '      } else setTemplateStatus(respo'... 3383 more characters
+  
+      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/portability-integration.test.js:48:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '(() => {\n  "use strict";\n\n  const Config = globalThis.YOLOConfig;\n  if (!Config) return;\n\n  const controls = Array.from(document.querySelectorAll("[data-setting]"));\n  const els = {\n    scope: document.querySelector("#scope"),\n    saveStatus: document.querySelector("#saveStatus"),\n    resetDefaults: document.querySelector("#resetDefaults"),\n    resetRuntime: document.querySelector("#resetRuntime"),\n    profile: document.querySelector("#profile"),\n    templateName: document.querySelector("#templateName"),\n    templateText: document.querySelector("#templateText"),\n    saveTemplate: document.querySelector("#saveTemplate"),\n    cancelTemplate: document.querySelector("#cancelTemplate"),\n    resetTemplates: document.querySelector("#resetTemplates"),\n    templateStatus: document.querySelector("#templateStatus"),\n    templateList: document.querySelector("#templateList")\n  };\n\n  const params = new URLSearchParams(location.search);\n  let sourceTabId = Number(params.get("tabId")) || 0;\n  let contentState = null;\n  let settings = { ...Config.DEFAULT_SETTINGS };\n  let templates = [];\n  let editingTemplateId = "";\n  let pendingTemplateId = "";\n  let saveTimer = null;\n  let saveChain = Promise.resolve();\n  let saveRevision = 0;\n  let busy = false;\n\n  const sendBackground = (message) => new Promise((resolve) => {\n    chrome.runtime.sendMessage(message, (response) => {\n      if (chrome.runtime.lastError) resolve(null);\n      else resolve(response || null);\n    });\n  });\n\n  const sendContent = (message) => new Promise((resolve) => {\n    if (!sourceTabId) return resolve(null);\n    chrome.tabs.sendMessage(sourceTabId, message, (response) => {\n      if (chrome.runtime.lastError) resolve(null);\n      else resolve(response || null);\n    });\n  });\n\n  const injectContent = () => new Promise((resolve) => {\n    if (!sourceTabId) return resolve(false);\n    try {\n      chrome.scripting.executeScript({\n        target: { tabId: sourceTabId },\n        files: ["config.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]\n      }, () => resolve(!chrome.runtime.lastError));\n    } catch {\n      resolve(false);\n    }\n  });\n\n  async function sendContentWithInject(message) {\n    const first = await sendContent(message);\n    if (first) return first;\n    if (!await injectContent()) return null;\n    await new Promise((resolve) => window.setTimeout(resolve, 400));\n    return sendContent(message);\n  }\n\n  async function resolveSourceTab() {\n    if (sourceTabId) {\n      const state = await sendContentWithInject({ type: "YOLO_GET_STATE" });\n      if (state) return state;\n    }\n    const tabs = await new Promise((resolve) => chrome.tabs.query({\n      url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*"]\n    }, resolve));\n    const candidate = [...tabs].sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];\n    if (!candidate?.id) return null;\n    sourceTabId = candidate.id;\n    return sendContentWithInject({ type: "YOLO_GET_STATE" });\n  }\n\n  function setBusy(nextBusy) {\n    busy = nextBusy;\n    for (const control of controls) control.disabled = nextBusy || !contentState;\n    for (const button of document.querySelectorAll("button:not([data-section-link]):not(#clearSearch)")) {\n      button.disabled = nextBusy;\n    }\n    els.resetDefaults.disabled = nextBusy || !contentState;\n    els.resetRuntime.disabled = nextBusy || !contentState;\n  }\n\n  function valueFromControl(control) {\n    if (control.dataset.kind === "boolean") return control.checked;\n    if (control.dataset.kind === "number") return control.value === "" ? undefined : Number(control.value);\n    return control.value;\n  }\n\n  function collectSettings() {\n    const next = { ...settings };\n    for (const control of controls) {\n      const value = valueFromControl(control);\n      if (value !== undefined) next[control.dataset.setting] = value;\n    }\n    return Config.normalizeSettings(next);\n  }\n\n  function renderControls(nextSettings) {\n    settings = Config.normalizeSettings(nextSettings);\n    for (const control of controls) {\n      if (document.activeElement === control) continue;\n      const value = settings[control.dataset.setting];\n      if (control.dataset.kind === "boolean") control.checked = Boolean(value);\n      else control.value = String(value ?? "");\n    }\n  }\n\n  function saveSettings(nextSettings = collectSettings()) {\n    if (!sourceTabId) return Promise.resolve(false);\n    const requested = Config.normalizeSettings(nextSettings);\n    const revision = ++saveRevision;\n    settings = requested;\n    els.saveStatus.textContent = "Saving…";\n\n    const task = async () => {\n      const response = await sendContentWithInject({ type: "YOLO_SET_SETTINGS", settings: requested });\n      if (!response?.ok) {\n        if (revision === saveRevision) els.saveStatus.textContent = "Could not save settings.";\n        return false;\n      }\n      contentState = response.state;\n      if (revision === saveRevision) {\n        renderControls(response.settings);\n        els.scope.textContent = `${contentState.platform} · ${contentState.pageId}`;\n        els.saveStatus.textContent = "Saved";\n      }\n      return true;\n    };\n\n    const result = saveChain.catch(() => {}).then(task);\n    saveChain = result.catch(() => {});\n    return result;\n  }\n\n  function scheduleSave(event) {\n    const setting = event.target?.dataset?.setting;\n    if (event.target !== els.profile && setting !== "enabled") {\n      settings = { ...collectSettings(), profile: "custom" };\n      els.profile.value = "custom";\n    }\n    window.clearTimeout(saveTimer);\n    saveTimer = window.setTimeout(() => {\n      saveTimer = null;\n      saveSettings();\n    }, event.type === "input" ? 350 : 0);\n  }\n\n  async function flushScheduledSave() {\n    if (saveTimer) {\n      window.clearTimeout(saveTimer);\n      saveTimer = null;\n      await saveSettings();\n    }\n    await saveChain.catch(() => {});\n  }\n\n  function setTemplateStatus(message = "", error = false) {\n    els.templateStatus.textContent = message;\n    els.templateStatus.dataset.level = error ? "error" : "info";\n  }\n\n  function compact(text, max = 180) {\n    const clean = String(text || "").replace(/\\s+/g, " ").trim();\n    return clean.length <= max ? clean : `${clean.slice(0, max - 1)}…`;\n  }\n\n  function renderTemplates() {\n    els.templateList.replaceChildren();\n    if (!templates.length) {\n      const empty = document.createElement("li");\n      empty.className = "template-empty";\n      empty.textContent = "No templates yet. Create one from the editor.";\n      els.templateList.append(empty);\n      return;\n    }\n    for (const template of templates) {\n      const li = document.createElement("li");\n      const copy = document.createElement("div");\n      copy.className = "template-copy";\n      const name = document.createElement("strong");\n      name.textContent = template.name;\n      const text = document.createElement("p");\n      text.textContent = compact(template.text);\n      copy.append(name, text);\n      const actions = document.createElement("div");\n      actions.className = "template-actions";\n      const edit = document.createElement("button");\n      edit.type = "button";\n      edit.textContent = "Edit";\n      edit.addEventListener("click", () => beginTemplateEdit(template));\n      const remove = document.createElement("button");\n      remove.type = "button";\n      remove.textContent = "Delete";\n      remove.className = "danger";\n      remove.addEventListener("click", () => removeTemplate(template.id));\n      actions.append(edit, remove);\n      li.append(copy, actions);\n      els.templateList.append(li);\n    }\n  }\n\n  function beginTemplateEdit(template) {\n    editingTemplateId = template.id;\n    pendingTemplateId = "";\n    els.templateName.value = template.name;\n    els.templateText.value = template.text;\n    els.saveTemplate.textContent = "Save template";\n    els.cancelTemplate.hidden = false;\n    els.templateName.focus();\n    setTemplateStatus("Editing template.");\n  }\n\n  function cancelTemplateEdit() {\n    editingTemplateId = "";\n    pendingTemplateId = "";\n    els.templateName.value = "";\n    els.templateText.value = "";\n    els.saveTemplate.textContent = "Add template";\n    els.cancelTemplate.hidden = true;\n    setTemplateStatus("");\n  }\n\n  async function saveTemplate() {\n    const name = els.templateName.value.trim();\n    const text = els.templateText.value.trim();\n    if (!name || !text) {\n      setTemplateStatus("Template name and message are required.", true);\n      return;\n    }\n    const adding = !editingTemplateId;\n    if (adding && !pendingTemplateId) pendingTemplateId = crypto.randomUUID();\n    setBusy(true);\n    try {\n      let response = await sendBackground(adding\n        ? { type: "YOLO_TEMPLATE_ADD", template: { id: pendingTemplateId, name, text } }\n        : { type: "YOLO_TEMPLATE_UPDATE", template: { id: editingTemplateId, name, text } });\n      if (response?.ok && adding && response.deduplicated\n        && (response.template?.name !== name || response.template?.text !== text)) {\n        response = await sendBackground({\n          type: "YOLO_TEMPLATE_UPDATE",\n          template: { id: pendingTemplateId, name, text }\n        });\n      }\n      if (!response?.ok) {\n        setTemplateStatus(response?.reason || "Could not save template.", true);\n        return;\n      }\n      templates = response.templates;\n      cancelTemplateEdit();\n      renderTemplates();\n      setTemplateStatus("Template saved.");\n    } finally {\n      setBusy(false);\n    }\n  }\n\n  async function removeTemplate(templateId) {\n    if (!window.confirm("Delete this template? This cannot be undone.")) return;\n    setBusy(true);\n    try {\n      const response = await sendBackground({ type: "YOLO_TEMPLATE_REMOVE", templateId });\n      if (response?.ok) {\n        templates = response.templates;\n        if (editingTemplateId === templateId) cancelTemplateEdit();\n        renderTemplates();\n        setTemplateStatus("Template deleted.");\n      } else setTemplateStatus(respo'... 3383 more characters,
+    expected: /YOLO_TEMPLATE_ADD[\s\S]*id: crypto\.randomUUID\(\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
