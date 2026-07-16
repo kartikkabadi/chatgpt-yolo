@@ -83,6 +83,18 @@ replace_once(
       templates = response.templates;'''
 )
 
+replace_once(
+    "tests/portability-integration.test.js",
+    '''test("template creation carries a stable client id for idempotency", () => {
+  assert.match(read("options.js"), /YOLO_TEMPLATE_ADD[\s\S]*id: crypto\.randomUUID\(\)/);
+});''',
+    '''test("template creation carries a stable client id for idempotency", () => {
+  const options = read("options.js");
+  assert.match(options, /pendingTemplateId = crypto\.randomUUID\(\)/);
+  assert.match(options, /YOLO_TEMPLATE_ADD[\s\S]*id: pendingTemplateId/);
+});'''
+)
+
 write("tests/portability-integration.test.js", read("tests/portability-integration.test.js").rstrip() + r'''
 
 test("template add retries preserve one mutation id and reconcile edited retries", () => {
