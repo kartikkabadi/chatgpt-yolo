@@ -10,7 +10,8 @@
   const DEFAULT_MAX_ITERATIONS = 12;
   const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
-  const MARKER_RE = /(?:^|\n)\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
+  const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
+  const TERMINAL_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
 
   const COMMANDS = Object.freeze([
     Object.freeze({ name: "goal", title: "Goal", description: "Start a marker-driven objective that YOLO can continue for bounded turns.", args: "objective", group: "Automated workflows", kind: "workflow" }),
@@ -249,9 +250,12 @@
   }
 
   function evaluateResponse(text) {
-    const match = String(text || "").match(MARKER_RE);
-    if (!match) return "missing";
-    return match[1].toLowerCase();
+    const source = String(text || "");
+    const markers = [...source.matchAll(STANDALONE_MARKER_RE)].map((match) => match[1].toLowerCase());
+    if (!markers.length) return "missing";
+    const terminal = source.match(TERMINAL_MARKER_RE);
+    if (!terminal || markers.length !== 1) return "malformed";
+    return terminal[1].toLowerCase();
   }
 
   function decideWorkflowResponse(raw, responseText, { userFingerprint = "", at = Date.now() } = {}) {
@@ -294,6 +298,15 @@
         action: "paused",
         reason: `${label} response omitted the required terminal control marker`,
         code: "command.workflow.marker_missing"
+      };
+    }
+    if (outcome === "malformed") {
+      const label = workflow.kind === "goal" ? "Goal" : "Loop";
+      return {
+        workflow,
+        action: "paused",
+        reason: `${label} response contained multiple or misplaced terminal control markers`,
+        code: "command.workflow.marker_malformed"
       };
     }
     if (workflow.iteration >= workflow.maxIterations) {
