@@ -308,3 +308,10 @@ test("clearing a workflow removes its per-conversation storage key", async () =>
   assert.equal(cleared.workflow.status, "idle");
   assert.equal(Object.keys(storage).some((key) => key.startsWith("yoloWorkflow:")), false);
 });
+
+test("fresh installs open only the local onboarding page", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
+  assert.match(source, /details\?\.reason === "install"/);
+  assert.match(source, /chrome\.runtime\.getURL\("onboarding\.html"\)/);
+  assert.doesNotMatch(source, /reason === "update"[^\n]*tabs/);
+});

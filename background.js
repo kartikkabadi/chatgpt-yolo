@@ -375,8 +375,11 @@ async function handleQueueMessage(message, sender) {
   return { ok: false, reason: "Unknown queue operation" };
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   withLock(templateLock, async () => writeTemplates(await readTemplates())).catch(() => {});
+  if (details?.reason === "install") {
+    chrome.tabs?.create?.({ url: chrome.runtime.getURL("onboarding.html") });
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
