@@ -48,6 +48,20 @@ jobs:
               git show "origin/feature/data-portability:$file" > "$file"
             done
             python .yolo-portability-rebuild.py
+            python - <<'PY'
+          from pathlib import Path
+          path = Path("options-portability.js")
+          text = path.read_text(encoding="utf-8")
+          old = "Backup imported. Refreshing this page; refresh ChatGPT if its restored settings do not appear."
+          new = "Backup imported. Refresh the ChatGPT tab if its restored settings do not appear. This page will reload."
+          if text.count(old) != 1:
+              raise RuntimeError("Expected one imported-settings warning")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+            # Validate the exact final repository shape, not the temporary write-enabled machinery.
+            git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
+            rm -f .yolo-portability-rebuild.py .yolo-portability-error.txt
             npm run validate
             npm run package
             git diff --check
@@ -58,6 +72,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [[ $status -ne 0 ]]; then
+            git restore .github/workflows/ci.yml .yolo-portability-rebuild.py
             tail -n 220 /tmp/yolo-portability-rebuild.log > .yolo-portability-error.txt
             git add .yolo-portability-error.txt
             git commit -m "Capture portability rebuild failure" || true
@@ -65,8 +80,6 @@ jobs:
             exit "$status"
           fi
 
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm -f .yolo-portability-rebuild.py .yolo-portability-error.txt
           git add -A
           git diff --cached --check
           git commit -m "Add safe data portability with final review fixes"
