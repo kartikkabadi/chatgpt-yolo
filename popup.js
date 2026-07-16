@@ -100,6 +100,16 @@
     }
   }
 
+  function setUnavailable(scopeMessage) {
+    setBusy(true);
+    els.status.textContent = "Unavailable";
+    els.status.dataset.on = "false";
+    els.scope.textContent = scopeMessage;
+    // Settings and templates are extension-owned and remain usable without a ChatGPT tab.
+    els.manageTemplates.disabled = false;
+    els.advanced.disabled = false;
+  }
+
   function formatRelative(timestamp) {
     if (!Number.isFinite(Number(timestamp)) || Number(timestamp) <= 0) return "—";
     const delta = Number(timestamp) - Date.now();
@@ -489,13 +499,11 @@
     els.version.textContent = `v${Config.VERSION}`;
     activeTab = await queryActiveTab();
     if (!Config.isSupportedUrl(activeTab?.url)) {
-      els.status.textContent = "Unavailable";
-      els.scope.textContent = "Open ChatGPT to use YOLO.";
+      setUnavailable("Open ChatGPT to use conversation automation. Settings and templates remain available.");
       return;
     }
     if (!await refreshAll({ includeTemplates: true, force: true })) {
-      els.status.textContent = "Unavailable";
-      els.scope.textContent = "Could not start YOLO in this tab.";
+      setUnavailable("Could not start YOLO in this tab. Settings and templates remain available.");
       return;
     }
     pollTimer = window.setInterval(() => refreshAll(), 1800);
@@ -533,8 +541,6 @@
 
   window.addEventListener("pagehide", () => window.clearInterval(pollTimer));
   init().catch((error) => {
-    els.status.textContent = "Unavailable";
-    els.scope.textContent = `Startup failed: ${String(error?.message || error)}`;
-    setBusy(true);
+    setUnavailable(`Startup failed: ${String(error?.message || error)} Settings and templates remain available.`);
   });
 })();
