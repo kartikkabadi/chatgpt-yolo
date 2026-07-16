@@ -7,32 +7,43 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  validate:
+  validate-node-20:
+    name: Validate on Node 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: release/v1-open-source
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Publish validated lifecycle product files
-        shell: bash
-        run: |
-          set -euo pipefail
-          python .apply-v1-lifecycle.py
-          npm run validate
-          npm run package
-          git diff --check
-          rm -rf dist
+      - run: npm run validate
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add config.js background.js tests/background.test.js tests/manifest.test.js
-          git diff --cached --check
-          git commit -m "Wire v1 version parity and first-install onboarding"
-          git push origin HEAD:release/v1-open-source
+  validate-node-24:
+    name: Validate on Node 24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run validate
+
+  package:
+    name: Package extension
+    needs:
+      - validate-node-20
+      - validate-node-24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yolo-preview
+          path: dist/yolo
+          retention-days: 7
