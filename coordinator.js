@@ -11,6 +11,7 @@
   const PHASES = new Set(["idle", "claimed", "executing", "unknown"]);
 
   const clean = (value, max = 240) => String(value ?? "").trim().slice(0, max);
+  const cleanKey = (value) => clean(value, 1400);
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
   function makeToken() {
@@ -20,7 +21,7 @@
 
   function normalizeEntry(raw, at = Date.now()) {
     if (!raw || typeof raw !== "object") return null;
-    const key = clean(raw.key);
+    const key = cleanKey(raw.key);
     if (!key) return null;
 
     const rawPhase = PHASES.has(raw.phase) ? raw.phase : (raw.ownerId ? "claimed" : "idle");
@@ -70,7 +71,7 @@
     const leaseMs = Math.max(5000, finite(options.leaseMs, DEFAULT_LEASE_MS));
     const cooldownMs = Math.max(0, finite(options.cooldownMs, 0));
     const state = normalizeState(rawState, at);
-    const normalizedKey = clean(key);
+    const normalizedKey = cleanKey(key);
     const normalizedOwner = clean(ownerId);
     if (!normalizedKey || !normalizedOwner) {
       return { state, ok: false, reason: "Action key and owner are required", code: "action.guard_invalid" };
@@ -124,7 +125,7 @@
 
   function begin(rawState, key, token, at = Date.now()) {
     const state = normalizeState(rawState, at);
-    const entry = state.entries.find((candidate) => candidate.key === clean(key));
+    const entry = state.entries.find((candidate) => candidate.key === cleanKey(key));
     const normalizedToken = clean(token);
     if (!entry) return { state, ok: false, reason: "Action lease was not found", code: "action.guard_missing" };
     if (entry.phase === "unknown" && entry.token === normalizedToken) {
@@ -142,7 +143,7 @@
 
   function complete(rawState, key, token, at = Date.now()) {
     const state = normalizeState(rawState, at);
-    const normalizedKey = clean(key);
+    const normalizedKey = cleanKey(key);
     const normalizedToken = clean(token);
     const entry = state.entries.find((candidate) => candidate.key === normalizedKey);
     if (!entry) return { state, ok: false, reason: "Action lease was not found", code: "action.guard_missing" };
@@ -166,7 +167,7 @@
 
   function release(rawState, key, token, at = Date.now()) {
     const state = normalizeState(rawState, at);
-    const entry = state.entries.find((candidate) => candidate.key === clean(key));
+    const entry = state.entries.find((candidate) => candidate.key === cleanKey(key));
     if (!entry) return { state, ok: true, released: false };
     if (!token || entry.token !== clean(token)) {
       return { state, ok: false, reason: "Action lease is no longer valid", code: "action.guard_invalid" };
@@ -190,7 +191,11 @@
 
   function reset(rawState, key = "", at = Date.now()) {
     const state = normalizeState(rawState, at);
-    const normalizedKey = clean(key);
+    const normalizedKey = cleanKey(key);
+    const targets = normalizedKey ? state.entries.filter((entry) => entry.key === normalizedKey) : state.entries;
+    if (targets.some((entry) => ["claimed", "executing"].includes(entry.phase))) {
+      return { state, ok: false, reason: "An action is still running in another tab", code: "action.busy" };
+    }
     state.entries = normalizedKey ? state.entries.filter((entry) => entry.key !== normalizedKey) : [];
     state.updatedAt = at;
     return { state: normalizeState(state, at), ok: true, reset: true };
@@ -198,8 +203,12 @@
 
   function resetPrefix(rawState, prefix, at = Date.now()) {
     const state = normalizeState(rawState, at);
-    const normalizedPrefix = clean(prefix);
+    const normalizedPrefix = cleanKey(prefix);
     if (!normalizedPrefix) return { state, ok: false, reason: "Action guard prefix is required", code: "action.guard_invalid" };
+    const targets = state.entries.filter((entry) => entry.key.startsWith(normalizedPrefix));
+    if (targets.some((entry) => ["claimed", "executing"].includes(entry.phase))) {
+      return { state, ok: false, reason: "An action is still running in another tab", code: "action.busy" };
+    }
     state.entries = state.entries.filter((entry) => !entry.key.startsWith(normalizedPrefix));
     state.updatedAt = at;
     return { state: normalizeState(state, at), ok: true, reset: true };

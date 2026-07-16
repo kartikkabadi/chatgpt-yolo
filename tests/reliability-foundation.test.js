@@ -98,3 +98,19 @@ test('runtime reset is scoped to the current conversation', () => {
   assert.match(background, /Coordinator\.resetPrefix\(state, `\$\{pageId\}::`\)/);
   assert.doesNotMatch(background, /Coordinator\.reset\(state, actionKey \? guardKey : ""\)/);
 });
+
+test('runtime reset fails closed when guard storage cannot be reset', () => {
+  const content = read('content.js');
+  const start = content.indexOf('async function resetRuntime');
+  const end = content.indexOf('function registerClient', start);
+  const reset = content.slice(start, end);
+  assert.match(reset, /const guardReset = await backgroundSendWithRetry/);
+  assert.match(reset, /if \(!guardReset\?\.ok\) throw new Error/);
+  assert.ok(reset.indexOf('guardReset') < reset.indexOf('state.runtime = freshRuntime()'));
+});
+
+test('delivery confirmation uses a wall-clock deadline', () => {
+  const content = read('content.js');
+  assert.match(content, /confirmationDeadline = now\(\) \+ 15_000/);
+  assert.doesNotMatch(content, /attempt < 50/);
+});

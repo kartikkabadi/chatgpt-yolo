@@ -429,14 +429,15 @@
         return { ok: false, code: "composer.submit_failed", reason: "Message could not be submitted", deliveryAmbiguous: true };
       }
 
-      for (let attempt = 0; attempt < 50; attempt += 1) {
+      const confirmationDeadline = now() + 15_000;
+      while (now() < confirmationDeadline) {
         if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
           return { ok: false, code: "route.changed", reason: "Conversation changed before delivery could be confirmed", deliveryAmbiguous: true };
         }
         if (Platforms.submissionObserved(state.platform, { expectedText: prompt, previousSnapshot })) {
           return { ok: true, deliveryAmbiguous: true };
         }
-        await sleep(100);
+        await sleep(150);
       }
       return {
         ok: false,
@@ -972,8 +973,9 @@
 
   async function resetRuntime() {
     if (!await ensureCurrentRoute()) throw new Error("Conversation navigation is still in progress");
+    const guardReset = await backgroundSendWithRetry({ type: "YOLO_ACTION_RESET", pageId: state.pageId, actionKey: "" });
+    if (!guardReset?.ok) throw new Error(guardReset?.reason || "Could not reset the conversation action guards");
     state.runtime = freshRuntime();
-    await backgroundSendWithRetry({ type: "YOLO_ACTION_RESET", pageId: state.pageId, actionKey: "" });
     scheduleNextRefresh(true);
     scheduleNextQueue(false);
     saveRuntime();

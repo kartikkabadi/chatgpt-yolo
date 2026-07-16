@@ -88,3 +88,32 @@ test('capacity never evicts unresolved action outcomes', () => {
   assert.equal(claim.state.entries.length, Coordinator.MAX_GUARDS);
   assert.ok(claim.state.entries.every((entry) => entry.phase === 'unknown'));
 });
+
+test('long conversation keys remain distinct and reset by full prefix', () => {
+  const shared = 'https://chatgpt.com/c/' + 'a'.repeat(300);
+  const firstKey = `${shared}-one::approval`;
+  const secondKey = `${shared}-two::approval`;
+  let first = Coordinator.claim(null, firstKey, 'tab-a', { at: 1000 });
+  first = Coordinator.complete(first.state, firstKey, first.token, 1100);
+  let second = Coordinator.claim(first.state, secondKey, 'tab-b', { at: 1200 });
+  second = Coordinator.complete(second.state, secondKey, second.token, 1300);
+  assert.equal(second.state.entries.length, 2);
+  const reset = Coordinator.resetPrefix(second.state, `${shared}-one::`, 1400);
+  assert.equal(reset.ok, true);
+  assert.deepEqual(reset.state.entries.map((entry) => entry.key), [secondKey]);
+});
+
+test('manual reset cannot erase an active side effect lease', () => {
+  const claim = Coordinator.claim(null, 'page::approval', 'tab-a', { at: 1000, leaseMs: 10000 });
+  const claimedReset = Coordinator.resetPrefix(claim.state, 'page::', 1100);
+  assert.equal(claimedReset.ok, false);
+  assert.equal(claimedReset.code, 'action.busy');
+  const executing = Coordinator.begin(claim.state, 'page::approval', claim.token, 1200);
+  const executingReset = Coordinator.resetPrefix(executing.state, 'page::', 1300);
+  assert.equal(executingReset.ok, false);
+  assert.equal(executingReset.code, 'action.busy');
+  const unknown = Coordinator.normalizeState(executing.state, 12000);
+  const recovered = Coordinator.resetPrefix(unknown, 'page::', 12001);
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.state.entries.length, 0);
+});
