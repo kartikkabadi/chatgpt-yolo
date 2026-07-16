@@ -153,3 +153,12 @@ test("settings navigation stays available during template operations", () => {
   const source = read("options.js");
   assert.match(source, /button:not\(\[data-section-link\]\):not\(#clearSearch\)/);
 });
+
+test("destructive settings actions require confirmation and always report outcomes", () => {
+  const source = read("options.js");
+  assert.match(source, /Delete this template\? This cannot be undone/);
+  assert.match(source, /Replace all templates with the built-in defaults/);
+  assert.match(source, /Restore every automation setting to its default value/);
+  assert.match(source, /Template deleted\./);
+  assert.match(source, /Could not restore default templates/);
+});
