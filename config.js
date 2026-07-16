@@ -14,7 +14,8 @@
     lastAction: "yoloLastAction",
     runtime: "yoloRuntimeV1",
     queues: "yoloQueuesV1",
-    templates: "yoloTemplatesV1"
+    templates: "yoloTemplatesV1",
+    actionGuards: "yoloActionGuardsV1"
   });
 
   const DEEP_NUDGE_PROMPT = [
@@ -63,7 +64,7 @@
     queueRetryBackoffSec: 30,
     queuePauseOnFailure: true,
 
-    approvalsEnabled: true,
+    approvalsEnabled: false,
     approvalPolicy: "safe",
     approvalDelayMinSec: 2,
     approvalDelayMaxSec: 6,
@@ -106,7 +107,7 @@
       queueLimitPerHour: 12,
       queueMaxRetries: 1,
       queuePauseOnFailure: true,
-      approvalsEnabled: true,
+      approvalsEnabled: false,
       approvalPolicy: "safe",
       errorRecoveryEnabled: true,
       errorRecoveryStrategy: "continue-first",
@@ -123,7 +124,7 @@
       queueLimitPerHour: 30,
       queueMaxRetries: 2,
       queuePauseOnFailure: true,
-      approvalsEnabled: true,
+      approvalsEnabled: false,
       approvalPolicy: "safe",
       errorRecoveryEnabled: true,
       errorRecoveryStrategy: "continue-first",
@@ -140,7 +141,7 @@
       queueLimitPerHour: 60,
       queueMaxRetries: 2,
       queuePauseOnFailure: true,
-      approvalsEnabled: true,
+      approvalsEnabled: false,
       approvalPolicy: "safe",
       errorRecoveryEnabled: true,
       errorRecoveryStrategy: "continue-first",
@@ -253,6 +254,7 @@
     normalized.approvalDelayMaxSec = Math.max(normalized.approvalDelayMinSec, normalized.approvalDelayMaxSec);
     normalized.errorDelayMaxSec = Math.max(normalized.errorDelayMinSec, normalized.errorDelayMaxSec);
     normalized.refreshIntervalMaxMin = Math.max(normalized.refreshIntervalMinMin, normalized.refreshIntervalMaxMin);
+    normalized.pauseOnComposerText = true;
     return normalized;
   }
 
@@ -300,6 +302,17 @@
     try {
       const host = new URL(url).hostname.toLowerCase();
       return host === "chatgpt.com" || host.endsWith(".chatgpt.com");
+    } catch {
+      return false;
+    }
+  }
+
+  function isDurablePageId(value) {
+    try {
+      const canonical = pageId(value);
+      if (canonical !== String(value || "") || !isSupportedUrl(canonical)) return false;
+      const pathname = new URL(canonical).pathname.replace(/\/+$/, "");
+      return /(?:^|\/)c\/[^/]+$/i.test(pathname);
     } catch {
       return false;
     }
@@ -373,6 +386,7 @@
     workflowKey,
     pageId,
     isSupportedUrl,
+    isDurablePageId,
     randomBetween,
     pruneHistory,
     limitStatus,

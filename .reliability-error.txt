@@ -1,5 +1,0 @@
-Failed stage: apply
-Traceback (most recent call last):
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.reliability-foundation.py", line 15, in <module>
-    raise RuntimeError(
-RuntimeError: Reliability patch integrity failure: 72013 bytes, sha256=b822c469bef7b51951ecf19ef0fd796a2f270665f1812e2a1691f484db506134

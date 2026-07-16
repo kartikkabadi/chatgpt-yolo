@@ -1,13 +1,15 @@
 "use strict";
 
-importScripts("config.js", "queue.js", "commands.js");
+importScripts("config.js", "coordinator.js", "queue.js", "commands.js");
 
 const Config = globalThis.YOLOConfig;
+const Coordinator = globalThis.YOLOCoordinator;
 const Queue = globalThis.YOLOQueue;
 const Commands = globalThis.YOLOCommands;
 const queueLock = { current: Promise.resolve() };
 const templateLock = { current: Promise.resolve() };
 const workflowLock = { current: Promise.resolve() };
+const actionLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
 const WORKFLOW_LEASE_MS = 15 * 1000;
@@ -90,13 +92,53 @@ async function mutateQueue(pageId, mutator) {
 }
 
 function validPageId(pageId) {
-  return typeof pageId === "string" && pageId.length > 0 && pageId.length <= 1000;
+  return typeof pageId === "string" && pageId.length <= 1000 && Config.isDurablePageId(pageId);
 }
 
 function senderMatchesPageId(sender, pageId) {
   if (!sender?.tab?.url) return true;
   if (!Config.isSupportedUrl(sender.tab.url)) return false;
   return Config.pageId(sender.tab.url) === pageId;
+}
+
+async function mutateActionGuards(mutator) {
+  return withLock(actionLock, async () => {
+    const stored = await storageGet([Config.STORAGE_KEYS.actionGuards]);
+    const current = Coordinator.normalizeState(stored[Config.STORAGE_KEYS.actionGuards]);
+    const result = await mutator(current);
+    const state = Coordinator.normalizeState(result?.state || current);
+    await storageSet({ [Config.STORAGE_KEYS.actionGuards]: state });
+    return { ...result, state };
+  });
+}
+
+async function handleActionMessage(message, sender) {
+  const pageId = message.pageId;
+  if (!validPageId(pageId)) return { ok: false, reason: "A saved ChatGPT conversation is required", code: "action.page_invalid" };
+  if (!senderMatchesPageId(sender, pageId)) {
+    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "action.page_mismatch" };
+  }
+  const actionKey = String(message.actionKey || "").trim().slice(0, 240);
+  const guardKey = `${pageId}::${actionKey}`;
+  if (message.type === "YOLO_ACTION_CLAIM") {
+    return mutateActionGuards((state) => Coordinator.claim(state, guardKey, message.ownerId, {
+      leaseMs: message.leaseMs,
+      cooldownMs: message.cooldownMs
+    }));
+  }
+  if (message.type === "YOLO_ACTION_BEGIN") {
+    return mutateActionGuards((state) => Coordinator.begin(state, guardKey, message.token));
+  }
+  if (message.type === "YOLO_ACTION_COMPLETE") {
+    return mutateActionGuards((state) => Coordinator.complete(state, guardKey, message.token));
+  }
+  if (message.type === "YOLO_ACTION_RELEASE") {
+    return mutateActionGuards((state) => Coordinator.release(state, guardKey, message.token));
+  }
+  if (message.type === "YOLO_ACTION_RESET") {
+    return mutateActionGuards((state) => Coordinator.reset(state, actionKey ? guardKey : ""));
+  }
+  return { ok: false, reason: "Unknown action guard operation", code: "action.unknown" };
 }
 
 function normalizeTemplate(raw, fallbackId = "") {
@@ -328,7 +370,11 @@ async function handleQueueMessage(message, sender) {
     return readQueueState(pageId);
   }
   if (message.type === "YOLO_QUEUE_ADD") {
-    return mutateQueue(pageId, async (state) => Queue.addItem(state, message.item, { front: Boolean(message.front) }));
+    return mutateQueue(pageId, async (state) => Queue.addItem(state, message.item, {
+      front: Boolean(message.front),
+      requireUnpaused: Boolean(message.requireUnpaused),
+      dedupeWindowMs: message.dedupeWindowMs
+    }));
   }
   if (message.type === "YOLO_QUEUE_UPDATE") {
     return mutateQueue(pageId, async (state) => Queue.updateItem(state, message.itemId, message.text));
@@ -385,11 +431,13 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type?.startsWith("YOLO_")) return false;
-  const task = message.type.includes("TEMPLATE")
-    ? handleTemplateMessage(message)
-    : message.type.includes("WORKFLOW")
-      ? handleWorkflowMessage(message, sender)
-      : handleQueueMessage(message, sender);
+  const task = message.type.startsWith("YOLO_ACTION_")
+    ? handleActionMessage(message, sender)
+    : message.type.includes("TEMPLATE")
+      ? handleTemplateMessage(message)
+      : message.type.includes("WORKFLOW")
+        ? handleWorkflowMessage(message, sender)
+        : handleQueueMessage(message, sender);
   Promise.resolve(task)
     .then((response) => sendResponse(response))
     .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));

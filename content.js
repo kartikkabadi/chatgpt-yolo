@@ -2,8 +2,9 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
+  const Commands = globalThis.YOLOCommands;
   const Platforms = globalThis.YOLOPlatforms;
-  if (!Config || !Platforms) return;
+  if (!Config || !Commands || !Platforms) return;
 
   if (window.__YOLO_EXTENSION__?.version === Config.VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
@@ -119,10 +120,33 @@
   async function backgroundSendWithRetry(message, attempts = 3) {
     for (let index = 0; index < attempts; index += 1) {
       const response = await backgroundSend(message);
-      if (response?.ok) return response;
+      if (response) return response;
       if (index < attempts - 1) await sleep(150 * (index + 1));
     }
     return null;
+  }
+
+  async function claimActionGuard(actionKey, cooldownMs = 0, leaseMs = 20 * 1000) {
+    return backgroundSendWithRetry({
+      type: "YOLO_ACTION_CLAIM",
+      pageId: state.pageId,
+      actionKey,
+      ownerId: state.ownerId,
+      cooldownMs,
+      leaseMs
+    });
+  }
+
+  async function beginActionGuard(actionKey, token) {
+    return backgroundSendWithRetry({ type: "YOLO_ACTION_BEGIN", pageId: state.pageId, actionKey, token });
+  }
+
+  async function completeActionGuard(actionKey, token) {
+    return backgroundSendWithRetry({ type: "YOLO_ACTION_COMPLETE", pageId: state.pageId, actionKey, token });
+  }
+
+  async function releaseActionGuard(actionKey, token) {
+    return backgroundSendWithRetry({ type: "YOLO_ACTION_RELEASE", pageId: state.pageId, actionKey, token });
   }
 
   function freshRuntime() {
@@ -331,10 +355,10 @@
     return status;
   }
 
-  async function recordAction(action, counterKey = COUNTER_BY_ACTION[action]) {
+  async function recordAction(action, counterKey = COUNTER_BY_ACTION[action], { incrementSession = true } = {}) {
     const timestamp = now();
     state.runtime.history[action] = Config.pruneHistory([...(state.runtime.history[action] || []), timestamp], timestamp);
-    state.runtime.sessionActionCount += 1;
+    if (incrementSession) state.runtime.sessionActionCount += 1;
     state.runtime.lastActionAt = timestamp;
     clearBlocked();
     saveRuntime();
@@ -348,13 +372,14 @@
 
   function automationReady() {
     if (!state.loaded || state.destroyed || !state.platform || !state.settings.enabled || !routeIsCurrent()) return false;
+    if (!Config.isDurablePageId(state.pageId)) return false;
     return now() - state.pageLoadedAt >= state.settings.loadGraceSec * 1000;
   }
 
   function safeForInput() {
-    if (!routeIsCurrent()) return false;
+    if (!routeIsCurrent() || !Config.isDurablePageId(state.pageId)) return false;
     if (state.generationActive || Platforms.isGenerating(state.platform)) return false;
-    if (state.settings.pauseOnComposerText && composerHasText()) return false;
+    if (composerHasText()) return false;
     return true;
   }
 
@@ -383,32 +408,40 @@
       if (!composer) {
         return { ok: false, code: "composer.missing", reason: "Message composer was not found", deliveryAmbiguous: false };
       }
-      if (state.settings.pauseOnComposerText && Platforms.composerText(composer).trim()) {
+      if (Platforms.composerText(composer).trim()) {
         return { ok: false, code: "composer.busy", reason: "Message composer contains a draft", deliveryAmbiguous: false };
       }
 
+      const previousSnapshot = Platforms.userMessageSnapshot(state.platform);
+      const expectedFingerprint = Commands.fingerprint(prompt);
       Platforms.setComposerValue(composer, prompt);
       await sleep(120);
       if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
         return { ok: false, code: "route.changed", reason: "Conversation changed before the message was submitted", deliveryAmbiguous: false };
       }
       composer = Platforms.findComposer(state.platform) || composer;
+      if (Commands.fingerprint(Platforms.composerText(composer)) !== expectedFingerprint) {
+        return { ok: false, code: "composer.write_unconfirmed", reason: "The composer did not retain the queued message", deliveryAmbiguous: false };
+      }
+
       submissionAttempted = true;
       if (!Platforms.submitComposer(state.platform, composer)) {
         return { ok: false, code: "composer.submit_failed", reason: "Message could not be submitted", deliveryAmbiguous: true };
       }
 
-      for (let attempt = 0; attempt < 30; attempt += 1) {
+      for (let attempt = 0; attempt < 50; attempt += 1) {
         if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
           return { ok: false, code: "route.changed", reason: "Conversation changed before delivery could be confirmed", deliveryAmbiguous: true };
         }
-        if (Platforms.submissionObserved(state.platform)) return { ok: true, deliveryAmbiguous: true };
+        if (Platforms.submissionObserved(state.platform, { expectedText: prompt, previousSnapshot })) {
+          return { ok: true, deliveryAmbiguous: true };
+        }
         await sleep(100);
       }
       return {
         ok: false,
         code: "composer.unconfirmed",
-        reason: "The chat did not confirm that the message was submitted",
+        reason: "The matching user message did not appear in the conversation",
         deliveryAmbiguous: true
       };
     } catch (error) {
@@ -421,11 +454,17 @@
     }
   }
 
+  function actionDedupeKey(action, prompt, reason) {
+    const cooldownSec = action === "recovery" ? state.settings.errorCooldownSec : state.settings.deepNudgeCooldownSec;
+    const bucketMs = Math.max(1000, cooldownSec * 1000);
+    return `auto:${action}:${Math.floor(now() / bucketMs)}:${Commands.fingerprint(`${prompt}\n${reason}`)}`;
+  }
+
   async function sendPrompt({ action, prompt, label, reason, delayMinSec = 0, delayMaxSec = 0, automatic = true }) {
     if (state.actionInFlight || !state.platform) return false;
     const actionPageId = state.pageId;
     if (automatic && !automationReady()) return false;
-    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
+    if (!automatic && (!state.loaded || !routeIsCurrent() || !Config.isDurablePageId(state.pageId))) return false;
     if (!safeForInput()) return false;
     if ((action === "recovery" || action === "nudge") && !inputActionCooldownPassed(action)) return false;
 
@@ -435,28 +474,36 @@
       return false;
     }
 
-    state.actionInFlight = true;
-    try {
-      const delayMs = automatic ? randomMs(delayMinSec, delayMaxSec) : 150;
-      if (delayMs > 0) await sleep(delayMs);
-      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
-      updateGenerationState();
-      if (!safeForInput()) return false;
+    const delayMs = automatic ? randomMs(delayMinSec, delayMaxSec) : 150;
+    if (delayMs > 0) await sleep(delayMs);
+    if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId || !safeForInput()) return false;
 
-      const submitted = await writeAndSubmit(prompt, actionPageId);
-      if (!submitted.ok) {
-        await setBlocked(submitted.code, submitted.reason);
-        return false;
+    const queued = await backgroundSend({
+      type: "YOLO_QUEUE_ADD",
+      pageId: actionPageId,
+      front: true,
+      requireUnpaused: automatic,
+      dedupeWindowMs: automatic
+        ? Math.max(1000, (action === "recovery" ? state.settings.errorCooldownSec : state.settings.deepNudgeCooldownSec) * 1000)
+        : 0,
+      item: {
+        text: prompt,
+        source: `action:${action}`,
+        sourceId: reason,
+        dedupeKey: automatic ? actionDedupeKey(action, prompt, reason) : ""
       }
-      await recordAction(action);
-      await setLastAction(`Sent ${label} (${reason})`, "success", `action.${action}`, true);
-      return true;
-    } catch (error) {
-      await setLastAction(`${label} failed: ${String(error?.message || error)}`, "error", `action.${action}.failed`, true);
+    });
+    if (!queued?.ok) {
+      await setBlocked(queued?.code || `action.${action}.queue_failed`, queued?.reason || `Could not queue ${label}`);
       return false;
-    } finally {
-      state.actionInFlight = false;
     }
+    if (queued.alreadyCompleted) return true;
+
+    const sent = await handleQueue(false);
+    if (!sent && !queued.deduplicated) {
+      await setLastAction(`Queued ${label} (${reason})`, "info", `action.${action}.queued`, true);
+    }
+    return sent;
   }
 
   async function sendContinue(reason, automatic = true) {
@@ -476,9 +523,8 @@
     if (state.actionInFlight || !state.platform || state.reloadScheduled) return false;
     const actionPageId = state.pageId;
     if (automatic && !automationReady()) return false;
-    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
-    if (updateGenerationState()) return false;
-    if (state.settings.pauseOnComposerText && composerHasText()) return false;
+    if (!automatic && (!state.loaded || !routeIsCurrent() || !Config.isDurablePageId(state.pageId))) return false;
+    if (updateGenerationState() || composerHasText()) return false;
     if (action === "refresh" && !refreshCooldownPassed()) return false;
 
     const limit = checkActionLimit(action);
@@ -487,11 +533,22 @@
       return false;
     }
 
+    const cooldownMs = state.settings.refreshCooldownMin * 60 * 1000;
+    const guard = await claimActionGuard("refresh", cooldownMs, Math.max(2 * 60 * 1000, cooldownMs));
+    if (!guard?.ok) return false;
+
     state.actionInFlight = true;
+    let completedGuard = false;
     try {
-      if (state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
+      if (state.pageId !== actionPageId || currentPageId() !== actionPageId || composerHasText()) return false;
       state.runtime.lastRefreshAt = now();
       scheduleNextRefresh(true);
+      const completed = await completeActionGuard("refresh", guard.token);
+      completedGuard = Boolean(completed?.ok);
+      if (!completedGuard) {
+        await setLastAction("Refresh blocked: could not persist the cross-tab cooldown", "error", "refresh.guard_unconfirmed", true);
+        return false;
+      }
       await recordAction(action, "refreshesTriggered");
       await setLastAction(`Refreshing (${reason})`, "success", `action.${action}.refresh`, true);
       state.reloadScheduled = true;
@@ -505,6 +562,7 @@
       }, automatic ? 500 : 150);
       return true;
     } finally {
+      if (!completedGuard) await releaseActionGuard("refresh", guard.token);
       if (!state.reloadScheduled) state.actionInFlight = false;
     }
   }
@@ -579,19 +637,31 @@
       if (recentlyApproved(candidate.signature)) continue;
 
       state.actionInFlight = true;
+      let guard = null;
+      let clicked = false;
       try {
         await setLastAction(`Approval found: ${Platforms.buttonText(candidate.button) || "affirmative action"}`, "info", "approval.detected");
         await sleep(randomMs(state.settings.approvalDelayMinSec, state.settings.approvalDelayMaxSec));
         if (state.destroyed || state.pageId !== approvalPageId || currentPageId() !== approvalPageId) return false;
         updateGenerationState();
-        if (state.generationActive) return false;
+        if (state.generationActive || composerHasText()) return false;
 
+        guard = await claimActionGuard("approval", cooldownMs, 10 * 60 * 1000);
+        if (!guard?.ok) return false;
         const refreshedCandidate = Platforms.findApprovalCards(state.platform, state.settings.approvalPolicy)
           .find((entry) => entry.signature === candidate.signature);
         if (!refreshedCandidate || recentlyApproved(refreshedCandidate.signature)) return false;
         if (!refreshedCandidate.button.isConnected || !Platforms.visible(refreshedCandidate.button) || Platforms.isDisabled(refreshedCandidate.button)) return false;
 
+        const begun = await beginActionGuard("approval", guard.token);
+        if (!begun?.ok) return false;
         refreshedCandidate.button.click();
+        clicked = true;
+        const completed = await completeActionGuard("approval", guard.token);
+        if (!completed?.ok) {
+          await setLastAction("Approval clicked, but cross-tab completion could not be confirmed", "error", "approval.completion_unconfirmed", true);
+          return true;
+        }
         state.runtime.approvalSignatures = [
           ...state.runtime.approvalSignatures,
           { signature: refreshedCandidate.signature, at: now() }
@@ -600,6 +670,7 @@
         await setLastAction(`Clicked approval: ${Platforms.buttonText(refreshedCandidate.button) || "affirmative action"}`, "success", `approval.${refreshedCandidate.risk}`, true);
         return true;
       } finally {
+        if (guard?.ok && !clicked) await releaseActionGuard("approval", guard.token);
         state.actionInFlight = false;
       }
     }
@@ -725,8 +796,12 @@
       }
 
       await recordAction("queue");
+      const sourceAction = item.source?.startsWith("action:") ? item.source.slice("action:".length) : "";
+      if (["recovery", "nudge"].includes(sourceAction)) {
+        await recordAction(sourceAction, COUNTER_BY_ACTION[sourceAction], { incrementSession: false });
+      }
       scheduleNextQueue(true);
-      await setLastAction("Sent queued message", "success", "queue.sent", true);
+      await setLastAction(sourceAction ? `Sent ${sourceAction} prompt` : "Sent queued message", "success", sourceAction ? `action.${sourceAction}` : "queue.sent", true);
       return true;
     } catch (error) {
       await failQueueClaim(queuePageId, item, String(error?.message || error), queueFailureOptions, "queue.exception", deliveryAmbiguous);
@@ -900,6 +975,7 @@
   async function resetRuntime() {
     if (!await ensureCurrentRoute()) throw new Error("Conversation navigation is still in progress");
     state.runtime = freshRuntime();
+    await backgroundSendWithRetry({ type: "YOLO_ACTION_RESET", pageId: state.pageId, actionKey: "" });
     scheduleNextRefresh(true);
     scheduleNextQueue(false);
     saveRuntime();

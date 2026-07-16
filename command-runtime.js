@@ -223,7 +223,7 @@
 
     if (latest.status !== "idle") {
       if (latest.status === "running" && (latest.pendingItemId || latest.awaitingResponse || engine()?.getState?.().generating)) {
-        return { ok: false, reason: "Pause or clear the active workflow after its current turn finishes before replacing it", keepOpen: true };
+        return { ok: false, reason: "Pause or stop the active workflow after its current turn finishes before replacing it", keepOpen: true };
       }
       if (!window.confirm(`Replace the active ${latest.kind} workflow?`)) {
         return { ok: false, reason: "Existing workflow kept", keepOpen: true };
@@ -503,7 +503,7 @@
       execute: executeCommand,
       pause: () => executeCommand("pause"),
       resume: () => executeCommand("resume"),
-      clear: () => executeCommand("clear"),
+      stop: () => executeCommand("stop"),
       edit: editWorkflow,
       getComposer: composer,
       getComposerText: composerText,

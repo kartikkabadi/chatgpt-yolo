@@ -10,6 +10,7 @@
   const SAFE_APPROVAL_RE = /\b(allow|approve|accept|continue|run|grant|authorize|confirm)\b/i;
   const WRITE_APPROVAL_RE = /\b(create|update|edit|commit|push|open|apply|write|modify|change)\b/i;
   const DESTRUCTIVE_APPROVAL_RE = /\b(merge|delete|remove|close|force|overwrite|reset|revert|discard|drop|destroy)\b/i;
+  const SENSITIVE_APPROVAL_RE = /\b(\x61ccount access|\x63onnect account|\x73ign in|\x63redential|\x73ecret|\x74oken|\x6fauth|\x73cope)\b/i;
   const GITHUB_CONTEXT_RE = /\b(github|repository|pull request|issue|branch|commit|workflow|workspace|permission|tool call)\b/i;
 
   const ADAPTERS = Object.freeze({
@@ -244,24 +245,46 @@
     if (NEGATIVE_RE.test(button) || DETAILS_RE.test(button)) return "blocked";
     const riskText = `${button} ${context}`;
     if (DESTRUCTIVE_APPROVAL_RE.test(riskText)) return "destructive";
+    if (SENSITIVE_APPROVAL_RE.test(riskText)) return "sensitive";
     if (WRITE_APPROVAL_RE.test(riskText)) return "write";
     if (SAFE_APPROVAL_RE.test(button)) return "safe";
     return "unknown";
   }
 
+  function comparableText(value) {
+    return String(value || "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/[^\S\n]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
 
-  function submissionObserved(adapter, documentLike = document) {
+  function userMessageSnapshot(adapter, documentLike = document) {
+    if (!adapter) return { count: 0, latestText: "" };
+    const candidates = uniqueElements(adapter.userSelectors
+      .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    return { count: candidates.length, latestText: comparableText(normalizedMultilineText(candidates.at(-1))) };
+  }
+
+  function submissionObserved(adapter, options = {}, documentLike = document) {
     if (!adapter) return false;
-    if (isGenerating(adapter, documentLike)) return true;
-    const composer = findComposer(adapter, documentLike);
-    return Boolean(composer) && composerText(composer).trim() === "";
+    const expectedText = comparableText(options.expectedText);
+    if (!expectedText) return false;
+    const previous = options.previousSnapshot && typeof options.previousSnapshot === "object"
+      ? options.previousSnapshot
+      : { count: 0, latestText: comparableText(options.previousUserText) };
+    const current = userMessageSnapshot(adapter, documentLike);
+    const advanced = current.count > Math.max(0, Number(previous.count) || 0)
+      || current.latestText !== comparableText(previous.latestText);
+    return advanced && current.latestText === expectedText;
   }
 
   function approvalVerbAllowed(text, policy, contextText = "") {
     const risk = approvalRisk(text, contextText);
     if (risk === "safe") return true;
     if (risk === "write") return policy === "writes" || policy === "all";
-    if (risk === "destructive") return policy === "all";
+    if (risk === "sensitive" || risk === "destructive") return policy === "all";
     return false;
   }
 
@@ -338,6 +361,7 @@
     findErrorState,
     latestAssistantText,
     latestUserText,
+    userMessageSnapshot,
     composerText,
     setComposerValue,
     submitComposer,

@@ -64,6 +64,7 @@
       templateId: cleanText(raw.templateId, 180),
       source: cleanText(raw.source, 120),
       sourceId: cleanText(raw.sourceId, 180),
+      dedupeKey: cleanText(raw.dedupeKey, 220),
       state,
       attempts: Math.max(0, Math.round(finite(raw.attempts, 0))),
       error: cleanText(raw.error, 500),
@@ -140,6 +141,7 @@
       itemId,
       source: cleanText(raw.source, 120),
       sourceId: cleanText(raw.sourceId, 180),
+      dedupeKey: cleanText(raw.dedupeKey, 220),
       at: Math.max(0, finite(raw.at, at))
     };
   }
@@ -193,8 +195,20 @@
     return state;
   }
 
-  function addItem(rawState, input, { front = false, at = Date.now(), id } = {}) {
+  function addItem(rawState, input, { front = false, at = Date.now(), id, requireUnpaused = false, dedupeWindowMs = 0 } = {}) {
     let state = normalizeState(rawState, at);
+    if (requireUnpaused && state.paused) {
+      return { state, ok: false, reason: "Queue is paused", code: "queue.paused" };
+    }
+    const dedupeKey = cleanText(input?.dedupeKey, 220);
+    if (dedupeKey) {
+      const existing = state.items.find((item) => item.dedupeKey === dedupeKey);
+      if (existing) return { state, ok: true, item: clone(existing), deduplicated: true };
+      const windowMs = Math.max(0, finite(dedupeWindowMs, 0));
+      const completed = state.completions.find((entry) => entry.dedupeKey === dedupeKey
+        && (windowMs === 0 || entry.at + windowMs > at));
+      if (completed) return { state, ok: true, alreadyCompleted: true, deduplicated: true };
+    }
     if (state.items.length >= MAX_ITEMS) {
       return { state, ok: false, reason: `Queue limit of ${MAX_ITEMS} messages reached`, code: "queue.full" };
     }
@@ -211,6 +225,7 @@
       templateId: input?.templateId || "",
       source: input?.source || "",
       sourceId: input?.sourceId || "",
+      dedupeKey,
       state: "pending",
       attempts: 0,
       createdAt: at,
@@ -425,6 +440,7 @@
       itemId: item.id,
       source: item.source,
       sourceId: item.sourceId,
+      dedupeKey: item.dedupeKey,
       at
     }].slice(-MAX_COMPLETIONS);
     state.updatedAt = at;
