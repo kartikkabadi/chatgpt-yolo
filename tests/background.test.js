@@ -20,6 +20,10 @@ function loadBackground() {
       storage: {
         local: {
           get(keys, callback) {
+            if (keys === null) {
+              callback({ ...storage });
+              return;
+            }
             const list = Array.isArray(keys) ? keys : [keys];
             callback(Object.fromEntries(list.filter((key) => key in storage).map((key) => [key, storage[key]])));
           },
@@ -221,4 +225,26 @@ test("background persists sender-bound command workflow state", async () => {
   }, sender);
   assert.equal(cleared.workflow.status, "idle");
   assert.equal(cleared.workflow.revision, claimed.workflow.revision + 1);
+});
+
+test("background bounds active command workflows", async () => {
+  const { invoke } = loadBackground();
+  for (let index = 0; index < 25; index += 1) {
+    const pageId = `https://chatgpt.com/c/workflow-${index}`;
+    const response = await invoke({
+      type: "YOLO_WORKFLOW_SET",
+      pageId,
+      expectedRevision: 0,
+      workflow: { kind: "loop", objective: `work ${index}`, status: "running" }
+    });
+    assert.equal(response.ok, true);
+  }
+  const rejected = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId: "https://chatgpt.com/c/workflow-overflow",
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "overflow", status: "running" }
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.code, "workflow.conversation_limit");
 });

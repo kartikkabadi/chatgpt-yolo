@@ -76,7 +76,7 @@
 
   function parseLoopArgs(input) {
     const text = cleanText(input);
-    const match = text.match(/^(\d{1,2})\s+([\s\S]+)$/);
+    const match = text.match(/^(\d{1,3})\s+([\s\S]+)$/);
     if (!match) return { objective: text, maxIterations: DEFAULT_MAX_ITERATIONS };
     return {
       objective: cleanText(match[2]),
@@ -249,6 +249,56 @@
     return match[1].toLowerCase();
   }
 
+  function decideWorkflowResponse(raw, responseText, { userFingerprint = "", at = Date.now() } = {}) {
+    const workflow = normalizeWorkflow(raw, at);
+    if (workflow.status !== "running" || !workflow.awaitingResponse) {
+      return { workflow, action: "ignore", reason: "Workflow is not awaiting a response", code: "workflow.not_waiting" };
+    }
+    if (!workflow.promptFingerprint || userFingerprint !== workflow.promptFingerprint) {
+      return {
+        workflow,
+        action: "paused",
+        reason: "Conversation advanced outside the active workflow",
+        code: "command.workflow.ownership_lost"
+      };
+    }
+
+    const text = String(responseText || "").trim();
+    if (!text) return { workflow, action: "ignore", reason: "No assistant response is available", code: "workflow.response_missing" };
+
+    workflow.awaitingResponse = false;
+    workflow.sawGeneration = false;
+    workflow.lastAssistantFingerprint = fingerprint(text);
+    workflow.lastResponseAt = at;
+    workflow.iteration += 1;
+    workflow.updatedAt = at;
+    const outcome = evaluateResponse(text);
+
+    if (outcome === "done") {
+      return { workflow, action: "completed", reason: "ChatGPT reported the objective complete", code: "command.workflow.completed" };
+    }
+    if (outcome === "blocked") {
+      return { workflow, action: "blocked", reason: "ChatGPT requested user input or unavailable access", code: "command.workflow.blocked" };
+    }
+    if (workflow.kind === "goal" && outcome === "missing") {
+      return {
+        workflow,
+        action: "paused",
+        reason: "Goal response omitted the required terminal control marker",
+        code: "command.goal.marker_missing"
+      };
+    }
+    if (workflow.iteration >= workflow.maxIterations) {
+      return {
+        workflow,
+        action: "paused",
+        reason: `Reached the ${workflow.maxIterations}-iteration safety cap`,
+        code: "command.workflow.cap_reached"
+      };
+    }
+    return { workflow, action: "continue", reason: "Continue workflow", code: "command.workflow.continue" };
+  }
+
   function oneShotPrompt(name, args = "") {
     const scope = cleanText(args);
     if (name === "plan") {
@@ -299,6 +349,7 @@
     setWorkflowStatus,
     workflowPrompt,
     evaluateResponse,
+    decideWorkflowResponse,
     oneShotPrompt,
     requiresArgs
   });

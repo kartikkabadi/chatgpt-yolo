@@ -81,3 +81,40 @@ test("workflow revisions and runner leases normalize safely", () => {
   assert.equal(paused.runnerId, "");
   assert.equal(paused.runnerExpiresAt, 0);
 });
+
+test("workflow response decisions enforce ownership, markers, and caps", () => {
+  const base = Commands.normalizeWorkflow({
+    kind: "goal",
+    objective: "ship",
+    status: "running",
+    maxIterations: 2,
+    iteration: 0,
+    awaitingResponse: true,
+    promptFingerprint: "owned"
+  }, 1000);
+
+  assert.equal(Commands.decideWorkflowResponse(base, "work\n[YOLO:CONTINUE]", {
+    userFingerprint: "manual",
+    at: 1100
+  }).action, "paused");
+
+  const continued = Commands.decideWorkflowResponse(base, "work\n[YOLO:CONTINUE]", {
+    userFingerprint: "owned",
+    at: 1100
+  });
+  assert.equal(continued.action, "continue");
+  assert.equal(continued.workflow.iteration, 1);
+
+  const capped = Commands.decideWorkflowResponse({ ...continued.workflow, awaitingResponse: true }, "more\n[YOLO:CONTINUE]", {
+    userFingerprint: "owned",
+    at: 1200
+  });
+  assert.equal(capped.action, "paused");
+  assert.match(capped.reason, /safety cap/);
+
+  const done = Commands.decideWorkflowResponse(base, "complete\n[YOLO:DONE]", {
+    userFingerprint: "owned",
+    at: 1300
+  });
+  assert.equal(done.action, "completed");
+});

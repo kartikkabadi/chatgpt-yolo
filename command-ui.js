@@ -157,6 +157,7 @@
     let results = [...Commands.COMMANDS];
     let argumentCommand = null;
     let currentWorkflow = Commands.freshWorkflow();
+    let workflowActionInFlight = false;
     let destroyed = false;
 
     function isComposerTarget(target) {
@@ -326,8 +327,10 @@
     }
 
     function keydown(event) {
-      if (destroyed) return;
-      const commandShortcut = (event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === "k" || (event.shiftKey && event.key.toLowerCase() === "p"));
+      if (destroyed || event.isComposing) return;
+      const composerTarget = isComposerTarget(event.target);
+      const commandShortcut = (event.metaKey || event.ctrlKey)
+        && ((event.shiftKey && event.key.toLowerCase() === "p") || (composerTarget && event.key.toLowerCase() === "k"));
       if (commandShortcut) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -335,7 +338,7 @@
         return;
       }
 
-      if (isComposerTarget(event.target)) {
+      if (composerTarget) {
         const composerText = callbacks.getComposerText();
         if (event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey && !composerText.trim()) {
           event.preventDefault();
@@ -390,9 +393,25 @@
       status.dataset.open = "false";
       callbacks.getComposer()?.focus?.();
     });
-    pauseButton.addEventListener("click", () => currentWorkflow.status === "paused" ? callbacks.resume() : callbacks.pause());
+    async function runWorkflowAction(action) {
+      if (workflowActionInFlight) return;
+      workflowActionInFlight = true;
+      pauseButton.disabled = true;
+      editButton.disabled = true;
+      clearButton.disabled = true;
+      try {
+        const result = await action();
+        if (result && result.ok === false && result.reason) workflowSub.textContent = result.reason;
+      } finally {
+        workflowActionInFlight = false;
+        update({ workflow: currentWorkflow });
+      }
+    }
+
+    pauseButton.addEventListener("click", () => runWorkflowAction(() =>
+      ["paused", "blocked"].includes(currentWorkflow.status) ? callbacks.resume() : callbacks.pause()));
     editButton.addEventListener("click", () => callbacks.edit(currentWorkflow));
-    clearButton.addEventListener("click", () => callbacks.clear(currentWorkflow));
+    clearButton.addEventListener("click", () => runWorkflowAction(() => callbacks.clear(currentWorkflow)));
 
     document.addEventListener("keydown", keydown, true);
     window.addEventListener("resize", position);

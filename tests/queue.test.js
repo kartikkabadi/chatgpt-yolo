@@ -329,3 +329,17 @@ test("queue completion records exact command workflow identity", () => {
   assert.equal(unknown.ok, false);
   assert.equal(unknown.code, "queue.not_found");
 });
+
+test("recent completion identity remains available after later sends", () => {
+  let state = Queue.addItem(Queue.freshState(1000), {
+    text: "first",
+    source: "workflow:goal",
+    sourceId: "goal-1"
+  }, { id: "first", at: 1001 }).state;
+  state = Queue.addItem(state, { text: "second" }, { id: "second", at: 1002 }).state;
+  const firstClaim = Queue.claimNext(state, "owner", { at: 1100 });
+  state = Queue.completeClaim(firstClaim.state, "first", firstClaim.item.claimToken, 1200).state;
+  const secondClaim = Queue.claimNext(state, "owner", { at: 1300 });
+  state = Queue.completeClaim(secondClaim.state, "second", secondClaim.item.claimToken, 1400).state;
+  assert.equal(state.completions.some((entry) => entry.itemId === "first" && entry.sourceId === "goal-1"), true);
+});

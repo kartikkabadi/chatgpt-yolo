@@ -9,6 +9,7 @@
   const MAX_TEXT_LENGTH = 8000;
   const MAX_QUEUE_TEXT_LENGTH = 120000;
   const MAX_EVENTS = 100;
+  const MAX_COMPLETIONS = 20;
   const CLAIM_TTL_MS = 2 * 60 * 1000;
   const EVENT_LEVELS = new Set(["info", "success", "warning", "error"]);
 
@@ -32,6 +33,7 @@
       lastCompletedItemId: "",
       lastCompletedSource: "",
       lastCompletedSourceId: "",
+      completions: [],
       updatedAt: at
     };
   }
@@ -130,6 +132,18 @@
     return items;
   }
 
+  function normalizeCompletion(raw, at = Date.now()) {
+    if (!raw || typeof raw !== "object") return null;
+    const itemId = cleanText(raw.itemId, 180);
+    if (!itemId) return null;
+    return {
+      itemId,
+      source: cleanText(raw.source, 120),
+      sourceId: cleanText(raw.sourceId, 180),
+      at: Math.max(0, finite(raw.at, at))
+    };
+  }
+
   function normalizeState(raw, at = Date.now()) {
     const fallback = freshState(at);
     const source = raw && typeof raw === "object" ? raw : {};
@@ -153,6 +167,11 @@
       lastCompletedItemId: cleanText(source.lastCompletedItemId, 180),
       lastCompletedSource: cleanText(source.lastCompletedSource, 120),
       lastCompletedSourceId: cleanText(source.lastCompletedSourceId, 180),
+      completions: (Array.isArray(source.completions) ? source.completions : [])
+        .map((completion) => normalizeCompletion(completion, at))
+        .filter(Boolean)
+        .sort((a, b) => a.at - b.at)
+        .slice(-MAX_COMPLETIONS),
       updatedAt: finite(source.updatedAt, at)
     };
   }
@@ -389,7 +408,9 @@
     let state = normalizeState(rawState, at);
     const item = state.items.find((entry) => entry.id === itemId);
     if (!item) {
-      if (state.lastCompletedItemId === itemId) return { state, ok: true, alreadyCompleted: true };
+      if (state.completions.some((completion) => completion.itemId === itemId)) {
+        return { state, ok: true, alreadyCompleted: true };
+      }
       return { state, ok: false, reason: "Queue item was not found", code: "queue.not_found" };
     }
     if (item.state !== "sending" || item.claimToken !== claimToken) {
@@ -400,6 +421,12 @@
     state.lastCompletedItemId = item.id;
     state.lastCompletedSource = item.source;
     state.lastCompletedSourceId = item.sourceId;
+    state.completions = [...state.completions, {
+      itemId: item.id,
+      source: item.source,
+      sourceId: item.sourceId,
+      at
+    }].slice(-MAX_COMPLETIONS);
     state.updatedAt = at;
     state = appendEvent(state, { code: "queue.sent", message: "Queued message sent", level: "success" }, at);
     return { state, ok: true, item };

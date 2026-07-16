@@ -368,42 +368,18 @@
     const fingerprint = Commands.fingerprint(text);
     if (!text || fingerprint === workflow.baselineFingerprint || fingerprint === workflow.lastAssistantFingerprint) return false;
 
-    if (latestUserFingerprint() !== workflow.promptFingerprint) {
-      await markWorkflow("paused", "Conversation advanced outside the active workflow", "command.workflow.ownership_lost");
+    const decision = Commands.decideWorkflowResponse(workflow, text, {
+      userFingerprint: latestUserFingerprint(),
+      at: now()
+    });
+    state.workflow = decision.workflow;
+    if (decision.action === "ignore") return false;
+    if (decision.action !== "continue") {
+      await markWorkflow(decision.action, decision.reason, decision.code);
       return true;
     }
 
-    workflow.awaitingResponse = false;
-    workflow.sawGeneration = false;
-    workflow.lastAssistantFingerprint = fingerprint;
-    workflow.lastResponseAt = now();
-    workflow.iteration += 1;
-    workflow.updatedAt = now();
-    const outcome = Commands.evaluateResponse(text);
-
-    if (outcome === "done") {
-      state.workflow = workflow;
-      await markWorkflow("completed", "ChatGPT reported the objective complete", "command.workflow.completed");
-      return true;
-    }
-    if (outcome === "blocked") {
-      state.workflow = workflow;
-      await markWorkflow("blocked", "ChatGPT requested user input or unavailable access", "command.workflow.blocked");
-      return true;
-    }
-    if (workflow.kind === "goal" && outcome === "missing") {
-      state.workflow = workflow;
-      await markWorkflow("paused", "Goal response omitted the required terminal control marker", "command.goal.marker_missing");
-      return true;
-    }
-    if (workflow.iteration >= workflow.maxIterations) {
-      state.workflow = workflow;
-      await markWorkflow("paused", `Reached the ${workflow.maxIterations}-iteration safety cap`, "command.workflow.cap_reached");
-      return true;
-    }
-
-    state.workflow = workflow;
-    if (!await writeWorkflow(workflow)) return true;
+    if (!await writeWorkflow(state.workflow)) return true;
     const prompt = Commands.workflowPrompt(state.workflow, "continue");
     const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
     if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not queue the next workflow iteration", "command.workflow.queue_failed");
@@ -438,8 +414,8 @@
       return false;
     }
 
-    const completedExactly = queue.state.lastCompletedItemId === workflow.pendingItemId
-      && queue.state.lastCompletedSourceId === workflow.id;
+    const completedExactly = queue.state.completions.some((completion) =>
+      completion.itemId === workflow.pendingItemId && completion.sourceId === workflow.id);
     if (completedExactly) {
       const next = Commands.normalizeWorkflow(state.workflow);
       next.pendingItemId = "";

@@ -9,6 +9,7 @@ const queueLock = { current: Promise.resolve() };
 const templateLock = { current: Promise.resolve() };
 const workflowLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
+const MAX_ACTIVE_WORKFLOWS = 25;
 const WORKFLOW_LEASE_MS = 15 * 1000;
 const WORKFLOW_RENEW_WINDOW_MS = 5 * 1000;
 
@@ -185,6 +186,22 @@ async function handleWorkflowMessage(message, sender) {
         return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
       }
       const workflow = Commands.normalizeWorkflow({ ...message.workflow, revision: current.revision + 1 });
+      if (current.status === "idle" && workflow.status !== "idle") {
+        const allStored = await storageGet(null);
+        const activeCount = Object.entries(allStored)
+          .filter(([storedKey]) => storedKey.startsWith("yoloWorkflow:") && storedKey !== key)
+          .map(([, value]) => Commands.normalizeWorkflow(value))
+          .filter((entry) => entry.status !== "idle")
+          .length;
+        if (activeCount >= MAX_ACTIVE_WORKFLOWS) {
+          return {
+            ok: false,
+            reason: `Active workflow limit of ${MAX_ACTIVE_WORKFLOWS} conversations reached; clear an old workflow first`,
+            code: "workflow.conversation_limit",
+            workflow: current
+          };
+        }
+      }
       await storageSet({ [key]: workflow });
       return { ok: true, workflow };
     }
