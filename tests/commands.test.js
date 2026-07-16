@@ -16,6 +16,7 @@ test("parses bounded loop iteration counts", () => {
     maxIterations: 7
   });
   assert.equal(Commands.parseLoopArgs("99 finish it").maxIterations, Commands.MAX_ITERATIONS);
+  assert.equal(Commands.parseLoopArgs("0 finish it").maxIterations, 1);
   assert.equal(Commands.parseLoopArgs("finish it").maxIterations, Commands.DEFAULT_MAX_ITERATIONS);
 });
 
@@ -39,6 +40,8 @@ test("goal response markers are explicit and case-insensitive", () => {
   assert.equal(Commands.evaluateResponse("done\n[YOLO:DONE]"), "done");
   assert.equal(Commands.evaluateResponse("[yolo:blocked]"), "blocked");
   assert.equal(Commands.evaluateResponse("[YOLO:DONE]\nbut actually keep going"), "missing");
+  assert.equal(Commands.evaluateResponse("inline [YOLO:DONE]"), "missing");
+  assert.equal(Commands.evaluateResponse("prefix\n[YOLO:DONE]"), "done");
   assert.equal(Commands.evaluateResponse("no marker"), "missing");
 });
 

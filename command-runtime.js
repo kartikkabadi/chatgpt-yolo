@@ -275,7 +275,9 @@
     if (state.workflow.status === "idle") return { ok: false, reason: "No active goal or loop", keepOpen: true };
     if (status === "paused") {
       const cancelled = await cancelPendingWorkflowPrompt(state.workflow);
-      if (!cancelled.ok) return { ok: false, reason: cancelled.reason, keepOpen: true };
+      if (!cancelled.ok || (state.workflow.pendingItemId && !cancelled.removed)) {
+        return { ok: false, reason: cancelled.reason || "The workflow prompt is already sending", keepOpen: true };
+      }
       if (cancelled.reason) reason = `${reason}. ${cancelled.reason}`;
     }
     const next = Commands.setWorkflowStatus(state.workflow, status, reason, now());
@@ -326,7 +328,9 @@
       if (state.workflow.status === "idle") return { ok: false, reason: "No active goal or loop", keepOpen: true };
       if (!window.confirm(`Clear the active ${state.workflow.kind} workflow?`)) return { ok: false, reason: "Workflow kept", keepOpen: true };
       const cancelled = await cancelPendingWorkflowPrompt(state.workflow);
-      if (!cancelled.ok) return { ok: false, reason: cancelled.reason, keepOpen: true };
+      if (!cancelled.ok || (state.workflow.pendingItemId && !cancelled.removed)) {
+        return { ok: false, reason: cancelled.reason || "The workflow prompt is already sending", keepOpen: true };
+      }
       const ok = await clearWorkflow();
       if (ok) await record(cancelled.reason || "Cleared command workflow", "info", "command.workflow.cleared");
       return { ok, reason: ok ? "" : "Workflow changed in another tab", keepOpen: !ok };

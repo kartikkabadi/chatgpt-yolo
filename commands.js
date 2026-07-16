@@ -10,7 +10,7 @@
   const DEFAULT_MAX_ITERATIONS = 12;
   const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
-  const MARKER_RE = /\[YOLO:(CONTINUE|DONE|BLOCKED)\]\s*$/i;
+  const MARKER_RE = /(?:^|\n)\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
 
   const COMMANDS = Object.freeze([
     Object.freeze({ name: "goal", title: "Goal", description: "Start a persistent objective that continues until done, blocked, paused, or capped.", args: "objective", group: "Workflows" }),
@@ -80,7 +80,7 @@
     if (!match) return { objective: text, maxIterations: DEFAULT_MAX_ITERATIONS };
     return {
       objective: cleanText(match[2]),
-      maxIterations: clamp(Math.round(Number(match[1])) || DEFAULT_MAX_ITERATIONS, 1, MAX_ITERATIONS)
+      maxIterations: clamp(Math.round(Number(match[1])), 1, MAX_ITERATIONS)
     };
   }
 

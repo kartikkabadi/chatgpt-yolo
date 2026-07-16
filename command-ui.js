@@ -101,6 +101,10 @@
     search.autocomplete = "off";
     search.spellcheck = false;
     search.setAttribute("aria-label", "Filter YOLO commands");
+    search.setAttribute("role", "combobox");
+    search.setAttribute("aria-autocomplete", "list");
+    search.setAttribute("aria-controls", "yolo-command-list");
+    search.setAttribute("aria-expanded", "false");
     search.placeholder = "Type a command";
     searchRow.appendChild(search);
     searchRow.appendChild(element("span", "escape", "esc"));
@@ -111,6 +115,7 @@
     feedback.dataset.visible = "false";
     palette.appendChild(feedback);
     const list = element("div", "list");
+    list.id = "yolo-command-list";
     list.setAttribute("role", "listbox");
     palette.appendChild(list);
     const footer = element("div", "footer");
@@ -192,11 +197,15 @@
       results = argumentCommand ? [argumentCommand] : Commands.filterCommands(search.value);
       selectedIndex = Math.max(0, Math.min(selectedIndex, results.length - 1));
       if (!results.length) {
+        search.removeAttribute("aria-activedescendant");
         list.appendChild(element("div", "empty", "No matching YOLO command"));
         return;
       }
+      const selectedId = `yolo-command-option-${results[selectedIndex].name}`;
+      search.setAttribute("aria-activedescendant", selectedId);
       results.forEach((entry, index) => {
         const button = element("button", "item");
+        button.id = `yolo-command-option-${entry.name}`;
         button.type = "button";
         button.setAttribute("role", "option");
         button.setAttribute("aria-selected", String(index === selectedIndex));
@@ -233,6 +242,7 @@
       status.dataset.open = "false";
       open = true;
       palette.dataset.open = "true";
+      search.setAttribute("aria-expanded", "true");
       argumentCommand = null;
       search.value = String(initial || "").replace(/^\//, "");
       search.placeholder = "Type a command";
@@ -249,7 +259,9 @@
       if (!open) return;
       open = false;
       palette.dataset.open = "false";
+      search.setAttribute("aria-expanded", "false");
       resetPalette();
+      search.removeAttribute("aria-activedescendant");
       if (restoreComposer) callbacks.getComposer()?.focus?.();
     }
 
@@ -321,8 +333,10 @@
       const waiting = currentWorkflow.pendingItemId ? "queued" : (currentWorkflow.awaitingResponse ? "waiting for response" : currentWorkflow.status);
       workflowSub.textContent = `${waiting} · iteration ${currentWorkflow.iteration}/${currentWorkflow.maxIterations}${currentWorkflow.reason ? ` · ${currentWorkflow.reason}` : ""}`;
       pauseButton.textContent = ["paused", "blocked"].includes(currentWorkflow.status) ? "Resume" : "Pause";
-      pauseButton.disabled = !["running", "paused", "blocked"].includes(currentWorkflow.status);
-      editButton.disabled = !["running", "paused", "blocked"].includes(currentWorkflow.status);
+      const actionable = ["running", "paused", "blocked"].includes(currentWorkflow.status);
+      pauseButton.disabled = workflowActionInFlight || !actionable;
+      editButton.disabled = workflowActionInFlight || !actionable;
+      clearButton.disabled = workflowActionInFlight;
       position();
     }
 

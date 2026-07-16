@@ -167,3 +167,17 @@ test("palette filter text is not leaked into optional command arguments", () => 
   const source = read("command-ui.js");
   assert.match(source, /run\(entry, argumentCommand \? search\.value : ""\)/);
 });
+
+test("command palette exposes active keyboard selection and restores every workflow action", () => {
+  const source = read("command-ui.js");
+  assert.match(source, /aria-activedescendant/);
+  assert.match(source, /role", "combobox"/);
+  assert.match(source, /yolo-command-option-\$\{entry\.name\}/);
+  assert.match(source, /clearButton\.disabled = workflowActionInFlight/);
+});
+
+test("pause and clear preserve prompts that are already sending", () => {
+  const runtime = read("command-runtime.js");
+  const guards = runtime.match(/state\.workflow\.pendingItemId && !cancelled\.removed/g) || [];
+  assert.equal(guards.length, 2);
+});

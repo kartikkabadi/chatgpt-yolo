@@ -118,8 +118,7 @@ test("reads the latest ChatGPT assistant response for workflow markers", () => {
     }
   };
   const adapter = { assistantSelectors: ["assistant"] };
-  assert.match(Platforms.latestAssistantText(adapter, documentLike), /latest response/);
-  assert.match(Platforms.latestAssistantText(adapter, documentLike), /YOLO:CONTINUE/);
+  assert.equal(Platforms.latestAssistantText(adapter, documentLike), "latest response\n[YOLO:CONTINUE]");
 });
 
 test("reads the latest ChatGPT user prompt for workflow ownership", () => {

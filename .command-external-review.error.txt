@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.fix-external-review-script.py", line 15, in <module>
-    raise RuntimeError(f'Expected one raw-string conversion, found {count}: {old[:80]!r}')
-RuntimeError: Expected one raw-string conversion, found 2: '    \'\'\'  assert.equal(Commands.evaluateResponse("[YOLO:DONE]\\nbut actually keep '

@@ -151,10 +151,19 @@
     }) || null;
   }
 
+  function normalizedMultilineText(element) {
+    return String(element?.innerText || element?.textContent || "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/[^\S\n]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
   function latestMessageText(selectors, documentLike = document) {
     const candidates = uniqueElements((Array.isArray(selectors) ? selectors : [])
       .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
-    return normalizedText(candidates.at(-1));
+    return normalizedMultilineText(candidates.at(-1));
   }
 
   function latestAssistantText(adapter, documentLike = document) {
