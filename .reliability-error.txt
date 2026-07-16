@@ -1,9 +1,193 @@
-Failed stage: apply
-error: patch failed: package.json:4
-error: package.json: patch does not apply
-Traceback (most recent call last):
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.reliability-foundation.py", line 18, in <module>
-    subprocess.run(
-  File "/usr/lib/python3.12/subprocess.py", line 571, in run
-    raise CalledProcessError(retcode, process.args,
-subprocess.CalledProcessError: Command '['git', 'apply', '--whitespace=error-all', '-']' returned non-zero exit status 1.
+Failed stage: validate
+
+> chatgpt-yolo@1.0.0 validate
+> npm run check && npm test && node scripts/package.mjs --check
+
+
+> chatgpt-yolo@1.0.0 check
+> node --check config.js && node --check coordinator.js && node --check queue.js && node --check commands.js && node --check background.js && node --check background-wrapper.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs
+
+
+> chatgpt-yolo@1.0.0 test
+> node --test
+
+✔ background serializes queue mutations and claim lifecycle (15.935693ms)
+✔ background reports storage write failures instead of acknowledging lost queue data (4.269136ms)
+✔ background bounds active conversation queues and does not persist read-only visits (19.89204ms)
+✔ background persists ambiguous delivery as terminal manual recovery (4.777856ms)
+✔ tab-backed queue messages must match the sender conversation (2.996093ms)
+✔ install-time template initialization uses the template lock (0.234408ms)
+✔ background persists sender-bound command workflow state (2.920121ms)
+✔ background bounds active command workflows (10.338174ms)
+✔ workflow prompt enqueue commits queue and workflow together (2.742409ms)
+✔ clearing a workflow removes its per-conversation storage key (3.998057ms)
+✔ fresh installs open only the local onboarding page (0.403425ms)
+✔ an intentionally empty template library remains empty (2.510796ms)
+✔ filters and parses the truthful slash-action catalog (2.995184ms)
+✔ parses bounded loop iteration counts (0.392855ms)
+✔ creates normalized persistent goal and loop workflows (5.080953ms)
+✔ goal response markers are explicit and case-insensitive (0.321762ms)
+✔ one-shot commands build concrete prompts (0.405869ms)
+✔ workflow normalization fails closed for malformed state (0.290824ms)
+✔ fingerprints are stable and content-sensitive (0.339094ms)
+✔ workflow revisions and runner leases normalize safely (0.28331ms)
+✔ workflow response decisions enforce ownership, markers, and caps (1.056536ms)
+✔ awaiting workflows retain and clear response stability candidates safely (0.379489ms)
+✔ both automated workflows pause when the terminal marker is missing (0.26227ms)
+✔ normalizes and clamps settings with interval invariants (1.846293ms)
+✔ migrates legacy boolean setting names (0.319257ms)
+✔ normalizes conversation URLs into stable page IDs (0.463567ms)
+✔ supports only ChatGPT URLs (0.321091ms)
+✔ enforces hourly and session action limits with reason codes (1.27769ms)
+✔ applies named profiles without changing the conversation master switch (0.359592ms)
+✔ renders supported template variables (47.918806ms)
+✔ uses collision-resistant per-conversation storage keys (0.36849ms)
+✔ coordinator serializes actions across tabs and renews one owner (6.934849ms)
+✔ executing action expires into unknown and cannot retry automatically (0.757086ms)
+✔ claimed action can expire safely before side effect begins (0.278882ms)
+✔ completion is idempotent and enforces cooldown (0.444281ms)
+✔ manual reset clears unknown outcomes (0.366274ms)
+✔ data background exports and imports without touching live automation (11.229762ms)
+✔ imports reject replay, changed files, and concurrent portable storage changes (5.069454ms)
+✔ failed imports restore previous portable storage (4.023114ms)
+✔ the original YOLO message namespace remains separate (2.209532ms)
+✔ imports delete stale page overrides while preserving live automation state (3.875979ms)
+✔ onboarding opens once for a fresh install and never for updates (13.34039ms)
+✔ manifest and package versions match the runtime version (1.11769ms)
+✔ every manifest entry point exists (0.631481ms)
+✔ content scripts load shared configuration before the engine (1.336239ms)
+✔ manifest grants host access only to ChatGPT (0.440514ms)
+✔ public v1 metadata and permissions stay intentionally narrow (0.384649ms)
+✔ import confirmation is explicit about scope and exclusions (1.405198ms)
+✔ settings controller loads only packaged local portability scripts (0.372016ms)
+✔ portability UI builds explicit controls and delegates persistence to background (0.601806ms)
+✔ data controls mount once and update settings search (0.32627ms)
+✔ failed current-tab synchronization is reported without undoing a completed import (1.275215ms)
+✔ imports lock and flush settings then synchronize without persisting (0.859768ms)
+✔ normalizes settings search terms (1.478595ms)
+✔ matches every search token across metadata and visible copy (0.36889ms)
+✔ maps save messages to explicit visual states (0.309178ms)
+✔ options page resolves a conversation source and fails closed when none exists (7.593261ms)
+✔ release package uses an explicit runtime allowlist (1.96758ms)
+✔ every manifest runtime entry point is packaged (0.338854ms)
+✔ onboarding is entirely local and packaged (0.487752ms)
+✔ selects platform adapters only for supported hosts (0.9731ms)
+✖ fixture-based approval detection respects every risk policy (2.388237ms)
+✔ generic safe button labels cannot hide destructive context (0.209743ms)
+✔ submission observation requires a new matching user message (0.650206ms)
+✔ composer clearing or generation alone is not a delivery receipt (0.204021ms)
+✔ reads the latest ChatGPT assistant response for workflow markers (0.290594ms)
+✔ reads the latest ChatGPT user prompt for workflow ownership (0.23ms)
+✔ popup starts initialization and disables itself on unsupported pages (7.177283ms)
+✔ background composition preserves the existing engine before adding data portability (1.927424ms)
+✔ data portability adds no browser or host permissions (1.184144ms)
+✔ the release allowlist includes every portability runtime file (0.413323ms)
+✔ the data listener cannot claim existing YOLO messages (0.285675ms)
+✔ portable backups contain settings and templates but never live automation state (4.005551ms)
+✔ backup validation rejects unsupported versions, invalid pages, and duplicate templates (2.396019ms)
+✔ backup validation normalizes settings and enforces size and collection limits (18.61254ms)
+✔ import payload targets only portable storage keys (0.599311ms)
+✔ privacy-safe diagnostics redact identifiers and all user-authored text (0.880387ms)
+✔ missing template timestamps normalize deterministically across preview and apply (0.641189ms)
+✔ storage plan removes stale page overrides and the legacy page map (0.731378ms)
+✔ effective imported settings use globals when the current page has no override (0.453037ms)
+✔ adds, edits, reorders, and removes queued messages (10.038094ms)
+✔ claims and completes exactly one queue item (1.09049ms)
+✔ does not grant concurrent claims for one conversation queue (0.734734ms)
+✔ retry backoff preserves strict pending order (2.066825ms)
+✔ reordering keeps a sending item in its fixed slot (0.747047ms)
+✔ expired pre-submit claims return to pending safely (0.682427ms)
+✔ expired submitting claims fail closed instead of risking duplicate delivery (0.777484ms)
+✔ failures retry with backoff then pause after final failure (0.747658ms)
+✔ retrying a failed item also resumes the queue (0.472283ms)
+✔ event history is bounded and consecutive duplicates are collapsed (3.860961ms)
+✔ randomized queue operations preserve structural invariants (88.845877ms)
+✔ queue rejects payloads that exceed bounded text capacity (0.401631ms)
+✔ normalization deduplicates ids and recovers multiple sender leases (0.301734ms)
+✔ queue completion is idempotent after an acknowledgement is lost (0.275525ms)
+✔ ambiguous delivery outcomes fail closed and require manual retry (0.594682ms)
+✔ proven pre-submit failures retain automatic retry backoff (0.290754ms)
+✔ delivery-unknown failures remain a hard block until explicitly resolved (0.561049ms)
+✔ retrying one failed item does not clear a failure pause while another failure remains (0.153236ms)
+✔ queue completion records exact command workflow identity (0.302806ms)
+✔ recent completion identity remains available after later sends (0.442838ms)
+✔ completion identity history remains bounded (2.067317ms)
+✔ public repository includes the essential open-source policy files (2.875468ms)
+✔ ordinary pull-request CI is immutable and read-only (0.461824ms)
+✔ release workflow validates tag identity and emits an archive checksum (0.281236ms)
+✔ temporary review and diagnostic files are absent (3.020359ms)
+✔ documentation promises match the local-only permission model (0.784808ms)
+✔ release package carries user-facing legal and privacy documents (0.39567ms)
+✔ automation is restricted to durable saved ChatGPT conversations (1.867453ms)
+✔ draft protection is invariant and approvals default off (0.656838ms)
+✔ automatic queue additions deduplicate within a sliding window (6.120349ms)
+✔ automatic action enqueue respects a paused queue (0.39011ms)
+✔ sensitive approvals require the explicit all policy (1.205995ms)
+✔ submission receipt requires a new matching user message (0.581157ms)
+✔ all automated text submissions use the durable queue (2.00527ms)
+✔ workflow chrome dispatches the truthful stop action (0.404647ms)
+✔ package and background composition include the action coordinator (0.332562ms)
+✔ popup and advanced page have unique element identifiers (1.972378ms)
+✔ advanced page exposes every configurable setting while popup stays compact (1.435555ms)
+✔ extension pages use external scripts only (0.455482ms)
+✔ queue engine persists submission intent before touching the composer (0.393946ms)
+✔ popup commits content and queue state atomically (1.192701ms)
+✔ popup initialization and editing shortcuts fail closed (0.328534ms)
+✔ template rendering receives the current conversation (3.513972ms)
+✔ primary controls and dynamic option statuses are accessibly named (0.49767ms)
+✔ queue failures forward explicit delivery ambiguity (0.412872ms)
+✔ ChatGPT content scripts include the composer-native command system (0.733131ms)
+✔ command palette supports slash and Codex-style command shortcuts (0.3746ms)
+✔ command workflows reuse the reliable queue and fail closed (0.393506ms)
+✔ content exposes only a narrow lifecycle-safe command API (0.332803ms)
+✔ command workflow runtime enforces ownership, CAS, and a single runner (0.291686ms)
+✔ command palette preserves failed direct commands and exposes feedback (0.281366ms)
+✔ command UI handles blocked resume, IME, and shortcut scope safely (0.324928ms)
+✔ runtime uses the pure workflow response decision and completion ring (0.22465ms)
+✔ workflow prompt creation is atomic and responses must settle (0.436396ms)
+✔ fallback injection restores the full command content-script stack (0.45457ms)
+✔ palette filter text is not leaked into optional command arguments (0.305872ms)
+✔ command palette exposes active keyboard selection and restores every workflow action (0.295983ms)
+✔ pause and clear preserve prompts that are already sending (0.259756ms)
+✔ workflow response baseline is captured only before prompt delivery (0.316773ms)
+✔ premium popup keeps one dominant action and progressive disclosure (0.286716ms)
+✔ advanced settings has searchable persistent section navigation (1.557333ms)
+✔ premium visual systems include focus, reduced motion, and responsive layouts (0.328885ms)
+✔ settings controller provides filtering, active navigation, and save-state mapping (0.205544ms)
+✔ queue item controls are explicitly named and respect reorder boundaries (0.329387ms)
+✔ settings navigation preserves scope and respects reduced motion (0.20294ms)
+✔ template feedback and empty state remain explicit (0.334044ms)
+✔ settings navigation stays available during template operations (0.281947ms)
+✔ destructive settings actions require confirmation and always report outcomes (0.236262ms)
+✔ slash actions expose only viable product semantics (0.770841ms)
+ℹ tests 149
+ℹ suites 0
+ℹ pass 148
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 627.735008
+
+✖ failing tests:
+
+test at tests/platforms.test.js:53:1
+✖ fixture-based approval detection respects every risk policy (2.388237ms)
+  AssertionError [ERR_ASSERTION]: safe allow under safe
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/home/runner/work/chatgpt-yolo/chatgpt-yolo/tests/platforms.test.js:58:14)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
