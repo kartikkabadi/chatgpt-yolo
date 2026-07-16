@@ -1,0 +1,138 @@
+| currentPageId() !== actionPageId) {
+         return { ok: false, code: "route.changed", reason: "Conversation changed before the message was submitted", deliveryAmbiguous: false };
+       }
+       composer = Platforms.findComposer(state.platform) || composer;
++      if (Commands.fingerprint(Platforms.composerText(composer)) !== expectedFingerprint) {
++        return { ok: false, code: "composer.write_unconfirmed", reason: "The composer did not retain the queued message", deliveryAmbiguous: false };
++      }
++
+       submissionAttempted = true;
+       if (!Platforms.submitComposer(state.platform, composer)) {
+         return { ok: false, code: "composer.submit_failed", reason: "Message could not be submitted", deliveryAmbiguous: true };
+       }
+ 
+-      for (let attempt = 0; attempt < 30; attempt += 1) {
++      for (let attempt = 0; attempt < 50; attempt += 1) {
+         if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) {
+           return { ok: false, code: "route.changed", reason: "Conversation changed before delivery could be confirmed", deliveryAmbiguous: true };
+         }
+-        if (Platforms.submissionObserved(state.platform)) return { ok: true, deliveryAmbiguous: true };
++        if (Platforms.submissionObserved(state.platform, { expectedText: prompt, previousSnapshot })) {
++          return { ok: true, deliveryAmbiguous: true };
++        }
+         await sleep(100);
+       }
+       return {
+         ok: false,
+         code: "composer.unconfirmed",
+-        reason: "The chat did not confirm that the message was submitted",
++        reason: "The matching user message did not appear in the conversation",
+         deliveryAmbiguous: true
+       };
+     } catch (error) {
+@@ -421,11 +454,17 @@
+     }
+   }
+ 
++  function actionDedupeKey(action, prompt, reason) {
++    const cooldownSec = action === "recovery" ? state.settings.errorCooldownSec : state.settings.deepNudgeCooldownSec;
++    const bucketMs = Math.max(1000, cooldownSec * 1000);
++    return `auto:${action}:${Math.floor(now() / bucketMs)}:${Commands.fingerprint(`${prompt}\n${reason}`)}`;
++  }
++
+   async function sendPrompt({ action, prompt, label, reason, delayMinSec = 0, delayMaxSec = 0, automatic = true }) {
+     if (state.actionInFlight || !state.platform) return false;
+     const actionPageId = state.pageId;
+     if (automatic && !automationReady()) return false;
+-    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
++    if (!automatic && (!state.loaded || !routeIsCurrent() || !Config.isDurablePageId(state.pageId))) return false;
+     if (!safeForInput()) return false;
+     if ((action === "recovery" || action === "nudge") && !inputActionCooldownPassed(action)) return false;
+ 
+@@ -435,28 +474,36 @@
+       return false;
+     }
+ 
+-    state.actionInFlight = true;
+-    try {
+-      const delayMs = automatic ? randomMs(delayMinSec, delayMaxSec) : 150;
+-      if (delayMs > 0) await sleep(delayMs);
+-      if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
+-      updateGenerationState();
+-      if (!safeForInput()) return false;
+-
+-      const submitted = await writeAndSubmit(prompt, actionPageId);
+-      if (!submitted.ok) {
+-        await setBlocked(submitted.code, submitted.reason);
+-        return false;
++    const delayMs = automatic ? randomMs(delayMinSec, delayMaxSec) : 150;
++    if (delayMs > 0) await sleep(delayMs);
++    if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId || !safeForInput()) return false;
++
++    const queued = await backgroundSend({
++      type: "YOLO_QUEUE_ADD",
++      pageId: actionPageId,
++      front: true,
++      requireUnpaused: automatic,
++      dedupeWindowMs: automatic
++        ? Math.max(1000, (action === "recovery" ? state.settings.errorCooldownSec : state.settings.deepNudgeCooldownSec) * 1000)
++        : 0,
++      item: {
++        text: prompt,
++        source: `action:${action}`,
++        sourceId: reason,
++        dedupeKey: automatic ? actionDedupeKey(action, prompt, reason) : ""
+       }
+-      await recordAction(action);
+-      await setLastAction(`Sent ${label} (${reason})`, "success", `action.${action}`, true);
+-      return true;
+-    } catch (error) {
+-      await setLastAction(`${label} failed: ${String(error?.message || error)}`, "error", `action.${action}.failed`, true);
++    });
++    if (!queued?.ok) {
++      await setBlocked(queued?.code || `action.${action}.queue_failed`, queued?.reason || `Could not queue ${label}`);
+       return false;
+-    } finally {
+-      state.actionInFlight = false;
+     }
++    if (queued.alreadyCompleted) return true;
++
++    const sent = await handleQueue(false);
++    if (!sent && !queued.deduplicated) {
++      await setLastAction(`Queued ${label} (${reason})`, "info", `action.${action}.queued`, true);
++    }
++    return sent;
+   }
+ 
+   async function sendContinue(reason, automatic = true) {
+@@ -476,9 +523,8 @@
+     if (state.actionInFlight || !state.platform || state.reloadScheduled) return false;
+     const actionPageId = state.pageId;
+     if (automatic && !automationReady()) return false;
+-    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
+-    if (updateGenerationState()) return false;
+-    if (state.settings.pauseOnComposerText && composerHasText()) return false;
++    if (!automatic && (!state.loaded || !routeIsCurrent() || !Config.isDurablePageId(state.pageId))) return false;
++    if (updateGenerationState() || composerHasText()) return false;
+     if (action === "refresh" && !refreshCooldownPassed()) return false;
+ 
+     const limit = checkActionLimit(action);
+@@ -487,11 +533,22 @@
+       return false;
+     }
+ 
++    const cooldownMs = state.settings.refreshCooldownMin * 60 * 1000;
++    const guard = await claimActionGuard("refresh", cooldownMs, Math.max(2 * 60 * 1000, cooldownMs));
++    if (!guard?.ok) return false;
++
+     state.actionInFlight = true;
++    let completedGuard = false;
+     try {
+-      if (state.pageId !== actionPageId || currentPageId() !== actionPageId) return false;
++      if (state.pageId !== actionPageId || currentPageId() !== actionPageId || composerHasText()) return false;
+       state.runtime.lastRefreshAt = now();
+       scheduleNextRefresh(true);
++      const completed = await completeActionGuard("refresh", guard.token);
++      completedGuard = Boolean(completed?.ok);
++      if (!completedGuard) {
++        await setLastAction("Refresh 
