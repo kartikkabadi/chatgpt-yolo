@@ -15,7 +15,7 @@ Failed stage: validate
   }
 
 test at tests/reliability-foundation.test.js:82:1
-✖ package and background composition include the action coordinator (3.72764ms)
+✖ package and background composition include the action coordinator (3.519059ms)
   AssertionError [ERR_ASSERTION]: The input did not match the regular expression /importScripts\("config\.js", "coordinator\.js", "queue\.js", "commands\.js"\)/. Input:
   
   '"use strict";\n' +
