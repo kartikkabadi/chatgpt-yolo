@@ -109,10 +109,10 @@ Advanced settings expose queue timing, retries, approvals, recovery, nudges, ref
 YOLO requests only:
 
 - `storage` — local settings, queues, templates, and workflow state.
-- `activeTab` and `scripting` — recover the content scripts in the current ChatGPT tab after extension installation/update.
+- `scripting` — restore the extension’s packaged content scripts in matching ChatGPT tabs after installation or update.
 - Host access to `https://chatgpt.com/*` and its subdomains — no other website is supported.
 
-See [PRIVACY.md](PRIVACY.md) and [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for the precise data and permission model.
+YOLO does not request `activeTab`, `tabs`, broad web access, or access to browser history. See [PRIVACY.md](PRIVACY.md) and [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for the precise data and permission model.
 
 ## Development
 
@@ -125,7 +125,7 @@ npm run validate
 npm run package
 ```
 
-`npm run package` creates a clean, allowlisted extension directory at `dist/yolo`. It never packages tests, repository metadata, review scripts, or contributor documentation.
+`npm run package` creates a clean, allowlisted extension directory at `dist/yolo`. It packages only runtime files plus the README, MIT license, notice, and privacy policy; it excludes tests, repository metadata, review scripts, and contributor-only documentation.
 
 Architecture and invariants are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Contributions must preserve fail-closed delivery, conversation scoping, bounded automation, and the content-script order in `manifest.json`.
 
