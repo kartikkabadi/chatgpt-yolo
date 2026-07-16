@@ -1,5 +1,9 @@
 Failed stage: apply
+error: patch failed: package.json:4
+error: package.json: patch does not apply
 Traceback (most recent call last):
-  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.reliability-foundation.py", line 14, in <module>
-    raise RuntimeError(
-RuntimeError: Reliability patch integrity failure: 69998 bytes, sha256=9d8cc13926f99ab3c0ee06be318d296fe0b67d03c7c7370528761b1667002643
+  File "/home/runner/work/chatgpt-yolo/chatgpt-yolo/.reliability-foundation.py", line 18, in <module>
+    subprocess.run(
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['git', 'apply', '--whitespace=error-all', '-']' returned non-zero exit status 1.
