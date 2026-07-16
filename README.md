@@ -14,6 +14,25 @@ Version `0.6.0` replaces the original hard-coded extension with a queue-first ar
 
 Queues persist across page refreshes and are isolated by conversation URL.
 
+
+## Codex-inspired commands
+
+YOLO adds a composer-native command palette to ChatGPT. Press `/` in an empty ChatGPT composer or use `Cmd/Ctrl + Shift + P` (or `Cmd/Ctrl + K`) to open it, then type to filter and use the arrow keys plus Enter to select.
+
+Commands include:
+
+- `/goal <objective>` — start a persistent marker-driven goal with visible pause, resume, edit, and clear controls.
+- `/loop [iterations] <objective>` — run bounded iterative work; the default cap is 12 and the hard cap is 50.
+- `/plan <objective>` — shape an execution plan before implementation.
+- `/review [scope]` — run an adversarial evidence-based review.
+- `/fix [scope]` — repair defects and validate the result.
+- `/compact` — create a durable context handoff.
+- `/continue` — continue deeply without repeating prior work.
+- `/status` and `/queue` — inspect the active workflow, queue, generation state, profile, limits, and last action.
+- `/pause`, `/resume`, `/clear`, `/settings`, and `/help` — control the workflow and extension.
+
+Goal mode requires ChatGPT to end each response with `[YOLO:CONTINUE]`, `[YOLO:DONE]`, or `[YOLO:BLOCKED]`. A missing goal marker pauses the workflow instead of guessing. Loop mode treats a missing marker as continue but always stops at its iteration cap. Every generated command prompt enters the same background-owned queue and delivery lifecycle as manually queued messages.
+
 ## Primary interface
 
 The popup intentionally exposes only the controls used constantly:

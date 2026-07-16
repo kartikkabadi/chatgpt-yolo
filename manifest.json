@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YOLO",
-  "version": "0.6.0",
-  "description": "Reliable message queues and configurable automation controls for ChatGPT.",
+  "version": "0.7.0",
+  "description": "Codex-inspired command workflows, reliable queues, and automation controls for ChatGPT.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -44,7 +44,10 @@
       "js": [
         "config.js",
         "platforms.js",
-        "content.js"
+        "commands.js",
+        "command-ui.js",
+        "content.js",
+        "command-runtime.js"
       ],
       "run_at": "document_idle"
     }

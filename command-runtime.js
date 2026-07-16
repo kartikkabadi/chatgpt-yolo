@@ -165,8 +165,19 @@
     return { ok: true };
   }
 
+  async function cancelPendingWorkflowPrompt(workflow = state.workflow) {
+    if (!workflow.pendingItemId) return true;
+    const response = await backgroundSend({
+      type: "YOLO_QUEUE_REMOVE",
+      pageId: state.pageId,
+      itemId: workflow.pendingItemId
+    });
+    return Boolean(response?.ok || response?.code === "queue.sending" || response?.code === "queue.not_found");
+  }
+
   async function setStatus(status, reason) {
     if (state.workflow.status === "idle") return { ok: false, reason: "No active goal or loop" };
+    if (status === "paused") await cancelPendingWorkflowPrompt(state.workflow);
     state.workflow = Commands.setWorkflowStatus(state.workflow, status, reason, now());
     const ok = await writeWorkflow(state.workflow);
     if (ok) await record(`${state.workflow.kind} ${status}`, status === "blocked" ? "warning" : "info", `command.workflow.${status}`);
@@ -215,6 +226,7 @@
     if (name === "clear") {
       if (state.workflow.status === "idle") return { ok: false, reason: "No active goal or loop" };
       if (!window.confirm(`Clear the active ${state.workflow.kind} workflow?`)) return { ok: false, keepOpen: true };
+      await cancelPendingWorkflowPrompt(state.workflow);
       const ok = await clearWorkflow();
       if (ok) await record("Cleared command workflow", "info", "command.workflow.cleared");
       return { ok };
@@ -383,7 +395,10 @@
       pause: () => setStatus("paused", "Paused by user"),
       resume: resumeWorkflow,
       clear: async () => {
-        if (state.workflow.status !== "idle" && window.confirm(`Clear the active ${state.workflow.kind} workflow?`)) await clearWorkflow();
+        if (state.workflow.status !== "idle" && window.confirm(`Clear the active ${state.workflow.kind} workflow?`)) {
+          await cancelPendingWorkflowPrompt(state.workflow);
+          await clearWorkflow();
+        }
       },
       edit: editWorkflow,
       getComposer: composer,

@@ -57,6 +57,7 @@
     activitySaveTimer: null,
     messageListener: null,
     storageListener: null,
+    clients: new Set(),
     ownerId: `content_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
   };
 
@@ -906,6 +907,20 @@
     await setLastAction("Reset session limits and action history", "info", "runtime.reset", true);
   }
 
+  function registerClient(destroyClient) {
+    if (typeof destroyClient !== "function" || state.destroyed) return () => {};
+    state.clients.add(destroyClient);
+    return () => state.clients.delete(destroyClient);
+  }
+
+  const commandApi = Object.freeze({
+    getState: responseState,
+    ensureReady: ensureCurrentRoute,
+    runAction: runManualAction,
+    recordStatus: setLastAction,
+    registerClient
+  });
+
   function installMessages() {
     state.messageListener = (message, _sender, sendResponse) => {
       if (state.destroyed) return false;
@@ -957,12 +972,16 @@
     window.clearTimeout(state.activitySaveTimer);
     if (state.messageListener) chrome.runtime.onMessage.removeListener(state.messageListener);
     if (state.storageListener) chrome.storage.onChanged.removeListener(state.storageListener);
+    for (const destroyClient of state.clients) {
+      try { destroyClient(); } catch { /* Client cleanup is best-effort. */ }
+    }
+    state.clients.clear();
     for (const eventName of ["pointerdown", "keydown", "input", "focusin"]) {
       document.removeEventListener(eventName, markUserActivity, true);
     }
   }
 
-  window.__YOLO_EXTENSION__ = { version: Config.VERSION, destroy };
+  window.__YOLO_EXTENSION__ = { version: Config.VERSION, destroy, commandApi };
 
   installMessages();
   loadSettings().then(() => {

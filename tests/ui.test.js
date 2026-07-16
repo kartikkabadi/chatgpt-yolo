@@ -82,3 +82,36 @@ test("queue failures forward explicit delivery ambiguity", () => {
   assert.match(source, /submitted\.code, deliveryAmbiguous/);
   assert.match(source, /"queue\.exception", deliveryAmbiguous/);
 });
+
+test("ChatGPT content scripts include the composer-native command system", () => {
+  const manifest = JSON.parse(read("manifest.json"));
+  const scripts = manifest.content_scripts[0].js;
+  assert.ok(scripts.indexOf("commands.js") < scripts.indexOf("command-ui.js"));
+  assert.ok(scripts.indexOf("command-ui.js") < scripts.indexOf("content.js"));
+  assert.ok(scripts.indexOf("content.js") < scripts.indexOf("command-runtime.js"));
+});
+
+test("command palette supports slash and Codex-style command shortcuts", () => {
+  const source = read("command-ui.js");
+  assert.match(source, /event\.key === "\/"/);
+  assert.match(source, /event\.shiftKey && event\.key\.toLowerCase\(\) === "p"/);
+  assert.match(source, /Commands\.parseInvocation/);
+  assert.match(source, /ArrowDown/);
+  assert.match(source, /ArrowUp/);
+});
+
+test("command workflows reuse the reliable queue and fail closed", () => {
+  const runtime = read("command-runtime.js");
+  assert.match(runtime, /type: "YOLO_QUEUE_ADD"/);
+  assert.match(runtime, /runAction\("queue-next"\)/);
+  assert.match(runtime, /Goal response omitted the required control marker/);
+  assert.match(runtime, /Reached the \$\{workflow\.maxIterations\}-iteration safety cap/);
+});
+
+test("content exposes only a narrow lifecycle-safe command API", () => {
+  const source = read("content.js");
+  assert.match(source, /const commandApi = Object\.freeze/);
+  assert.match(source, /registerClient/);
+  assert.match(source, /runAction: runManualAction/);
+  assert.match(source, /state\.clients\.clear\(\)/);
+});

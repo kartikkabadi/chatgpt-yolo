@@ -1,11 +1,13 @@
 "use strict";
 
-importScripts("config.js", "queue.js");
+importScripts("config.js", "queue.js", "commands.js");
 
 const Config = globalThis.YOLOConfig;
 const Queue = globalThis.YOLOQueue;
+const Commands = globalThis.YOLOCommands;
 const queueLock = { current: Promise.resolve() };
 const templateLock = { current: Promise.resolve() };
+const workflowLock = { current: Promise.resolve() };
 const MAX_CONVERSATION_QUEUES = 25;
 
 const storageGet = (keys) => new Promise((resolve, reject) => {
@@ -161,6 +163,33 @@ async function handleTemplateMessage(message) {
   });
 }
 
+async function handleWorkflowMessage(message, sender) {
+  const pageId = message.pageId;
+  if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "workflow.page_invalid" };
+  if (!senderMatchesPageId(sender, pageId)) {
+    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "workflow.page_mismatch" };
+  }
+
+  return withLock(workflowLock, async () => {
+    const key = Config.workflowKey(pageId);
+    if (message.type === "YOLO_WORKFLOW_GET") {
+      const stored = await storageGet([key]);
+      return { ok: true, workflow: Commands.normalizeWorkflow(stored[key]) };
+    }
+    if (message.type === "YOLO_WORKFLOW_SET") {
+      const workflow = Commands.normalizeWorkflow(message.workflow);
+      await storageSet({ [key]: workflow });
+      return { ok: true, workflow };
+    }
+    if (message.type === "YOLO_WORKFLOW_CLEAR") {
+      const workflow = Commands.freshWorkflow();
+      await storageSet({ [key]: workflow });
+      return { ok: true, workflow };
+    }
+    return { ok: false, reason: "Unknown workflow operation" };
+  });
+}
+
 async function handleQueueMessage(message, sender) {
   const pageId = message.pageId;
   if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "queue.page_invalid" };
@@ -228,7 +257,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type?.startsWith("YOLO_")) return false;
   const task = message.type.includes("TEMPLATE")
     ? handleTemplateMessage(message)
-    : handleQueueMessage(message, sender);
+    : message.type.includes("WORKFLOW")
+      ? handleWorkflowMessage(message, sender)
+      : handleQueueMessage(message, sender);
   Promise.resolve(task)
     .then((response) => sendResponse(response))
     .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));

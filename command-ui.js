@@ -348,7 +348,6 @@
       selectedIndex = 0;
       renderList();
     });
-    search.addEventListener("keydown", keydown);
     statusClose.addEventListener("click", () => {
       status.dataset.open = "false";
       callbacks.getComposer()?.focus?.();

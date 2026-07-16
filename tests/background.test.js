@@ -41,7 +41,7 @@ function loadBackground() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "queue.js", "background.js"]) {
+  for (const file of ["config.js", "queue.js", "commands.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   const invoke = (message, sender = {}) => new Promise((resolve) => {
@@ -172,4 +172,31 @@ test("tab-backed queue messages must match the sender conversation", async () =>
 test("install-time template initialization uses the template lock", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
   assert.match(source, /onInstalled[\s\S]*withLock\(templateLock/);
+});
+
+test("background persists sender-bound command workflow state", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/workflow";
+  const sender = { tab: { url: `${pageId}?temporary-chat=true` } };
+  const started = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    workflow: { kind: "goal", objective: "Ship it", status: "running", maxIterations: 5 }
+  }, sender);
+  assert.equal(started.ok, true);
+  assert.equal(started.workflow.kind, "goal");
+
+  const loaded = await invoke({ type: "YOLO_WORKFLOW_GET", pageId }, sender);
+  assert.equal(loaded.workflow.objective, "Ship it");
+  assert.equal(loaded.workflow.maxIterations, 5);
+
+  const mismatch = await invoke(
+    { type: "YOLO_WORKFLOW_GET", pageId },
+    { tab: { url: "https://chatgpt.com/c/other" } }
+  );
+  assert.equal(mismatch.ok, false);
+  assert.equal(mismatch.code, "workflow.page_mismatch");
+
+  const cleared = await invoke({ type: "YOLO_WORKFLOW_CLEAR", pageId }, sender);
+  assert.equal(cleared.workflow.status, "idle");
 });

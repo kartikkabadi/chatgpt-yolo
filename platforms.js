@@ -41,6 +41,11 @@
         ".text-red-600",
         ".border-red-500",
         ".border-red-600"
+      ],
+      assistantSelectors: [
+        "[data-message-author-role='assistant']",
+        "article[data-testid^='conversation-turn'] [data-message-author-role='assistant']",
+        "main article [data-message-author-role='assistant']"
       ]
     })
   });
@@ -139,6 +144,13 @@
       const context = normalizedText(button.closest?.("[role='alert']") || button.parentElement || button);
       return /\bretry\b/i.test(buttonText(button)) && /\b(error|went wrong|try again|retry|failed)\b/i.test(context);
     }) || null;
+  }
+
+  function latestAssistantText(adapter, documentLike = document) {
+    if (!adapter) return "";
+    const selectors = Array.isArray(adapter.assistantSelectors) ? adapter.assistantSelectors : [];
+    const candidates = uniqueElements(selectors.flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    return normalizedText(candidates.at(-1));
   }
 
   function isTextControl(element) {
@@ -303,6 +315,7 @@
     findSendButton,
     isGenerating,
     findErrorState,
+    latestAssistantText,
     composerText,
     setComposerValue,
     submitComposer,

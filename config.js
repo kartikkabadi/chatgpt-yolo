@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, () => {
   "use strict";
 
-  const VERSION = "0.6.0";
+  const VERSION = "0.7.0";
   const HOUR_MS = 60 * 60 * 1000;
   const STORAGE_KEYS = Object.freeze({
     global: "yoloGlobal",
@@ -280,6 +280,10 @@
     return `yoloLastAction:${encodeURIComponent(String(id || ""))}`;
   }
 
+  function workflowKey(id) {
+    return `yoloWorkflow:${encodeURIComponent(String(id || ""))}`;
+  }
+
   function pageId(url) {
     try {
       const parsed = new URL(url);
@@ -366,6 +370,7 @@
     applyPreset,
     pageSettingsKey,
     lastActionKey,
+    workflowKey,
     pageId,
     isSupportedUrl,
     randomBetween,
