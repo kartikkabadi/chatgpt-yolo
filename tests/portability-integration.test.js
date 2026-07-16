@@ -45,7 +45,9 @@ test("all portable mutations share the background transaction service", () => {
 });
 
 test("template creation carries a stable client id for idempotency", () => {
-  assert.match(read("options.js"), /YOLO_TEMPLATE_ADD[\s\S]*id: crypto\.randomUUID\(\)/);
+  const options = read("options.js");
+  assert.match(options, /pendingTemplateId = crypto\.randomUUID\(\)/);
+  assert.match(options, /YOLO_TEMPLATE_ADD[\s\S]*id: pendingTemplateId/);
 });
 
 test("asynchronous settings reloads are bound to the route that initiated them", () => {
@@ -53,4 +55,12 @@ test("asynchronous settings reloads are bound to the route that initiated them",
   assert.match(content, /const settingsPageId = state\.pageId/);
   assert.match(content, /state\.pageId !== settingsPageId \|\| currentPageId\(\) !== settingsPageId/);
   assert.match(content, /legacyPageSettings = stored\[Config\.STORAGE_KEYS\.pages\]\?\.\[settingsPageId\]/);
+});
+
+test("template add retries preserve one mutation id and reconcile edited retries", () => {
+  const options = read("options.js");
+  assert.match(options, /let pendingTemplateId = ""/);
+  assert.match(options, /if \(adding && !pendingTemplateId\) pendingTemplateId = crypto\.randomUUID\(\)/);
+  assert.match(options, /YOLO_TEMPLATE_ADD[\s\S]*id: pendingTemplateId/);
+  assert.match(options, /response\.deduplicated[\s\S]*YOLO_TEMPLATE_UPDATE[\s\S]*id: pendingTemplateId/);
 });
