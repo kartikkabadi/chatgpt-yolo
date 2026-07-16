@@ -46,11 +46,11 @@ function loadDataBackground() {
   for (const file of ["config.js", "portability.js", "data-background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
+  const dispatch = (message, sendResponse = () => {}) => listener(message, {}, sendResponse);
   const invoke = (message) => new Promise((resolve) => {
-    const async = listener(message, {}, resolve);
-    assert.equal(async, true);
+    assert.equal(dispatch(message, resolve), true);
   });
-  return { invoke, storage, failStorageWrite() { failNextSet = true; } };
+  return { dispatch, invoke, storage, failStorageWrite() { failNextSet = true; } };
 }
 
 const pageId = "https://chatgpt.com/c/data-background";
@@ -103,9 +103,7 @@ test("failed imports restore previous portable storage", async () => {
 });
 
 test("the original YOLO message namespace remains separate", () => {
-  const { invoke } = loadDataBackground();
-  return assert.rejects(() => Promise.race([
-    invoke({ type: "YOLO_QUEUE_GET", pageId }),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("ignored")), 10))
-  ]), /ignored/);
+  const { dispatch } = loadDataBackground();
+  assert.equal(dispatch({ type: "YOLO_QUEUE_GET", pageId }), false);
+  assert.equal(dispatch({ type: "YOLODATA_EXPORT" }), true);
 });
