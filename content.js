@@ -322,17 +322,18 @@
   async function persistSettings(nextSettings) {
     if (!await ensureCurrentRoute()) throw new Error("Conversation navigation is still in progress");
     const normalized = Config.mergeSettings(state.settings, nextSettings);
+    const response = await backgroundSendWithRetry({
+      type: "YOLODATA_SETTINGS_SET",
+      pageId: state.pageId,
+      settings: normalized
+    });
+    if (!response?.ok) throw new Error(response?.reason || "Could not persist conversation settings");
 
-    state.settings = normalized;
+    state.settings = Config.normalizeSettings(response.settings || normalized);
     scheduleNextRefresh(true);
     scheduleNextQueue(true);
-    const saved = await storageSet({
-      [Config.STORAGE_KEYS.global]: Config.globalDefaultsFromSettings(normalized),
-      [Config.pageSettingsKey(state.pageId)]: normalized
-    });
-    if (!saved) throw new Error("Could not persist conversation settings");
     restartScanTimer();
-    return normalized;
+    return state.settings;
   }
 
   function actionLimit(action) {
@@ -902,13 +903,22 @@
   function installStorageListener() {
     state.storageListener = (changes, areaName) => {
       if (state.destroyed || areaName !== "local") return;
-      const pageChange = changes[Config.pageSettingsKey(state.pageId)];
-      if (pageChange?.newValue) {
-        state.settings = Config.normalizeSettings(pageChange.newValue);
-        scheduleNextRefresh(true);
-        scheduleNextQueue(true);
-        restartScanTimer();
-        queueCycle();
+      const pageKey = Config.pageSettingsKey(state.pageId);
+      const settingsChanged = Object.prototype.hasOwnProperty.call(changes, Config.STORAGE_KEYS.global)
+        || Object.prototype.hasOwnProperty.call(changes, Config.STORAGE_KEYS.pages)
+        || Object.prototype.hasOwnProperty.call(changes, pageKey);
+      if (settingsChanged) {
+        storageGet([Config.STORAGE_KEYS.global, Config.STORAGE_KEYS.pages, pageKey]).then((stored) => {
+          if (state.destroyed) return;
+          const globalSettings = stored[Config.STORAGE_KEYS.global] || {};
+          const legacyPageSettings = stored[Config.STORAGE_KEYS.pages]?.[state.pageId] || {};
+          const pageSettings = stored[pageKey] || legacyPageSettings;
+          state.settings = Config.mergeSettings(Config.DEFAULT_SETTINGS, globalSettings, pageSettings);
+          scheduleNextRefresh(true);
+          scheduleNextQueue(true);
+          restartScanTimer();
+          queueCycle();
+        });
       }
       const actionChange = changes[Config.lastActionKey(state.pageId)];
       if (actionChange?.newValue?.message) state.lastAction = actionChange.newValue;

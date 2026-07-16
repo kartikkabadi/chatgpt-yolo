@@ -50,7 +50,7 @@ function loadBackground() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "queue.js", "commands.js", "background.js"]) {
+  for (const file of ["config.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   const invoke = (message, sender = {}) => new Promise((resolve) => {
@@ -178,9 +178,10 @@ test("tab-backed queue messages must match the sender conversation", async () =>
   assert.equal(mismatched.code, "queue.page_mismatch");
 });
 
-test("install-time template initialization uses the template lock", () => {
+test("install-time template initialization uses the shared portable transaction", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
-  assert.match(source, /onInstalled[\s\S]*withLock\(templateLock/);
+  assert.match(source, /onInstalled[\s\S]*PortableStore\.mutate/);
+  assert.doesNotMatch(source, /templateLock/);
 });
 
 test("background persists sender-bound command workflow state", async () => {
@@ -322,4 +323,20 @@ test("an intentionally empty template library remains empty", async () => {
   const response = await invoke({ type: "YOLO_TEMPLATES_GET" });
   assert.equal(response.ok, true);
   assert.deepEqual(response.templates, []);
+});
+
+test("template additions are idempotent and share the portable revision", async () => {
+  const { invoke, storage } = loadBackground();
+  const message = {
+    type: "YOLO_TEMPLATE_ADD",
+    template: { id: "client-template-id", name: "Stable", text: "same mutation" }
+  };
+  const first = await invoke(message);
+  assert.equal(first.ok, true);
+  assert.equal(storage.yoloPortableRevisionV1, 1);
+  const second = await invoke(message);
+  assert.equal(second.ok, true);
+  assert.equal(second.deduplicated, true);
+  assert.equal(second.templates.filter((template) => template.id === "client-template-id").length, 1);
+  assert.equal(storage.yoloPortableRevisionV1, 1);
 });

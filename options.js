@@ -239,7 +239,7 @@
     try {
       const response = await sendBackground(editingTemplateId
         ? { type: "YOLO_TEMPLATE_UPDATE", template: { id: editingTemplateId, name, text } }
-        : { type: "YOLO_TEMPLATE_ADD", template: { name, text } });
+        : { type: "YOLO_TEMPLATE_ADD", template: { id: crypto.randomUUID(), name, text } });
       if (!response?.ok) {
         setTemplateStatus(response?.reason || "Could not save template.", true);
         return;

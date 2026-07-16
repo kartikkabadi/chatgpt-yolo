@@ -3,47 +3,15 @@
 
   const Config = globalThis.YOLOConfig;
   const Portability = globalThis.YOLOPortability;
-  if (!Config || !Portability) return;
+  const Store = globalThis.YOLOPortableStore;
+  if (!Config || !Portability || !Store) return;
 
-  const lock = { current: Promise.resolve() };
   const previews = new Map();
   const PREVIEW_TTL_MS = 5 * 60 * 1000;
   const MAX_PREVIEWS = 8;
 
-  const storageGet = (keys) => new Promise((resolve, reject) => {
-    chrome.storage.local.get(keys, (items) => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message || "Extension storage read failed"));
-      else resolve(items || {});
-    });
-  });
-  const storageSet = (items) => new Promise((resolve, reject) => {
-    chrome.storage.local.set(items, () => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message || "Extension storage write failed"));
-      else resolve(true);
-    });
-  });
-  const storageRemove = (keys) => new Promise((resolve, reject) => {
-    chrome.storage.local.remove(keys, () => {
-      const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message || "Extension storage remove failed"));
-      else resolve(true);
-    });
-  });
-
-  function withLock(task) {
-    const run = lock.current.catch(() => {}).then(task);
-    lock.current = run.catch(() => {});
-    return run;
-  }
-
   function stable(value) {
-    if (Array.isArray(value)) return `[${value.map((entry) => stable(entry)).join(",")}]`;
-    if (value && typeof value === "object") {
-      return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(",")}}`;
-    }
-    return JSON.stringify(value);
+    return Store.stable(value);
   }
 
   function prunePreviews(now = Date.now()) {
@@ -51,32 +19,62 @@
     while (previews.size >= MAX_PREVIEWS) previews.delete(previews.keys().next().value);
   }
 
-  async function createPreview(backup) {
-    const current = Portability.portableStorageSnapshot(await storageGet(null));
+  function senderMatchesPageId(sender, pageId) {
+    if (!sender?.tab?.url || !Config.isSupportedUrl(sender.tab.url)) return false;
+    return Config.pageId(sender.tab.url) === pageId;
+  }
+
+  function createPreview(backup, stored, revision) {
+    const current = Portability.portableStorageSnapshot(stored);
     prunePreviews();
     const token = crypto.randomUUID();
     previews.set(token, {
       expiresAt: Date.now() + PREVIEW_TTL_MS,
       backupFingerprint: stable(backup),
-      storageFingerprint: stable(current)
+      storageFingerprint: stable(current),
+      revision
     });
     return token;
   }
 
-  async function handle(message) {
+  async function handle(message, sender = {}) {
     if (message.type === "YOLODATA_EXPORT") {
-      const backup = Portability.createBackup(await storageGet(null));
-      return { ok: true, backup, summary: Portability.backupSummary(backup) };
+      return Store.read(({ stored, revision }) => {
+        const backup = Portability.createBackup(stored);
+        return { ok: true, backup, summary: Portability.backupSummary(backup), revision };
+      });
     }
 
     if (message.type === "YOLODATA_IMPORT_PREVIEW") {
       const backup = Portability.normalizeBackup(message.backup);
-      const previewToken = await createPreview(backup);
-      return { ok: true, previewToken, summary: Portability.backupSummary(backup) };
+      return Store.read(({ stored, revision }) => ({
+        ok: true,
+        previewToken: createPreview(backup, stored, revision),
+        summary: Portability.backupSummary(backup),
+        revision
+      }));
+    }
+
+    if (message.type === "YOLODATA_SETTINGS_SET") {
+      const pageId = String(message.pageId || "");
+      if (!Config.isDurablePageId(pageId)) {
+        return { ok: false, reason: "A saved ChatGPT conversation is required", code: "data.page_invalid" };
+      }
+      if (!senderMatchesPageId(sender, pageId)) {
+        return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "data.page_mismatch" };
+      }
+      const settings = Config.normalizeSettings(message.settings || {});
+      return Store.mutate(() => ({
+        setItems: {
+          [Config.STORAGE_KEYS.global]: Config.globalDefaultsFromSettings(settings),
+          [Config.pageSettingsKey(pageId)]: settings
+        },
+        result: { settings }
+      }));
     }
 
     if (message.type === "YOLODATA_IMPORT_APPLY") {
-      return withLock(async () => {
+      return Store.mutate(({ stored, revision }) => {
         prunePreviews();
         const token = String(message.previewToken || "");
         const preview = previews.get(token);
@@ -87,36 +85,29 @@
         if (stable(backup) !== preview.backupFingerprint) {
           return { ok: false, reason: "Backup changed after preview; choose the file again", code: "data.backup_changed" };
         }
-        const current = Portability.portableStorageSnapshot(await storageGet(null));
-        if (stable(current) !== preview.storageFingerprint) {
+        const current = Portability.portableStorageSnapshot(stored);
+        if (revision !== preview.revision || stable(current) !== preview.storageFingerprint) {
           return { ok: false, reason: "YOLO settings changed after preview; review the backup again", code: "data.storage_conflict" };
         }
 
         const plan = Portability.storagePlan(backup, current);
-        const previous = current;
-        const createdKeys = Object.keys(plan.payload).filter((key) => !Object.prototype.hasOwnProperty.call(previous, key));
-        try {
-          await storageSet(plan.payload);
-          if (plan.removeKeys.length) await storageRemove(plan.removeKeys);
-        } catch (error) {
-          try {
-            if (Object.keys(previous).length) await storageSet(previous);
-            if (createdKeys.length) await storageRemove(createdKeys);
-          } catch {
-            throw new Error(`${String(error?.message || error)}; backup rollback also failed`);
+        return {
+          setItems: plan.payload,
+          removeKeys: plan.removeKeys,
+          result: {
+            summary: Portability.backupSummary(backup),
+            removedOverrides: plan.removeKeys.length
           }
-          throw error;
-        }
-        return { ok: true, summary: Portability.backupSummary(backup), removedOverrides: plan.removeKeys.length };
+        };
       });
     }
 
-    return { ok: false, reason: "Unknown data operation" };
+    return { ok: false, reason: "Unknown data operation", code: "data.unknown" };
   }
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message?.type?.startsWith("YOLODATA_")) return false;
-    Promise.resolve(handle(message))
+    Promise.resolve(handle(message, sender))
       .then((response) => sendResponse(response))
       .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));
     return true;

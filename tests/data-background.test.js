@@ -45,11 +45,11 @@ function loadDataBackground() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "portability.js", "data-background.js"]) {
+  for (const file of ["config.js", "portable-store.js", "portability.js", "data-background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
-  const dispatch = (message, sendResponse = () => {}) => listener(message, {}, sendResponse);
-  const invoke = (message) => new Promise((resolve) => assert.equal(dispatch(message, resolve), true));
+  const dispatch = (message, sendResponse = () => {}, sender = {}) => listener(message, sender, sendResponse);
+  const invoke = (message, sender = {}) => new Promise((resolve) => assert.equal(dispatch(message, resolve, sender), true));
   return { dispatch, invoke, storage, failStorageWrite() { failNextSet = true; } };
 }
 
@@ -150,4 +150,39 @@ test("imports delete stale page overrides while preserving live automation state
   assert.equal(storage.yoloPageSettings, undefined);
   assert.equal(storage[`yoloPage:${encodeURIComponent(stalePage)}`], undefined);
   assert.equal(storage.yoloQueuesV1[stalePage].items[0].text, "KEEP-QUEUE");
+});
+
+test("settings writes are revisioned, idempotent, and sender-bound", async () => {
+  const { invoke, storage } = loadDataBackground();
+  const message = { type: "YOLODATA_SETTINGS_SET", pageId, settings: { enabled: true, queueLimitPerHour: 19 } };
+  let response = await invoke(message);
+  assert.equal(response.ok, false);
+  assert.equal(response.code, "data.page_mismatch");
+
+  const sender = { tab: { url: pageId } };
+  response = await invoke(message, sender);
+  assert.equal(response.ok, true);
+  assert.equal(response.revision, 1);
+  assert.equal(storage.yoloPortableRevisionV1, 1);
+  assert.equal(storage[`yoloPage:${encodeURIComponent(pageId)}`].queueLimitPerHour, 19);
+
+  response = await invoke(message, sender);
+  assert.equal(response.ok, true);
+  assert.equal(response.changed, false);
+  assert.equal(response.revision, 1);
+  assert.equal(storage.yoloPortableRevisionV1, 1);
+});
+
+test("a normal settings mutation invalidates an import preview", async () => {
+  const { invoke } = loadDataBackground();
+  const value = backup();
+  const token = await preview(invoke, value);
+  const settings = await invoke(
+    { type: "YOLODATA_SETTINGS_SET", pageId, settings: { enabled: true, queueLimitPerHour: 27 } },
+    { tab: { url: pageId } }
+  );
+  assert.equal(settings.ok, true);
+  const response = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(value), previewToken: token });
+  assert.equal(response.ok, false);
+  assert.equal(response.code, "data.storage_conflict");
 });
