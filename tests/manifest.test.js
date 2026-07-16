@@ -46,6 +46,6 @@ test("manifest grants host access only to ChatGPT", () => {
 test("public v1 metadata and permissions stay intentionally narrow", () => {
   assert.equal(manifest.version, "1.0.0");
   assert.equal(manifest.homepage_url, "https://github.com/kartikkabadi/chatgpt-yolo");
-  assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
+  assert.deepEqual(manifest.permissions, ["scripting", "storage"]);
   assert.equal(manifest.minimum_chrome_version, "114");
 });
