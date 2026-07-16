@@ -303,6 +303,50 @@ async function enqueueWorkflowPrompt(pageId, key, current, message) {
   });
 }
 
+async function completeQueueClaim(pageId, message) {
+  // Workflow enqueue already uses workflow -> queue lock order. Keep the same order here.
+  return withLock(workflowLock, () => withLock(queueLock, async () => {
+    const map = await readQueueMap();
+    const queueCurrent = Queue.normalizeState(map[pageId]);
+    const queueResult = Queue.completeClaim(queueCurrent, message.itemId, message.claimToken);
+    if (!queueResult.ok) return { ...queueResult, state: queueCurrent, summary: Queue.summary(queueCurrent) };
+
+    const queueState = Queue.normalizeState(queueResult.state);
+    const setItems = { [Config.STORAGE_KEYS.queues]: { ...map, [pageId]: queueState } };
+    let workflow = null;
+    const completedItem = queueResult.item;
+    if (completedItem?.source?.startsWith("workflow:") && completedItem.sourceId) {
+      const key = Config.workflowKey(pageId);
+      const stored = await storageGet([key]);
+      const current = Commands.normalizeWorkflow(stored[key]);
+      if (current.status === "running"
+        && current.id === completedItem.sourceId
+        && current.pendingItemId === completedItem.id) {
+        workflow = Commands.normalizeWorkflow({
+          ...current,
+          revision: current.revision + 1,
+          pendingItemId: "",
+          awaitingResponse: true,
+          sawGeneration: false,
+          responseCandidateFingerprint: "",
+          responseCandidateSince: 0,
+          reason: "Waiting for ChatGPT",
+          updatedAt: Date.now()
+        });
+        setItems[key] = workflow;
+      }
+    }
+
+    await storageSet(setItems);
+    return {
+      ...queueResult,
+      state: queueState,
+      summary: Queue.summary(queueState),
+      ...(workflow ? { workflow } : {})
+    };
+  }));
+}
+
 async function handleWorkflowMessage(message, sender) {
   const pageId = message.pageId;
   if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "workflow.page_invalid" };
@@ -431,7 +475,7 @@ async function handleQueueMessage(message, sender) {
     return mutateQueue(pageId, async (state) => Queue.releaseClaim(state, message.itemId, message.claimToken, { reason: message.reason }));
   }
   if (message.type === "YOLO_QUEUE_COMPLETE") {
-    return mutateQueue(pageId, async (state) => Queue.completeClaim(state, message.itemId, message.claimToken));
+    return completeQueueClaim(pageId, message);
   }
   if (message.type === "YOLO_QUEUE_FAIL") {
     return mutateQueue(pageId, async (state) => Queue.failClaim(state, message.itemId, message.claimToken, {
