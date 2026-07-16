@@ -227,16 +227,12 @@
     }
 
     const form = composer.closest?.("form");
-    if (form?.requestSubmit) {
+    if (typeof form?.requestSubmit === "function") {
       form.requestSubmit();
       return true;
     }
 
-    const view = composer.ownerDocument?.defaultView || globalThis;
-    const options = { key: "Enter", code: "Enter", bubbles: true, cancelable: true };
-    composer.dispatchEvent(new view.KeyboardEvent("keydown", options));
-    composer.dispatchEvent(new view.KeyboardEvent("keyup", options));
-    return true;
+    return false;
   }
 
   function approvalRisk(text, contextText = "") {
