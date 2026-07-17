@@ -34,7 +34,18 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
       - name: Run test suite
-        run: node --test --test-reporter=dot
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test --test-reporter=dot 2>&1 | tee test-output.txt
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-output-node-${{ matrix.node-version }}
+          path: test-output.txt
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Verify extension boundary
         run: npm run verify:extension
       - name: Verify package contents
