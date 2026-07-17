@@ -79,8 +79,8 @@ See `marketing/asset-manifest.json` for the full list. Key assets:
 | Screenshots (5) | `docs/assets/screenshot-*.webp` | 1440×900 | 43–62 KB each |
 | Brand mark | `docs/assets/yolo-mark.svg` | scalable | ~1 KB |
 | Contact sheet | `marketing/renders/contact-sheet.png` | varies | ~1.7 MB |
-| Launch video 16:9 | `marketing/video/hyperframes/yolo-launch-16x9.mp4` | 1920×1080 | ~40 s, 30 fps, H.264 yuv420p |
-| Launch video square | `marketing/video/hyperframes/yolo-launch-square.mp4` | 1080×1080 | ~40 s, 30 fps, H.264 yuv420p |
+| Launch video 16:9 | `marketing/video/hyperframes/yolo-launch-16x9.mp4` | 1920×1080 | 44.5 s, 30 fps, H.264 yuv420p |
+| Launch video square | `marketing/video/hyperframes/yolo-launch-square.mp4` | 1080×1080 | 44.5 s, 30 fps, H.264 yuv420p |
 
 ## Video storyboard
 
@@ -90,7 +90,7 @@ See `marketing/asset-manifest.json` for the full list. Key assets:
 4. **Bounded workflow (19–27 s):** `/goal` limits turns, shows progress, and can stop.
 5. **Optional GitHub setup (27–33 s):** ChatGPT GitHub app is separate and optional.
 6. **Reliability (33–38 s):** pause, edit, stop; local-first, no telemetry.
-7. **End card (38–40 s):** YOLO logo, tagline, install CTA, legal line.
+7. **End card (40–44.5 s):** YOLO logo, tagline, install CTA, legal line.
 
 ## Downloadable renders and render commands
 
@@ -116,7 +116,7 @@ The square render uses the same source with a separate square composition.
 
 - `npm run validate`: **208 pass / 0 fail**, extension boundary clean.
 - `npm run package`: `dist/yolo` produced, 35 packaged files.
-- `ffprobe` verification: 1920×1080, ~40 s, 30 fps, H.264 (h264), yuv420p, faststart moov, no audio, < 35 MB.
+- `ffprobe` verification: 1920×1080, 44.5 s, 30 fps, H.264 (h264), yuv420p, faststart moov, no audio, < 35 MB.
 - Image verification: all dimensions correct, sizes under budget, optimized WebP/PNG.
 - Sensitive-data scan: no tokens, emails, private conversations, cookies, or local paths in assets.
 - Accessibility: color-contrast token darkened to `#6b6a63` to clear WCAG 2.1 AA failures flagged in Wave D.

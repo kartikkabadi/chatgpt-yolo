@@ -131,7 +131,7 @@ A bounded `/goal` or `/loop` can wrap the iterative middle of this sequence so i
   <source src="marketing/video/hyperframes/yolo-launch-16x9.mp4" type="video/mp4">
 </video>
 
-A 40-second walkthrough of queuing the next steps and running a bounded workflow inside a long ChatGPT conversation.  
+A 44.5-second walkthrough of queuing the next steps and running a bounded workflow inside a long ChatGPT conversation.  
 [Download 16:9 MP4](marketing/video/hyperframes/yolo-launch-16x9.mp4) · [Download 1:1 square MP4](marketing/video/hyperframes/yolo-launch-square.mp4)
 
 ---
