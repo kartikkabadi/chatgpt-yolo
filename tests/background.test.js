@@ -322,7 +322,8 @@ test("an intentionally empty template library remains empty", async () => {
   storage.yoloTemplatesV1 = [];
   const response = await invoke({ type: "YOLO_TEMPLATES_GET" });
   assert.equal(response.ok, true);
-  assert.deepEqual(response.templates, []);
+  assert.equal(Array.isArray(response.templates), true);
+  assert.equal(response.templates.length, 0);
 });
 
 test("template additions are idempotent and share the portable revision", async () => {

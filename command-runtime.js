@@ -93,6 +93,15 @@
     return response?.ok ? Commands.normalizeWorkflow(response.workflow) : Commands.freshWorkflow();
   }
 
+  async function refreshWorkflow(pageId = state.pageId) {
+    const workflow = await readWorkflow(pageId);
+    if (state.pageId === pageId) {
+      state.workflow = workflow;
+      syncUI();
+    }
+    return workflow;
+  }
+
   async function writeWorkflow(workflow = state.workflow, pageId = state.pageId) {
     const normalized = Commands.normalizeWorkflow(workflow);
     const response = await backgroundSend({
@@ -188,17 +197,7 @@
 
     const api = engine();
     const sent = api ? await api.runAction("queue-next") : false;
-    if (workflow && sent && state.pageId === pageId) {
-      const next = Commands.normalizeWorkflow(state.workflow);
-      next.pendingItemId = "";
-      next.awaitingResponse = true;
-      next.sawGeneration = false;
-      next.responseCandidateFingerprint = "";
-      next.responseCandidateSince = 0;
-      next.reason = "Waiting for ChatGPT";
-      next.updatedAt = now();
-      await writeWorkflow(next, pageId);
-    }
+    if (workflow && sent && state.pageId === pageId) await refreshWorkflow(pageId);
     return { ...response, sent };
   }
 
@@ -398,32 +397,29 @@
     if (!queue?.ok) return false;
     const item = queue.state.items.find((entry) => entry.id === workflow.pendingItemId);
     if (item?.state === "failed") {
-      await markWorkflow("blocked", item.error || "Workflow prompt failed", "command.workflow.delivery_failed");
+      const removed = await removeQueueItem(item.id);
+      const reason = removed
+        ? (item.error || "Workflow prompt failed")
+        : `${item.error || "Workflow prompt failed"}. The failed queue item could not be removed.`;
+      await markWorkflow("blocked", reason, "command.workflow.delivery_failed");
       return true;
     }
     if (item) {
       if (!apiState.generating && now() - state.lastQueueAttemptAt >= POLL_MS) {
         state.lastQueueAttemptAt = now();
         const sent = await engine()?.runAction?.("queue-next");
-        if (sent) {
-          const next = Commands.normalizeWorkflow(state.workflow);
-          next.pendingItemId = "";
-          next.awaitingResponse = true;
-          next.sawGeneration = false;
-          next.responseCandidateFingerprint = "";
-          next.responseCandidateSince = 0;
-          next.reason = "Waiting for ChatGPT";
-          next.updatedAt = now();
-          await writeWorkflow(next);
-        }
+        if (sent) await refreshWorkflow();
       }
       return false;
     }
 
+    const refreshed = await refreshWorkflow();
+    if (refreshed.awaitingResponse || !refreshed.pendingItemId) return false;
+
     const completedExactly = queue.state.completions.some((completion) =>
       completion.itemId === workflow.pendingItemId && completion.sourceId === workflow.id);
     if (completedExactly) {
-      const next = Commands.normalizeWorkflow(state.workflow);
+      const next = Commands.normalizeWorkflow(refreshed);
       next.pendingItemId = "";
       next.awaitingResponse = true;
       next.sawGeneration = false;

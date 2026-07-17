@@ -8,9 +8,11 @@
   const NEGATIVE_RE = /\b(deny|decline|reject|cancel|stop|no|disallow|do not|don't|dismiss)\b/i;
   const DETAILS_RE = /\b(details?|learn more|view)\b/i;
   const SAFE_APPROVAL_RE = /\b(allow|approve|accept|continue|run|grant|authorize|confirm)\b/i;
+  const READ_ONLY_CONTEXT_RE = /\b(read|view|inspect|list|search|fetch|get|retrieve|show)\b/i;
   const WRITE_APPROVAL_RE = /\b(create|update|edit|commit|push|open|apply|write|modify|change)\b/i;
   const DESTRUCTIVE_APPROVAL_RE = /\b(merge|delete|remove|close|force|overwrite|reset|revert|discard|drop|destroy)\b/i;
-  const SENSITIVE_APPROVAL_RE = /\b(\x61ccount access|\x63onnect account|\x73ign in|\x63redential|\x73ecret|\x74oken|\x6fauth|\x73cope)\b/i;
+  const SENSITIVE_APPROVAL_RE = /\b(account access|connect account|sign in|credential|secret|token|oauth|scope|permission|grant access|repository access|private repository|private repo)\b/i;
+  const EXECUTION_APPROVAL_RE = /\b(run command|execute|shell|terminal|bash|script|tool call)\b/i;
   const GITHUB_CONTEXT_RE = /\b(github|repository|pull request|issue|branch|commit|workflow|workspace|permission|tool call)\b/i;
 
   const ADAPTERS = Object.freeze({
@@ -227,16 +229,12 @@
     }
 
     const form = composer.closest?.("form");
-    if (form?.requestSubmit) {
+    if (typeof form?.requestSubmit === "function") {
       form.requestSubmit();
       return true;
     }
 
-    const view = composer.ownerDocument?.defaultView || globalThis;
-    const options = { key: "Enter", code: "Enter", bubbles: true, cancelable: true };
-    composer.dispatchEvent(new view.KeyboardEvent("keydown", options));
-    composer.dispatchEvent(new view.KeyboardEvent("keyup", options));
-    return true;
+    return false;
   }
 
   function approvalRisk(text, contextText = "") {
@@ -245,9 +243,9 @@
     if (NEGATIVE_RE.test(button) || DETAILS_RE.test(button)) return "blocked";
     const riskText = `${button} ${context}`;
     if (DESTRUCTIVE_APPROVAL_RE.test(riskText)) return "destructive";
-    if (SENSITIVE_APPROVAL_RE.test(riskText)) return "sensitive";
+    if (SENSITIVE_APPROVAL_RE.test(riskText) || EXECUTION_APPROVAL_RE.test(riskText)) return "sensitive";
     if (WRITE_APPROVAL_RE.test(riskText)) return "write";
-    if (SAFE_APPROVAL_RE.test(button)) return "safe";
+    if (SAFE_APPROVAL_RE.test(button) && READ_ONLY_CONTEXT_RE.test(context)) return "safe";
     return "unknown";
   }
 

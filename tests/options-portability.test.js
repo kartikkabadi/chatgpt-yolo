@@ -66,3 +66,13 @@ test("imports lock and flush settings then synchronize without persisting", () =
   assert.ok(start >= 0 && end > start);
   assert.doesNotMatch(content.slice(start, end), /persistSettings|storageSet/);
 });
+
+test("portability follows the conversation resolved by the main settings controller", () => {
+  const portability = read("options-portability.js");
+  const options = read("options.js");
+  assert.match(options, /getContext\(\)[\s\S]*sourceTabId[\s\S]*contentState\?\.pageId/);
+  assert.match(portability, /YOLOOptionsController\?\.getContext\?\.\(\)/);
+  assert.match(portability, /const \{ sourceTabId \} = currentContext\(\)/);
+  assert.match(portability, /const \{ sourceTabId, pageId \} = currentContext\(\)/);
+  assert.match(portability, /const \{ pageId \} = currentContext\(\)/);
+});

@@ -82,19 +82,22 @@ test("import payload targets only portable storage keys", () => {
   assert.doesNotMatch(serialized, /yoloQueues|yoloWorkflow|yoloCounters|yoloLastAction/);
 });
 
-test("privacy-safe diagnostics redact identifiers and all user-authored text", () => {
+test("privacy-safe diagnostics report actual health without identifiers or authored text", () => {
   const diagnostics = Portability.buildDiagnostics({
     browser: "Test Browser",
     contentState: {
       version: Config.VERSION,
       platform: "ChatGPT",
       pageId,
-      blockedCode: "queue.delivery_unknown",
+      hydrated: true,
       blockedReason: "BLOCKED-SECRET",
       lastAction: { code: "queue.failed", message: "ACTION-SECRET" },
       workflow: { objective: "OBJECTIVE-SECRET" },
       settings: { ...Config.DEFAULT_SETTINGS, profile: "safe", enabled: true },
-      runtime: { sessionActionCount: 7 }
+      runtime: {
+        sessionActionCount: 7,
+        blockedCode: "queue.delivery_unknown"
+      }
     },
     queueState: {
       paused: true,
@@ -102,6 +105,9 @@ test("privacy-safe diagnostics redact identifiers and all user-authored text", (
     }
   });
   const serialized = JSON.stringify(diagnostics);
+  assert.equal(diagnostics.runtime.loaded, true);
+  assert.equal(diagnostics.runtime.hydrated, true);
+  assert.equal(diagnostics.runtime.blockedCode, "queue.delivery_unknown");
   assert.equal(diagnostics.queue.total, 1);
   assert.equal(diagnostics.queue.stateCounts.failed, 1);
   assert.deepEqual(diagnostics.queue.errorCodes, ["queue.delivery_unknown"]);

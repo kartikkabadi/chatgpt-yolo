@@ -152,8 +152,9 @@ test("imports delete stale page overrides while preserving live automation state
   assert.equal(storage.yoloQueuesV1[stalePage].items[0].text, "KEEP-QUEUE");
 });
 
-test("settings writes are revisioned, idempotent, and sender-bound", async () => {
+test("settings writes are revisioned, idempotent, sender-bound, and conversation-scoped", async () => {
   const { invoke, storage } = loadDataBackground();
+  storage.yoloGlobal = { queueLimitPerHour: 11, profile: "safe" };
   const message = { type: "YOLODATA_SETTINGS_SET", pageId, settings: { enabled: true, queueLimitPerHour: 19 } };
   let response = await invoke(message);
   assert.equal(response.ok, false);
@@ -165,12 +166,14 @@ test("settings writes are revisioned, idempotent, and sender-bound", async () =>
   assert.equal(response.revision, 1);
   assert.equal(storage.yoloPortableRevisionV1, 1);
   assert.equal(storage[`yoloPage:${encodeURIComponent(pageId)}`].queueLimitPerHour, 19);
+  assert.deepEqual(storage.yoloGlobal, { queueLimitPerHour: 11, profile: "safe" });
 
   response = await invoke(message, sender);
   assert.equal(response.ok, true);
   assert.equal(response.changed, false);
   assert.equal(response.revision, 1);
   assert.equal(storage.yoloPortableRevisionV1, 1);
+  assert.deepEqual(storage.yoloGlobal, { queueLimitPerHour: 11, profile: "safe" });
 });
 
 test("a normal settings mutation invalidates an import preview", async () => {

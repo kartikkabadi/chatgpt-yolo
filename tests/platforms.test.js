@@ -44,6 +44,39 @@ function createFixtureDocument(fixture) {
   };
 }
 
+function submitFixture({ withButton = false, withFormSubmit = false } = {}) {
+  const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
+  const ownerDocument = { defaultView: view };
+  let clicks = 0;
+  let formSubmits = 0;
+  const button = {
+    nodeType: 1,
+    ownerDocument,
+    type: "button",
+    disabled: false,
+    textContent: "",
+    getAttribute(name) {
+      if (name === "aria-label") return "Send message";
+      if (name === "data-testid") return "send-button";
+      return null;
+    },
+    getBoundingClientRect: () => ({ left: 20, right: 60, top: 20, bottom: 60, width: 40, height: 40 }),
+    click() { clicks += 1; }
+  };
+  const form = {
+    querySelectorAll(selector) { return selector === "button" && withButton ? [button] : []; },
+    ...(withFormSubmit ? { requestSubmit() { formSubmits += 1; } } : {})
+  };
+  const composer = {
+    nodeType: 1,
+    ownerDocument,
+    closest(selector) { return selector === "form" ? form : null; },
+    getBoundingClientRect: () => ({ left: 0, right: 300, top: 0, bottom: 100, width: 300, height: 100 })
+  };
+  const documentLike = { querySelectorAll() { return []; } };
+  return { composer, documentLike, clicks: () => clicks, formSubmits: () => formSubmits };
+}
+
 test("selects platform adapters only for supported hosts", () => {
   assert.equal(Platforms.adapterForLocation({ hostname: "chatgpt.com" }).id, "chatgpt");
   assert.equal(Platforms.adapterForLocation({ hostname: "www.grok.com" }), null);
@@ -60,10 +93,13 @@ test("fixture-based approval detection respects every risk policy", () => {
   }
 });
 
-test("generic safe button labels cannot hide destructive context", () => {
+test("generic safe labels cannot hide destructive or sensitive context", () => {
   assert.equal(Platforms.approvalVerbAllowed("Confirm", "safe", "Delete the GitHub branch"), false);
   assert.equal(Platforms.approvalVerbAllowed("Confirm", "writes", "Merge pull request"), false);
   assert.equal(Platforms.approvalVerbAllowed("Confirm", "all", "Delete the GitHub branch"), true);
+  assert.equal(Platforms.approvalVerbAllowed("Allow", "safe", "GitHub requests permission to read a private repository"), false);
+  assert.equal(Platforms.approvalVerbAllowed("Allow", "writes", "Run command in the workspace terminal"), false);
+  assert.equal(Platforms.approvalVerbAllowed("Allow", "all", "Run command in the workspace terminal"), true);
 });
 
 test("submission observation requires a new matching user message", () => {
@@ -83,6 +119,24 @@ test("composer clearing or generation alone is not a delivery receipt", () => {
   const adapter = { userSelectors: ["user"] };
   const documentLike = { querySelectorAll() { return []; } };
   assert.equal(Platforms.submissionObserved(adapter, { expectedText: "queued prompt", previousSnapshot: { count: 0, latestText: "" } }, documentLike), false);
+});
+
+test("submits only through a real send button or form", () => {
+  const adapter = Platforms.ADAPTERS.chatgpt;
+  const buttonCase = submitFixture({ withButton: true, withFormSubmit: true });
+  assert.equal(Platforms.submitComposer(adapter, buttonCase.composer, buttonCase.documentLike), true);
+  assert.equal(buttonCase.clicks(), 1);
+  assert.equal(buttonCase.formSubmits(), 0);
+
+  const formCase = submitFixture({ withFormSubmit: true });
+  assert.equal(Platforms.submitComposer(adapter, formCase.composer, formCase.documentLike), true);
+  assert.equal(formCase.clicks(), 0);
+  assert.equal(formCase.formSubmits(), 1);
+
+  const unavailable = submitFixture();
+  assert.equal(Platforms.submitComposer(adapter, unavailable.composer, unavailable.documentLike), false);
+  assert.equal(unavailable.clicks(), 0);
+  assert.equal(unavailable.formSubmits(), 0);
 });
 
 test("reads the latest ChatGPT assistant response for workflow markers", () => {

@@ -45,12 +45,13 @@ test("creates normalized persistent goal and loop workflows", () => {
   assert.match(Commands.workflowPrompt(loop.workflow, "continue"), /Iteration 1 of 4/);
 });
 
-test("goal response markers are explicit and case-insensitive", () => {
+test("workflow response markers are unique, terminal, and case-insensitive", () => {
   assert.equal(Commands.evaluateResponse("done\n[YOLO:DONE]"), "done");
-  assert.equal(Commands.evaluateResponse("[yolo:blocked]"), "blocked");
-  assert.equal(Commands.evaluateResponse("[YOLO:DONE]\nbut actually keep going"), "missing");
+  assert.equal(Commands.evaluateResponse("  [yolo:blocked]  "), "blocked");
+  assert.equal(Commands.evaluateResponse("[YOLO:DONE]\nbut actually keep going"), "malformed");
   assert.equal(Commands.evaluateResponse("inline [YOLO:DONE]"), "missing");
   assert.equal(Commands.evaluateResponse("prefix\n[YOLO:DONE]"), "done");
+  assert.equal(Commands.evaluateResponse("work\n[YOLO:BLOCKED]\nmore\n[YOLO:DONE]"), "malformed");
   assert.equal(Commands.evaluateResponse("no marker"), "missing");
 });
 
@@ -166,5 +167,24 @@ test("both automated workflows pause when the terminal marker is missing", () =>
     });
     assert.equal(decision.action, "paused");
     assert.equal(decision.code, "command.workflow.marker_missing");
+  }
+});
+
+test("both automated workflows pause on multiple or misplaced markers", () => {
+  for (const kind of ["goal", "loop"]) {
+    const workflow = Commands.normalizeWorkflow({
+      kind,
+      objective: "ship",
+      status: "running",
+      awaitingResponse: true,
+      promptFingerprint: "owned"
+    }, 1000);
+    const decision = Commands.decideWorkflowResponse(workflow, "first\n[YOLO:CONTINUE]\nthen\n[YOLO:DONE]", {
+      userFingerprint: "owned",
+      at: 1100
+    });
+    assert.equal(decision.action, "paused");
+    assert.equal(decision.code, "command.workflow.marker_malformed");
+    assert.match(decision.reason, /multiple or misplaced/i);
   }
 });

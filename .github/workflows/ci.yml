@@ -14,37 +14,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate-node-20:
-    name: Validate on Node 20
+  validate:
+    name: Validate on Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 20
+          - 24
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
-      - run: npm run validate
-
-  validate-node-24:
-    name: Validate on Node 24
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+          node-version: ${{ matrix.node-version }}
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Run test suite
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.txt
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
         with:
-          node-version: 24
-      - run: npm run validate
+          name: test-output-node-${{ matrix.node-version }}
+          path: test-output.txt
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Verify extension boundary
+        run: npm run verify:extension
+      - name: Verify package contents
+        run: node scripts/package.mjs --check
 
   package:
     name: Package extension
     needs:
-      - validate-node-20
-      - validate-node-24
+      - validate
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
       - uses: actions/setup-node@v7
         with:
           node-version: 24

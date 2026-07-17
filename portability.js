@@ -226,9 +226,10 @@
       },
       runtime: {
         generating: Boolean(contentState.generating),
-        loaded: Boolean(contentState.loaded),
+        loaded: Boolean(contentState.pageId && contentState.settings),
+        hydrated: Boolean(contentState.hydrated),
         sessionActionCount: Math.max(0, Number(runtime.sessionActionCount) || 0),
-        blockedCode: String(contentState.blockedCode || "").slice(0, 100),
+        blockedCode: String(runtime.blockedCode || contentState.blockedCode || "").slice(0, 100),
         lastActionCode: String(contentState.lastAction?.code || "").slice(0, 100)
       },
       queue: {
