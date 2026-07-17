@@ -220,12 +220,4 @@ Timecodes are `mm:ss.f` (frames at 30 fps). Total = 42.0 s. Each on-screen line'
 
 ---
 
-## Appendix — Frame sketches
 
-Rough, non-final wireframe sketches (layout/composition only, not final visual design) are in `frames/`:
-
-- `frame-01-problem.png` — Scene 1 first/poster frame.
-- `frame-04-transition.png` — Scene 4 bounded-workflow paused state (key transition/boundary frame).
-- `frame-07-endcard.png` — Scene 7 final end card.
-
-These indicate composition, safe areas, and text placement only.

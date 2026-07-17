@@ -127,9 +127,7 @@ A bounded `/goal` or `/loop` can wrap the iterative middle of this sequence so i
 
 <a id="demo"></a>
 
-<video controls poster="docs/assets/demo-poster.webp" width="100%">
-  <source src="marketing/video/hyperframes/yolo-launch-16x9.mp4" type="video/mp4">
-</video>
+[![YOLO for ChatGPT — 44.5 s demo](docs/assets/demo-poster.webp)](marketing/video/hyperframes/yolo-launch-16x9.mp4)
 
 A 44.5-second walkthrough of queuing the next steps and running a bounded workflow inside a long ChatGPT conversation.  
 [Download 16:9 MP4](marketing/video/hyperframes/yolo-launch-16x9.mp4) · [Download 1:1 square MP4](marketing/video/hyperframes/yolo-launch-square.mp4)
@@ -138,7 +136,22 @@ A 44.5-second walkthrough of queuing the next steps and running a bounded workfl
 
 ## Install
 
-### From source (recommended today)
+### From a release archive (recommended)
+
+Download the latest `yolo-v1.1.0.zip` from the [Releases](https://github.com/kartikkabadi/chatgpt-yolo/releases) page, unzip it, and load the `yolo` folder as an unpacked extension:
+
+1. Open `chrome://extensions` in Chrome, Edge, Brave, Arc, or another Chromium browser.
+2. Enable **Developer mode**.
+3. Select **Load unpacked** and choose the unzipped `yolo` folder.
+4. Open or refresh a ChatGPT conversation.
+
+Release archives are built and attested by GitHub Actions. You can verify the attestation with:
+
+```bash
+gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+```
+
+### From source (optional)
 
 ```bash
 git clone https://github.com/kartikkabadi/chatgpt-yolo.git
@@ -148,15 +161,6 @@ npm run package
 ```
 
 Then load `dist/yolo` as an unpacked extension.
-
-### From a release archive
-
-When a release is published, download the `yolo-v*.zip` asset from the [Releases](https://github.com/kartikkabadi/chatgpt-yolo/releases) page, unzip it, and load the `yolo` folder as an unpacked extension:
-
-1. Open `chrome://extensions` in Chrome, Edge, Brave, Arc, or another Chromium browser.
-2. Enable **Developer mode**.
-3. Select **Load unpacked** and choose the unzipped `yolo` folder.
-4. Open or refresh a ChatGPT conversation.
 
 ## First run
 

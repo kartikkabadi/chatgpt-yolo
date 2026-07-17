@@ -303,8 +303,9 @@
 
   function isSupportedUrl(url) {
     try {
-      const host = new URL(url).hostname.toLowerCase();
-      return host === "chatgpt.com" || host.endsWith(".chatgpt.com");
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      return parsed.protocol === "https:" && (host === "chatgpt.com" || host.endsWith(".chatgpt.com"));
     } catch {
       return false;
     }

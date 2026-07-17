@@ -6,7 +6,7 @@ This is the exact sequence for Kartik to publish the launch once the final PR is
 
 - [ ] Review the final PR diff.
 - [ ] Confirm `npm run validate` passes on the PR head.
-- [ ] Confirm the README install path is accurate (source today; release archive after tag).
+- [ ] Confirm the README install path points to the verified `v1.1.0` release archive with `gh attestation verify`.
 - [ ] Confirm the GitHub-app section wording is acceptable.
 - [ ] Confirm sponsor copy matches the live Whop page.
 
@@ -15,7 +15,10 @@ This is the exact sequence for Kartik to publish the launch once the final PR is
 - [ ] Merge the PR into `main`.
 - [ ] Push the release tag: `git tag v1.1.0 && git push origin v1.1.0`.
 - [ ] The `release.yml` workflow will build `yolo-v1.1.0.zip`, generate `SHA256SUMS`, and create the GitHub release.
-- [ ] Download the generated `yolo-v1.1.0.zip` and verify the SHA-256 checksum before announcing.
+- [ ] Download the generated `yolo-v1.1.0.zip`, verify the SHA-256 checksum, and verify the GitHub artifact attestation:
+  ```bash
+  gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+  ```
 
 ## Repository metadata (manual or `gh repo edit`)
 

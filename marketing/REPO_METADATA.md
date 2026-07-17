@@ -63,6 +63,34 @@ gh repo edit kartikkabadi/chatgpt-yolo \
 gh repo edit kartikkabadi/chatgpt-yolo --homepage ""
 ```
 
+## Sponsor button
+
+Confirm that `.github/FUNDING.yml` is present and that **Settings → Sponsorships → Sponsor button** is enabled. The button links to `https://whop.com/vex-app/support-for-oss/`. Do not change the funding destination.
+
+## Release artifact
+
+After pushing tag `v1.1.0`, the `release.yml` workflow builds `yolo-v1.1.0.zip`, generates a SHA-256 checksum, and produces a GitHub artifact attestation. Verify before announcing:
+
+```bash
+gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+```
+
+## Recommended repository settings to verify
+
+- **Settings → General → Social preview**: upload `docs/assets/social-preview.png`.
+- **Settings → Code security and analysis**:
+  - Dependabot alerts: enabled.
+  - Dependabot version updates: enabled (`.github/dependabot.yml` is pinned to `github-actions` only).
+  - Secret scanning: enabled.
+  - Private vulnerability reporting: enabled.
+- **Settings → Branches → Branch protection for `main`**:
+  - Require a pull request before merging.
+  - Require status checks to pass before merging: `CI`, `CodeQL`, or any check from the pinned, full-SHA workflows.
+  - Restrict who can push: owners + Devin bot or required reviewers.
+- **Settings → Actions → General**:
+  - Allow only select actions: restrict to GitHub-owned actions and full-SHA pinned third-party actions.
+  - Require approval for all outside collaborators.
+
 ## What not to change
 
 - Visibility, merge settings, branch protection, issue settings, discussions, Actions permissions, security settings, repository name, or default branch.

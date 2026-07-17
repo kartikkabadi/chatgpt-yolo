@@ -38,6 +38,14 @@ Record the tested browser/version and the exact commit SHA in the release notes.
 4. Tag the verified commit as `v<version>` and push the tag.
 5. Download the generated archive and confirm its SHA-256 checksum before announcing it.
 
-The release workflow validates the tag/version match, packages the allowlisted runtime tree, creates a reproducible ZIP and checksum, uploads the artifact, and creates a GitHub Release.
+The release workflow validates the tag/version match, packages the allowlisted runtime tree, creates a reproducible ZIP and checksum, uploads the artifact, attests the archive with GitHub artifact attestations, and creates a GitHub Release.
+
+Verify a downloaded archive before loading it:
+
+```bash
+gh attestation verify yolo-v<version>.zip --repo kartikkabadi/chatgpt-yolo
+```
+
+This release plan targets `v1.1.0` as the first public launch archive. Source install remains supported but is secondary to the verified release ZIP.
 
 Chrome Web Store distribution should follow a stable public beta, a current policy/terms review, complete store disclosures, and a repeatable selector-regression response process. GitHub releases remain the source-of-truth artifacts.

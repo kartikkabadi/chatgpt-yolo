@@ -1,28 +1,29 @@
 # Marketing and launch package
 
-This directory contains the research, creative, production, and review artifacts for the YOLO for ChatGPT public launch. Runtime extension code is not modified here.
+This directory contains the final launch-ready brand, storyboard, copy, and verification artifacts for the YOLO for ChatGPT public launch. It does not contain extension runtime code.
 
-## Structure
+The committed images and videos in `docs/assets/` and `marketing/video/hyperframes/` are the final optimized assets. Heavyweight generation tooling is not included in the extension's build, package, install, or release paths.
 
-- `research/` — Wave A research outputs (product-truth, repo audit, positioning, GitHub app docs, sponsorship, metadata/discoverability).
-- `visual-direction-{a,b,c}/` — Wave B visual direction concepts. Direction A is selected; the others are archived evidence.
-- `storyboard-{a,b}/` — Wave B motion storyboards. Storyboard A is selected.
-- `README_DRAFT.md` — Wave B candidate README used as the basis for `README.md`.
-- `BRAND.md` — Final selected direction and identity rules.
-- `STORYBOARD.md` — Final selected video storyboard (7-scene, 35–45 s).
+## Final deliverables
+
+- `BRAND.md` — Final selected visual identity and copy rules.
+- `STORYBOARD.md` — Final 7-scene launch video storyboard.
 - `LAUNCH_COPY.md` — Launch post, first reply, and platform variants.
-- `LAUNCH_CHECKLIST.md` — Exact publish sequence for Kartik.
+- `LAUNCH_CHECKLIST.md` — Exact publish sequence for the owner.
 - `REPO_METADATA.md` — Final description, topics, homepage, social preview instructions, and `gh` commands.
-- `asset-manifest.json` — Inventory and specs for every README and launch asset.
-- `capture/` — Wave C deterministic product-capture harness (`screenshot-*.webp`).
-- `image-production/` — Wave C final hero, social preview, demo poster, and brand mark.
-- `video/` — Framework selection, final renders, spike evidence, and decision record.
-- `reviews/` — Wave D independent review reports.
+- `asset-manifest.json` — Inventory, SHA-256, provenance, and specs for every launch asset.
+- `visual-direction-a/` — Selected visual direction concept art.
+- `storyboard-a/` — Detailed scene breakdown for the final storyboard.
+- `video/` — Framework decision record and final HyperFrames source/MP4s.
+- `renders/` — Contact sheet and representative frame samples for review.
 
-## Selected outputs
+## Verification
 
-- Visual direction: `visual-direction-a/`
-- Motion storyboard: `storyboard-a/`
-- Video framework: HyperFrames (`video/hyperframes/`)
-- Static assets: `docs/assets/hero.webp`, `docs/assets/social-preview.png`, `docs/assets/demo-poster.webp`, `docs/assets/screenshot-*.webp`
-- Final video: `marketing/video/hyperframes/yolo-launch-16x9.mp4` and `yolo-launch-square.mp4`
+```bash
+# Validate extension (no marketing tooling required)
+npm run validate
+
+# Verify final video integrity
+cd marketing/video/hyperframes
+sha256sum -c SHA256SUMS.txt
+```

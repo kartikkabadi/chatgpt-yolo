@@ -1,5 +1,0 @@
-# Marketing capture harness — never commit generated or installed artifacts.
-node_modules/
-output/*
-!output/.gitkeep
-*.log
