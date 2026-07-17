@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>YOLO popup capture</title>
+    <!-- Real product stylesheet, copied verbatim next to this file at capture time -->
+    <link rel="stylesheet" href="styles.css">
+    <style>
+      /* Capture harness only: fix a popup-width canvas and force light theme for
+         a deterministic, crisp screenshot. No product styles are overridden. */
+      html { color-scheme: light; }
+      body { margin: 0; background: #f6f6f4; }
+      .capture-frame { width: 390px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="capture-frame">
+      <main class="app-shell">
+        <header class="app-header">
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true">Y</span>
+            <div class="brand-copy">
+              <div class="brand-row">
+                <h1>YOLO</h1>
+                <span id="status" class="status-badge" role="status" data-on="true">Running</span>
+              </div>
+              <p id="scope">Current conversation</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button id="advanced" class="icon-button" type="button" title="Advanced settings">•••</button>
+            <label class="master-switch" title="Run automation for this conversation">
+              <span class="sr-only">Run automation for this conversation</span>
+              <input id="enabled" type="checkbox" role="switch" checked>
+              <span class="switch-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </header>
+
+        <section class="control-strip" aria-label="Conversation controls">
+          <label class="profile-control">
+            <span>Mode</span>
+            <select id="profile" aria-label="Automation profile">
+              <option value="safe">Safe</option>
+              <option value="balanced" selected>Balanced</option>
+              <option value="fast">Fast</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <span class="control-divider" aria-hidden="true"></span>
+          <span id="queueCount" class="queue-count" aria-live="polite">3 queued</span>
+          <span class="control-spacer"></span>
+          <span class="shortcut-hint">⌘/Ctrl ↵ queue</span>
+        </section>
+
+        <section class="queue-panel" aria-labelledby="queueHeading">
+          <div class="queue-header">
+            <div>
+              <h2 id="queueHeading">Queue</h2>
+              <p>Ordered work for this conversation</p>
+            </div>
+            <div class="queue-actions" aria-label="Queue actions">
+              <button id="togglePause" class="compact-button" type="button">Pause</button>
+              <button id="sendNext" class="compact-button" type="button">Send next</button>
+              <button id="clearQueue" class="compact-button danger" type="button">Clear</button>
+            </div>
+          </div>
+          <ol id="queueList" class="queue-list"></ol>
+        </section>
+
+        <footer class="app-footer">
+          <span>Local-only automation</span>
+          <span id="version">v1.0.0</span>
+        </footer>
+      </main>
+    </div>
+
+    <script>
+      // Build queue rows with the exact structure produced by popup.js renderQueue().
+      const items = [
+        { text: "Review the implementation for concrete edge cases.", state: "pending" },
+        { text: "Run the complete validation suite.", state: "pending" },
+        { text: "Fix any reproducible failures.", state: "pending" },
+      ];
+      const list = document.getElementById("queueList");
+      items.forEach((item, index) => {
+        const li = document.createElement("li");
+        li.className = "queue-item";
+        li.dataset.state = item.state;
+
+        const drag = document.createElement("button");
+        drag.className = "drag-handle";
+        drag.type = "button";
+        drag.textContent = "⋮⋮";
+
+        const copy = document.createElement("div");
+        copy.className = "queue-copy";
+        const strong = document.createElement("strong");
+        strong.textContent = item.text;
+        const meta = document.createElement("div");
+        meta.className = "queue-meta";
+        const position = document.createElement("span");
+        position.textContent = `#${index + 1}`;
+        const status = document.createElement("span");
+        status.textContent = item.state;
+        status.className = item.state;
+        meta.append(position, status);
+        copy.append(strong, meta);
+
+        const actions = document.createElement("div");
+        actions.className = "item-actions";
+        for (const label of ["↑", "↓", "Edit"]) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = label;
+          actions.append(b);
+        }
+        const rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "danger";
+        rm.textContent = "×";
+        actions.append(rm);
+
+        li.append(drag, copy, actions);
+        list.append(li);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "chatgpt-yolo-video-remotion-spike",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Wave C Remotion technical spike for the YOLO for ChatGPT launch video. Isolated marketing tooling; not part of the extension runtime.",
+  "license": "SEE remotion LICENSE (two-tier: free for individuals/small orgs, Company License otherwise)",
+  "scripts": {
+    "capture": "node scripts/capture-popup.mjs",
+    "studio": "remotion studio",
+    "render": "remotion render Spike spike.mp4 --codec=h264 --image-format=png --pixel-format=yuv420p --muted --enable-multiprocess-on-linux",
+    "still": "remotion still Spike out/still.png --frame=60",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.487",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.487"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.0",
+    "typescript": "5.8.3"
+  }
+}
