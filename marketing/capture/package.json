@@ -1,0 +1,16 @@
+{
+  "name": "chatgpt-yolo-capture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic marketing capture harness for YOLO for ChatGPT. Isolated from the extension runtime; never bundled into the shipped extension.",
+  "license": "MIT",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "capture:scenes": "node capture.mjs --scenes-only"
+  },
+  "devDependencies": {
+    "playwright": "1.44.1",
+    "sharp": "0.33.4"
+  }
+}
