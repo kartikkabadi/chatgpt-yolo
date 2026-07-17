@@ -1,0 +1,21 @@
+{
+  "name": "chatgpt-yolo-video-hyperframes-spike",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Isolated HyperFrames technical spike for the YOLO for ChatGPT launch video (Wave C). Not part of the extension runtime.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "capture": "node scripts/capture.mjs",
+    "doctor": "hyperframes doctor",
+    "lint": "hyperframes lint .",
+    "inspect": "hyperframes inspect .",
+    "preview": "hyperframes preview .",
+    "render": "hyperframes render . --output spike.mp4 --fps 30"
+  },
+  "devDependencies": {
+    "hyperframes": "0.7.46"
+  }
+}

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YOLO — deterministic product capture (Queue)</title>
+    <!--
+      Deterministic capture harness for the Wave C HyperFrames spike.
+      Reuses the REAL extension markup (popup.html) and REAL styles (styles.css)
+      with a staged, invented demo scenario. No live ChatGPT capture, no private
+      data. Used to produce marketing/video/hyperframes/public/screenshot-queue.png.
+    -->
+    <link rel="stylesheet" href="../../../../styles.css">
+    <style>
+      /* Force the light theme + a clean, opaque backdrop for a crisp capture. */
+      :root { color-scheme: light; }
+      html, body { background: var(--canvas); }
+      body { max-height: none; overflow: visible; }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true">Y</span>
+          <div class="brand-copy">
+            <div class="brand-row">
+              <h1>YOLO</h1>
+              <span class="status-badge" data-on="true" role="status">Ready</span>
+            </div>
+            <p>Current conversation</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-button" type="button" aria-label="Open Advanced settings" title="Advanced settings">•••</button>
+          <label class="master-switch" title="Run automation for this conversation">
+            <span class="sr-only">Run automation for this conversation</span>
+            <input type="checkbox" role="switch" checked aria-label="Run automation for this conversation">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+      </header>
+
+      <section class="control-strip" aria-label="Conversation controls">
+        <label class="profile-control">
+          <span>Mode</span>
+          <select aria-label="Automation profile">
+            <option value="balanced" selected>Balanced</option>
+          </select>
+        </label>
+        <span class="control-divider" aria-hidden="true"></span>
+        <span class="queue-count" aria-live="polite">3 queued</span>
+        <span class="control-spacer"></span>
+        <span class="shortcut-hint">⌘/Ctrl ↵ queue</span>
+      </section>
+
+      <section class="queue-panel" aria-labelledby="queueHeading">
+        <div class="queue-header">
+          <div>
+            <h2 id="queueHeading">Queue</h2>
+            <p>Ordered work for this conversation</p>
+          </div>
+          <div class="queue-actions" aria-label="Queue actions">
+            <button class="compact-button" type="button">Pause</button>
+            <button class="compact-button" type="button">Send next</button>
+            <button class="compact-button danger" type="button">Clear</button>
+          </div>
+        </div>
+        <ol class="queue-list">
+          <li class="queue-item" data-state="pending">
+            <button class="item-actions-drag drag-handle" type="button" aria-label="Drag queued message" title="Drag to reorder">⋮⋮</button>
+            <div class="queue-copy">
+              <strong>Review the implementation for concrete edge cases.</strong>
+              <div class="queue-meta"><span>#1</span><span class="sending">sending</span></div>
+            </div>
+            <div class="item-actions">
+              <button type="button" title="Move up" disabled>↑</button>
+              <button type="button" title="Move down">↓</button>
+              <button type="button" title="Edit message">Edit</button>
+              <button class="danger" type="button" title="Remove message">×</button>
+            </div>
+          </li>
+          <li class="queue-item" data-state="pending">
+            <button class="item-actions-drag drag-handle" type="button" aria-label="Drag queued message" title="Drag to reorder">⋮⋮</button>
+            <div class="queue-copy">
+              <strong>Run the complete validation suite.</strong>
+              <div class="queue-meta"><span>#2</span><span>pending</span></div>
+            </div>
+            <div class="item-actions">
+              <button type="button" title="Move up">↑</button>
+              <button type="button" title="Move down">↓</button>
+              <button type="button" title="Edit message">Edit</button>
+              <button class="danger" type="button" title="Remove message">×</button>
+            </div>
+          </li>
+          <li class="queue-item" data-state="pending">
+            <button class="item-actions-drag drag-handle" type="button" aria-label="Drag queued message" title="Drag to reorder">⋮⋮</button>
+            <div class="queue-copy">
+              <strong>Fix any reproducible failures.</strong>
+              <div class="queue-meta"><span>#3</span><span>pending</span></div>
+            </div>
+            <div class="item-actions">
+              <button type="button" title="Move up">↑</button>
+              <button type="button" title="Move down" disabled>↓</button>
+              <button type="button" title="Edit message">Edit</button>
+              <button class="danger" type="button" title="Remove message">×</button>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <footer class="app-footer">
+        <span>Local-only automation</span>
+        <span>v1.0.0</span>
+      </footer>
+    </main>
+  </body>
+</html>
