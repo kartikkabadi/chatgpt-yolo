@@ -1,16 +1,29 @@
-## Scope
+## Problem
 
-## Deliberate exclusions
+<!-- What concrete user or reliability problem does this solve? -->
 
-## User-visible behavior
+## Change
 
-## Safety, privacy, and permission impact
+<!-- Describe the smallest implementation that solves it. -->
 
-## Validation
+## Verification
 
 - [ ] `npm run validate:core`
 - [ ] `npm run validate:assets` (when changing marketing assets)
 - [ ] `npm run package`
-- [ ] Manual unpacked-extension smoke test when DOM/UI behavior changed
-- [ ] No remote code, telemetry, or unnecessary host access
-- [ ] Regression tests added for fixes
+- [ ] Loaded `dist/yolo` as an unpacked extension
+- [ ] Tested on a saved ChatGPT conversation (`/c/...`)
+- [ ] Tested pause/recovery or failure behavior affected by this change
+- [ ] Added or updated regression tests
+
+## Extension boundary
+
+- [ ] No new host, optional, or sensitive browser permissions
+- [ ] No remote code, analytics, backend, CLI, daemon, native messaging, or agent integration
+- [ ] No conversation text or identifiers added to diagnostics
+- [ ] Queue mutations remain background-owned and fail closed
+- [ ] Draft protection and durable conversation scoping remain intact
+
+## User-facing evidence
+
+<!-- Add screenshots for UI changes and describe any migration or compatibility risk. -->
