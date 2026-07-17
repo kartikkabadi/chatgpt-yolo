@@ -41,6 +41,11 @@ jobs:
               '  storage.yoloQueuesV1 = { [pageId]: { items: [{ text: "QUEUE-SECRET" }] } };'
           )
           replace(
+              "tests/data-background.test.js",
+              '  storage.yoloQueuesV1 = { [stalePage]: { items: [{ text: "KEEP-QUEUE" }] };',
+              '  storage.yoloQueuesV1 = { [stalePage]: { items: [{ text: "KEEP-QUEUE" }] } };'
+          )
+          replace(
               "tests/background.test.js",
               '  assert.deepEqual(response.templates, []);',
               '  assert.equal(Array.isArray(response.templates), true);\n  assert.equal(response.templates.length, 0);'
@@ -74,6 +79,11 @@ jobs:
               "popup.js",
               '      if (!managed) {\n        li.addEventListener("dragstart",',
               '      if (!managed && !hasWorkflowItem) {\n        li.addEventListener("dragstart",'
+          )
+          replace(
+              "tests/popup-workflow-ownership.test.js",
+              '  assert.match(source, /moveUp\\.disabled = managed/);\n  assert.match(source, /moveDown\\.disabled = managed/);',
+              '  assert.match(source, /moveUp\\.disabled = hasWorkflowItem \\|\\| managed/);\n  assert.match(source, /moveDown\\.disabled = hasWorkflowItem \\|\\| managed/);\n  assert.match(source, /li\\.draggable = !hasWorkflowItem/);'
           )
           replace(
               "tests/ui.test.js",
