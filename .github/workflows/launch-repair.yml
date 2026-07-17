@@ -1,0 +1,99 @@
+name: Launch repair
+
+on:
+  pull_request:
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.number == 24 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Apply exact launch repairs
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one match in {path}, found {count}: {old!r}")
+              file.write_text(text.replace(old, new))
+
+          replace(
+              "tests/data-background.test.js",
+              '  storage.yoloQueuesV1 = { [pageId]: { items: [{ text: "QUEUE-SECRET" }] };',
+              '  storage.yoloQueuesV1 = { [pageId]: { items: [{ text: "QUEUE-SECRET" }] } };'
+          )
+          replace(
+              "tests/background.test.js",
+              '  assert.deepEqual(response.templates, []);',
+              '  assert.equal(Array.isArray(response.templates), true);\n  assert.equal(response.templates.length, 0);'
+          )
+          replace(
+              "tests/release.test.js",
+              '  assert.match(ci, /Validate on Node 20/);\n  assert.match(ci, /Validate on Node 24/);',
+              '  assert.match(ci, /name: Validate on Node \\$\\{\\{ matrix\\.node-version \\}\\}/);\n  assert.match(ci, /node-version:\\s*\\n\\s*- 20\\s*\\n\\s*- 24/);'
+          )
+          replace(
+              "tests/release.test.js",
+              '  assert.match(release, /zip -X -rq/);',
+              '  assert.match(release, /source_date_epoch=\\$\\(git log -1 --format=%ct\\)/);\n  assert.match(release, /LC_ALL=C sort -z/);\n  assert.match(release, /zip -X -q/);'
+          )
+          replace(
+              "popup.js",
+              '      li.draggable = !managed && item.state !== "sending" && !busy;',
+              '      li.draggable = !hasWorkflowItem && !managed && item.state !== "sending" && !busy;'
+          )
+          replace(
+              "popup.js",
+              '      moveUp.disabled = managed || index === 0;\n      moveDown.disabled = managed || index === items.length - 1;',
+              '      moveUp.disabled = hasWorkflowItem || managed || index === 0;\n      moveDown.disabled = hasWorkflowItem || managed || index === items.length - 1;'
+          )
+          replace(
+              "popup.js",
+              '      } else if (managed) drag.disabled = true;',
+              '      } else if (managed || hasWorkflowItem) drag.disabled = true;'
+          )
+          replace(
+              "popup.js",
+              '      if (!managed) {\n        li.addEventListener("dragstart",',
+              '      if (!managed && !hasWorkflowItem) {\n        li.addEventListener("dragstart",'
+          )
+          replace(
+              "tests/ui.test.js",
+              '  assert.match(source, /moveUp\\.disabled = index === 0/);\n  assert.match(source, /moveDown\\.disabled = index === items\\.length - 1/);',
+              '  assert.match(source, /moveUp\\.disabled = hasWorkflowItem \\|\\| managed \\|\\| index === 0/);\n  assert.match(source, /moveDown\\.disabled = hasWorkflowItem \\|\\| managed \\|\\| index === items\\.length - 1/);\n  assert.match(source, /li\\.draggable = !hasWorkflowItem/);'
+          )
+          replace(
+              "tests/ui.test.js",
+              '  assert.match(readme, /not native ChatGPT or Codex commands/i);',
+              '  assert.match(readme, /not native ChatGPT commands/i);'
+          )
+          Path(".github/workflows/launch-repair.yml").unlink()
+          PY
+      - name: Validate repaired branch
+        run: npm run validate
+      - name: Commit repaired branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Repair launch validation and workflow queue boundaries"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
