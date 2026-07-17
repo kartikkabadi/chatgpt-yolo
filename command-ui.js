@@ -28,13 +28,25 @@
       setComposerText: typeof options.setComposerText === "function" ? options.setComposerText : noop
     };
 
+    // Detect ChatGPT's actual theme, not OS preference
+    function detectTheme() {
+      return document.documentElement.classList.contains("dark") ? "dark" : "light";
+    }
+
     const host = document.createElement("div");
     host.id = "yolo-command-host";
     host.style.position = "fixed";
     host.style.inset = "0";
     host.style.zIndex = "2147483646";
     host.style.pointerEvents = "none";
+    host.dataset.theme = detectTheme();
     document.documentElement.appendChild(host);
+
+    // Watch for ChatGPT theme toggles
+    const themeObserver = new MutationObserver(() => {
+      host.dataset.theme = detectTheme();
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
     const shadow = host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
@@ -42,51 +54,92 @@
       :host { all: initial; }
       * { box-sizing: border-box; }
       button, input { font: inherit; }
-      .palette { position: fixed; width: min(560px, calc(100vw - 24px)); max-height: min(520px, calc(100vh - 32px)); overflow: hidden; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: rgba(24,24,27,.97); color: #f4f4f5; box-shadow: 0 24px 80px rgba(0,0,0,.45); backdrop-filter: blur(22px); pointer-events: auto; display: none; }
+
+      /* Dark theme (default - matches ChatGPT dark mode) */
+      :host {
+        --cmd-bg: rgba(24,24,27,.97);
+        --cmd-bg-workflow: rgba(24,24,27,.95);
+        --cmd-bg-status: rgba(24,24,27,.98);
+        --cmd-text: #f4f4f5;
+        --cmd-text-primary: #fafafa;
+        --cmd-text-title: #f4f4f5;
+        --cmd-text-secondary: #a1a1aa;
+        --cmd-text-tertiary: #71717a;
+        --cmd-text-value: #d4d4d8;
+        --cmd-text-action: #e4e4e7;
+        --cmd-text-error: #fca5a5;
+        --cmd-border: rgba(255,255,255,.12);
+        --cmd-border-subtle: rgba(255,255,255,.08);
+        --cmd-border-action: rgba(255,255,255,.1);
+        --cmd-bg-hover: rgba(255,255,255,.08);
+        --cmd-bg-badge: rgba(255,255,255,.09);
+        --cmd-bg-action: rgba(255,255,255,.04);
+        --cmd-bg-action-hover: rgba(255,255,255,.1);
+        --cmd-shadow: 0 24px 80px rgba(0,0,0,.45);
+        --cmd-shadow-workflow: 0 16px 48px rgba(0,0,0,.34);
+      }
+
+      /* Light theme - activates when ChatGPT is in light mode */
+      :host([data-theme="light"]) {
+        --cmd-bg: rgba(255,255,255,.97);
+        --cmd-bg-workflow: rgba(255,255,255,.97);
+        --cmd-bg-status: rgba(255,255,255,.97);
+        --cmd-text: #18181b;
+        --cmd-text-primary: #18181b;
+        --cmd-text-title: #27272a;
+        --cmd-text-secondary: #71717a;
+        --cmd-text-tertiary: #71717a;
+        --cmd-text-value: #27272a;
+        --cmd-text-action: #27272a;
+        --cmd-text-error: #fca5a5;
+        --cmd-border: rgba(0,0,0,.12);
+        --cmd-border-subtle: rgba(0,0,0,.08);
+        --cmd-border-action: rgba(0,0,0,.1);
+        --cmd-bg-hover: rgba(0,0,0,.06);
+        --cmd-bg-badge: rgba(0,0,0,.06);
+        --cmd-bg-action: rgba(0,0,0,.03);
+        --cmd-bg-action-hover: rgba(0,0,0,.06);
+        --cmd-shadow: 0 24px 80px rgba(0,0,0,.18);
+        --cmd-shadow-workflow: 0 16px 48px rgba(0,0,0,.14);
+      }
+
+      .palette { position: fixed; width: min(560px, calc(100vw - 24px)); max-height: min(520px, calc(100vh - 32px)); overflow: hidden; border: 1px solid var(--cmd-border); border-radius: 16px; background: var(--cmd-bg); color: var(--cmd-text); box-shadow: var(--cmd-shadow); backdrop-filter: blur(22px); pointer-events: auto; display: none; }
       .palette[data-open="true"] { display: block; }
-      .search-row { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-bottom: 1px solid rgba(255,255,255,.08); }
-      .slash { color: #a1a1aa; font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .search-row { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-bottom: 1px solid var(--cmd-border-subtle); }
+      .slash { color: var(--cmd-text-secondary); font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; }
       .search { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: inherit; font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .search::placeholder { color: #71717a; }
-      .feedback { display: none; padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,.08); color: #fca5a5; font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .search::placeholder { color: var(--cmd-text-tertiary); }
+      .feedback { display: none; padding: 8px 14px; border-bottom: 1px solid var(--cmd-border-subtle); color: var(--cmd-text-error); font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       .feedback[data-visible="true"] { display: block; }
-      .escape { border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 2px 6px; color: #71717a; font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .escape { border: 1px solid var(--cmd-border-action); border-radius: 6px; padding: 2px 6px; color: var(--cmd-text-tertiary); font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
       .list { max-height: 390px; overflow: auto; padding: 7px; }
-      .empty { padding: 18px; color: #a1a1aa; text-align: center; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .empty { padding: 18px; color: var(--cmd-text-secondary); text-align: center; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       .item { width: 100%; display: grid; grid-template-columns: 114px minmax(0,1fr); gap: 12px; align-items: start; border: 0; border-radius: 10px; padding: 10px 11px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
-      .item:hover, .item[data-active="true"] { background: rgba(255,255,255,.08); }
-      .command { color: #fafafa; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .item:hover, .item[data-active="true"] { background: var(--cmd-bg-hover); }
+      .command { color: var(--cmd-text-primary); font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
       .meta { min-width: 0; }
-      .title { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .description { margin-top: 3px; color: #a1a1aa; font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .footer { display: flex; justify-content: space-between; gap: 12px; padding: 9px 13px; border-top: 1px solid rgba(255,255,255,.08); color: #71717a; font: 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .workflow { position: fixed; display: none; width: min(720px, calc(100vw - 24px)); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(24,24,27,.95); color: #f4f4f5; box-shadow: 0 16px 48px rgba(0,0,0,.34); backdrop-filter: blur(18px); pointer-events: auto; padding: 10px 11px; }
+      .title { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--cmd-text-title); }
+      .description { margin-top: 3px; color: var(--cmd-text-secondary); font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .footer { display: flex; justify-content: space-between; gap: 12px; padding: 9px 13px; border-top: 1px solid var(--cmd-border-subtle); color: var(--cmd-text-tertiary); font: 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .workflow { position: fixed; display: none; width: min(720px, calc(100vw - 24px)); border: 1px solid var(--cmd-border); border-radius: 14px; background: var(--cmd-bg-workflow); color: var(--cmd-text); box-shadow: var(--cmd-shadow-workflow); backdrop-filter: blur(18px); pointer-events: auto; padding: 10px 11px; }
       .workflow[data-visible="true"] { display: flex; align-items: center; gap: 10px; }
       .workflow-main { min-width: 0; flex: 1; }
       .workflow-top { display: flex; align-items: center; gap: 8px; }
-      .badge { border-radius: 999px; padding: 3px 7px; background: rgba(255,255,255,.09); color: #d4d4d8; font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: .06em; }
-      .workflow-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .workflow-sub { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #a1a1aa; font: 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .badge { border-radius: 999px; padding: 3px 7px; background: var(--cmd-bg-badge); color: var(--cmd-text-value); font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: .06em; }
+      .workflow-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--cmd-text); }
+      .workflow-sub { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cmd-text-secondary); font: 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       .actions { display: flex; align-items: center; gap: 5px; }
-      .action { border: 1px solid rgba(255,255,255,.1); border-radius: 8px; padding: 6px 8px; background: rgba(255,255,255,.04); color: #e4e4e7; cursor: pointer; font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .action:hover { background: rgba(255,255,255,.1); }
-      .status { position: fixed; display: none; width: min(520px, calc(100vw - 24px)); border: 1px solid rgba(255,255,255,.12); border-radius: 15px; background: rgba(24,24,27,.98); color: #f4f4f5; box-shadow: 0 24px 80px rgba(0,0,0,.45); pointer-events: auto; padding: 14px; }
+      .action { border: 1px solid var(--cmd-border-action); border-radius: 8px; padding: 6px 8px; background: var(--cmd-bg-action); color: var(--cmd-text-action); cursor: pointer; font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .action:hover { background: var(--cmd-bg-action-hover); }
+      .status { position: fixed; display: none; width: min(520px, calc(100vw - 24px)); border: 1px solid var(--cmd-border); border-radius: 15px; background: var(--cmd-bg-status); color: var(--cmd-text); box-shadow: var(--cmd-shadow); pointer-events: auto; padding: 14px; }
       .status[data-open="true"] { display: block; }
       .status-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .status-title { font: 700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .close { border: 0; background: transparent; color: #a1a1aa; cursor: pointer; font-size: 18px; line-height: 1; }
+      .close { border: 0; background: transparent; color: var(--cmd-text-secondary); cursor: pointer; font-size: 18px; line-height: 1; }
       .status-body { margin-top: 10px; display: grid; gap: 8px; }
       .status-row { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 12px; font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .status-key { color: #71717a; }
-      .status-value { min-width: 0; overflow-wrap: anywhere; color: #d4d4d8; }
-      @media (prefers-color-scheme: light) {
-        .palette, .workflow, .status { border-color: rgba(0,0,0,.12); background: rgba(255,255,255,.97); color: #18181b; box-shadow: 0 24px 80px rgba(0,0,0,.18); }
-        .item:hover, .item[data-active="true"] { background: rgba(0,0,0,.06); }
-        .command, .workflow-title { color: #18181b; }
-        .title, .status-value { color: #27272a; }
-        .description, .workflow-sub, .status-key { color: #71717a; }
-        .action { border-color: rgba(0,0,0,.1); background: rgba(0,0,0,.03); color: #27272a; }
-      }
+      .status-key { color: var(--cmd-text-tertiary); }
+      .status-value { min-width: 0; overflow-wrap: anywhere; color: var(--cmd-text-value); }
     `;
     shadow.appendChild(style);
 
@@ -436,6 +489,7 @@
     function destroy() {
       if (destroyed) return;
       destroyed = true;
+      themeObserver.disconnect();
       document.removeEventListener("keydown", keydown, true);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
