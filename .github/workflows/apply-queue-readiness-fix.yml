@@ -26,6 +26,7 @@ jobs:
           node-version: 24
       - name: Apply focused repair
         run: |
+          python3 scripts/adjust-queue-readiness-patch.py
           python3 scripts/apply-queue-readiness-fix.py
           rm -f .queue-fix-trigger
           git diff > /tmp/queue-readiness.patch
