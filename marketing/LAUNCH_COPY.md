@@ -18,7 +18,7 @@ Install from the v1.1.0 release:
 Reply 2 — Or build from source:
 
 Or build from source:
-git clone github.com/kartikkabadi/chatgpt-yolo.git
+git clone https://github.com/kartikkabadi/chatgpt-yolo.git
 cd chatgpt-yolo
 npm run validate:core && npm run package
 Then load `dist/yolo` unpacked at chrome://extensions.

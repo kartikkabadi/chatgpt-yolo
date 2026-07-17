@@ -35,4 +35,4 @@ YOLO's settings, queues, templates, and workflow state are stored in `chrome.sto
 
 ## License and notices
 
-This project is licensed under the MIT License. It includes vendored GreenSock GSAP files under GreenSock's standard license; see `NOTICE.md` for details.
+This project is licensed under the MIT License. The extension archive and runtime do not include any marketing or vendored animation code; the repository's `marketing/video/hyperframes/` source contains separately licensed GreenSock GSAP vendor files. See `NOTICE.md` for details.
