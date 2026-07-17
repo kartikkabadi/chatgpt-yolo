@@ -1,8 +1,8 @@
 {
-  "name": "chatgpt-yolo-video-hyperframes-spike",
+  "name": "chatgpt-yolo-video-hyperframes",
   "private": true,
   "version": "0.0.0",
-  "description": "Isolated HyperFrames technical spike for the YOLO for ChatGPT launch video (Wave C). Not part of the extension runtime.",
+  "description": "Isolated HyperFrames project for the YOLO for ChatGPT launch video (Wave C, Storyboard A). Not part of the extension runtime.",
   "license": "MIT",
   "engines": {
     "node": ">=22"
@@ -11,9 +11,16 @@
     "capture": "node scripts/capture.mjs",
     "doctor": "hyperframes doctor",
     "lint": "hyperframes lint .",
-    "inspect": "hyperframes inspect .",
+    "lint:square": "hyperframes lint square",
+    "inspect": "hyperframes inspect . --at-transitions",
+    "inspect:square": "hyperframes inspect square --at-transitions",
+    "validate": "hyperframes validate .",
+    "validate:square": "hyperframes validate square",
     "preview": "hyperframes preview .",
-    "render": "hyperframes render . --output spike.mp4 --fps 30"
+    "render": "npm run render:16x9",
+    "render:16x9": "hyperframes render . --output yolo-launch-16x9.mp4 --fps 30 --quality high",
+    "render:square": "hyperframes render square --output yolo-launch-square.mp4 --fps 30 --quality high",
+    "render:spike": "hyperframes render spike --output spike.mp4 --fps 30"
   },
   "devDependencies": {
     "hyperframes": "0.7.46"

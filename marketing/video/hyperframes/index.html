@@ -4,261 +4,101 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080" />
     <!--
-      HyperFrames technical spike — YOLO for ChatGPT launch video (Wave C).
-      Representative 5-8s sequence built from Storyboard A Scene 2 (Queue) and
-      Scene 4 (Bounded workflow). All motion runs through one paused, seekable
-      GSAP timeline so rendering is deterministic (same input -> same frames).
+      HyperFrames launch composition — YOLO for ChatGPT (Wave C, full video).
+      Full 7-scene, 44.5 s product demo built to Storyboard A
+      (marketing/storyboard-a/STORYBOARD.md), exact copy + timing.
 
-      Required elements demonstrated:
-        - real product screenshot .............. public/screenshot-queue.png (Scene B context card)
-        - controlled camera / mask motion ...... clip-path mask reveal + push-in scale
-        - queue-item movement .................. 3 queue rows insert + reorder nudge (Scene A)
-        - kinetic text ......................... scene headlines rise/settle
-        - one scene transition ................. Scene A -> Scene B wipe + crossfade
+      One paused, seekable GSAP timeline (deterministic: same input -> same
+      frames). All motion is GSAP-driven (no CSS transitions/animations) so the
+      renderer's seek-and-screenshot loop captures every frame correctly.
+
+      Product truth:
+        - only real YOLO UI text/states (mirrors popup.html / styles.css /
+          commands.js) — see source/capture-popup.html for the real capture.
+        - no OpenAI logo/endorsement; the platform is referenced by name only.
+        - no cloned GitHub UI; Scene 5 uses a restrained generic "connected app"
+          chip with a pinned "Optional GitHub app" boundary label.
+        - slash actions are labelled YOLO commands ("not a native ChatGPT command").
+        - the workflow visibly bounds and PAUSES (never an endless loop).
+        - end card carries the independent-project disclaimer.
+
+      Scene map (30 fps):
+        S1 Problem            0.0–4.0
+        S2 Queue              4.0–12.0
+        S3 Composer actions   12.0–19.0
+        S4 Bounded workflow   19.0–28.0
+        S5 Optional GitHub    28.0–35.0
+        S6 Reliability        35.0–40.0
+        S7 End card           40.0–44.5
     -->
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
-    <style>
-      /* Product-inherited design tokens (from the extension's styles.css). */
-      :root {
-        --canvas: #f6f6f4;
-        --surface: #ffffff;
-        --surface-raised: #fbfbfa;
-        --surface-hover: #f0f0ed;
-        --text: #181817;
-        --text-soft: #55554f;
-        --text-faint: #85847c;
-        --border: #deded8;
-        --border-strong: #c5c5bd;
-        --primary: #181817;
-        --primary-text: #ffffff;
-        --success: #24784b;
-        --success-soft: #e9f6ee;
-        --warning: #9b640d;
-        --warning-soft: #fff4dd;
-        --danger: #b33232;
-        --shadow: 0 12px 32px rgba(20, 20, 18, 0.08);
-        --radius-lg: 16px;
-        --radius-md: 12px;
-        --radius-sm: 9px;
-        --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
-          "Helvetica Neue", Arial, sans-serif;
-        --mono: "SF Mono", ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
-      }
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body {
-        width: 1920px;
-        height: 1080px;
-        overflow: hidden;
-        background: var(--canvas);
-        color: var(--text);
-        font-family: var(--sans);
-        -webkit-font-smoothing: antialiased;
-      }
-
-      #root { position: relative; width: 1920px; height: 1080px; }
-
-      /* Soft, calm backdrop — a quiet graphite vignette, no neon. */
-      .backdrop {
-        position: absolute;
-        inset: 0;
-        background:
-          radial-gradient(120% 120% at 18% 12%, #ffffff 0%, var(--canvas) 46%, #eceae5 100%);
-      }
-      .backdrop::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background:
-          linear-gradient(0deg, rgba(20, 20, 18, 0.04), rgba(20, 20, 18, 0) 22%);
-      }
-
-      .scene { position: absolute; inset: 0; }
-
-      /* --- Kinetic headline --- */
-      .headline {
-        position: absolute;
-        left: 132px;
-        top: 150px;
-        max-width: 760px;
-        font-size: 76px;
-        line-height: 1.06;
-        letter-spacing: -0.03em;
-        font-weight: 760;
-        color: var(--text);
-      }
-      .headline .accent { color: var(--text-soft); }
-      .kicker {
-        position: absolute;
-        left: 136px;
-        top: 96px;
-        font-family: var(--mono);
-        font-size: 22px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--text-faint);
-      }
-
-      /* --- YOLO panel (real component styling) --- */
-      .yolo-panel {
-        position: absolute;
-        width: 720px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5), var(--shadow);
-        overflow: hidden;
-      }
-      .panel-head {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 22px 24px;
-        border-bottom: 1px solid var(--border);
-      }
-      .brand-mark {
-        width: 52px; height: 52px; border-radius: 15px;
-        display: grid; place-items: center; flex: 0 0 auto;
-        background: var(--primary); color: var(--primary-text);
-        font-size: 22px; font-weight: 800; box-shadow: var(--shadow);
-      }
-      .brand-copy h1 { font-size: 27px; letter-spacing: -0.02em; }
-      .brand-copy p { color: var(--text-faint); font-size: 16px; margin-top: 2px; }
-      .status-badge {
-        display: inline-flex; align-items: center; gap: 7px;
-        border-radius: 999px; padding: 5px 12px; margin-left: 6px;
-        background: var(--success-soft); color: var(--success);
-        font-size: 15px; font-weight: 700; vertical-align: middle;
-      }
-      .status-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-      .head-spacer { flex: 1; }
-      .queue-count {
-        font-size: 17px; font-weight: 700; color: var(--text-soft);
-        background: var(--surface-hover); border-radius: 999px; padding: 6px 14px;
-      }
-
-      .queue-list { list-style: none; }
-      .queue-item {
-        display: grid;
-        grid-template-columns: 34px minmax(0, 1fr) auto;
-        align-items: center; gap: 16px;
-        padding: 22px 24px;
-        border-top: 1px solid var(--border);
-        background: var(--surface);
-      }
-      .queue-item:first-child { border-top: 0; }
-      .drag-handle { color: var(--text-faint); font-size: 22px; letter-spacing: -2px; }
-      .queue-copy strong { display: block; font-size: 23px; font-weight: 640; line-height: 1.35; }
-      .queue-meta {
-        margin-top: 8px; display: flex; gap: 12px; align-items: center;
-        font-size: 15px; color: var(--text-faint);
-      }
-      .queue-meta .idx { font-family: var(--mono); }
-      .queue-meta .sending { color: var(--success); font-weight: 700; }
-      .item-actions { display: flex; gap: 6px; color: var(--text-faint); font-size: 16px; font-weight: 700; }
-      .item-actions span {
-        min-width: 40px; height: 40px; padding: 0 10px;
-        display: grid; place-items: center;
-        border-radius: 9px; background: var(--surface-raised);
-      }
-      .item-actions .danger { color: var(--danger); }
-
-      /* --- Scene B: bounded workflow card --- */
-      .workflow-card {
-        position: absolute;
-        width: 720px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5), var(--shadow);
-        overflow: hidden;
-      }
-      .wf-head { padding: 26px 28px 20px; border-bottom: 1px solid var(--border); }
-      .wf-badge {
-        display: inline-flex; align-items: center; gap: 8px;
-        font-family: var(--mono); font-size: 16px; font-weight: 700;
-        color: var(--text-soft); background: var(--surface-hover);
-        border-radius: 999px; padding: 6px 14px; margin-bottom: 16px;
-      }
-      .wf-title { font-size: 34px; font-weight: 720; letter-spacing: -0.02em; }
-      .wf-sub-wrap { position: relative; height: 34px; margin-top: 12px; }
-      .wf-sub {
-        position: absolute; left: 0; top: 0;
-        font-family: var(--mono); font-size: 20px; font-weight: 600;
-      }
-      .wf-sub .run { color: var(--success); }
-      .wf-sub .pause { color: var(--warning); }
-      .wf-body { padding: 24px 28px 30px; }
-      .segments { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-      .segment {
-        position: relative; height: 16px; border-radius: 999px;
-        background: var(--surface-hover); overflow: hidden;
-      }
-      .segment .fill {
-        position: absolute; inset: 0; transform-origin: left center;
-        background: var(--success); border-radius: 999px;
-      }
-      .wf-actions { display: flex; gap: 14px; margin-top: 28px; }
-      .wf-btn {
-        flex: 1; text-align: center; padding: 16px 0;
-        border: 1px solid var(--border); border-radius: var(--radius-md);
-        font-size: 21px; font-weight: 700; color: var(--text-soft);
-        background: var(--surface-raised);
-      }
-      .wf-btn.primary { color: var(--text); border-color: var(--border-strong); }
-      .wf-btn.danger { color: var(--danger); }
-
-      /* --- Real product screenshot context card (Scene B) --- */
-      .shot-frame {
-        position: absolute;
-        left: 132px; top: 452px;
-        width: 452px;
-        border-radius: 20px;
-        padding: 14px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        box-shadow: var(--shadow);
-      }
-      .shot-frame img { width: 100%; display: block; border-radius: 12px; }
-      .shot-tag {
-        margin-top: 12px;
-        font-family: var(--mono); font-size: 15px; color: var(--text-faint);
-        letter-spacing: 0.01em;
-      }
-      .shot-clip { overflow: hidden; border-radius: 12px; }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/TextPlugin.min.js"></script>
+    <link rel="stylesheet" href="launch.css" />
   </head>
   <body>
     <div
       id="root"
-      data-composition-id="spike"
+      data-composition-id="launch"
       data-start="0"
-      data-duration="7.6"
+      data-duration="44.5"
+      data-fps="30"
       data-width="1920"
       data-height="1080"
     >
       <div class="backdrop"></div>
 
-      <!-- ================= SCENE A — QUEUE (0.0–4.2s) ================= -->
-      <div id="sceneA" class="scene">
-        <div class="kicker" id="a-kicker">Scene 2 · Queue</div>
-        <div class="headline" id="a-head">
+      <!-- ================= SCENE 1 — PROBLEM (0.0–4.0s) ================= -->
+      <div id="s1" class="scene" data-layout-allow-overlap>
+        <div class="chat" id="s1-chat" style="left: 452px; top: 96px; width: 1016px;">
+          <div class="chat-top">
+            <div class="chat-dots"><i></i><i></i><i></i></div>
+            <div class="chat-title">ChatGPT <span>· long task</span></div>
+          </div>
+          <div class="chat-body">
+            <div class="msg user">
+              <div class="avatar">K</div>
+              <div class="bubble"><span class="who">You</span>Refactor the queue module and walk me through it step by step.</div>
+            </div>
+            <div class="msg assistant">
+              <div class="avatar">◍</div>
+              <div class="bubble">
+                <span class="who">Assistant</span>
+                <p>Done. I split the queue into a store and a scheduler, added retry with backoff, and kept delivery idempotent.</p>
+                <p class="dim">Want me to continue with the validation pass, or review it first?</p>
+              </div>
+            </div>
+          </div>
+          <div class="composer" id="s1-composer">
+            <div class="ph">Ask anything<span class="caret" id="s1-caret"></span></div>
+            <div class="send">↑</div>
+          </div>
+        </div>
+
+        <div class="headline-scrim" id="s1-scrim" style="left: 60px; top: 720px; width: 1180px; height: 320px;"></div>
+        <div class="headline" id="s1-head" style="left: 132px; top: 792px;">
+          Stop babysitting<br />long <span class="accent">ChatGPT</span> tasks.
+        </div>
+      </div>
+
+      <!-- ================= SCENE 2 — QUEUE (4.0–12.0s) ================= -->
+      <div id="s2" class="scene" data-layout-allow-overlap>
+        <div class="kicker" id="s2-kicker" style="left: 136px; top: 132px;">Scene 2 · Queue</div>
+        <div class="headline" id="s2-head" style="left: 132px; top: 190px;">
           Queue what<br />should happen<br /><span class="accent">next.</span>
         </div>
 
-        <div class="yolo-panel" id="a-panel" style="right: 132px; top: 150px;">
+        <div class="yolo-panel" id="s2-panel" style="right: 132px; top: 128px;">
           <div class="panel-head">
             <span class="brand-mark">Y</span>
             <div class="brand-copy">
-              <h1>YOLO
-                <span class="status-badge"><span class="dot"></span>Ready</span>
-              </h1>
+              <h1>YOLO <span class="status-badge"><span class="dot"></span>Ready</span></h1>
               <p>Current conversation · Balanced</p>
             </div>
             <span class="head-spacer"></span>
-            <span class="queue-count" id="a-count">0 queued</span>
+            <span class="queue-count" id="s2-count">0 queued</span>
           </div>
           <ol class="queue-list">
-            <li class="queue-item" id="a-row1">
+            <li class="queue-item" id="s2-row1">
               <span class="drag-handle">⋮⋮</span>
               <div class="queue-copy">
                 <strong>Review the implementation for concrete edge cases.</strong>
@@ -266,7 +106,7 @@
               </div>
               <div class="item-actions"><span>↑</span><span>↓</span><span>Edit</span><span class="danger">×</span></div>
             </li>
-            <li class="queue-item" id="a-row2">
+            <li class="queue-item" id="s2-row2">
               <span class="drag-handle">⋮⋮</span>
               <div class="queue-copy">
                 <strong>Run the complete validation suite.</strong>
@@ -274,7 +114,7 @@
               </div>
               <div class="item-actions"><span>↑</span><span>↓</span><span>Edit</span><span class="danger">×</span></div>
             </li>
-            <li class="queue-item" id="a-row3">
+            <li class="queue-item" id="s2-row3">
               <span class="drag-handle">⋮⋮</span>
               <div class="queue-copy">
                 <strong>Fix any reproducible failures.</strong>
@@ -283,44 +123,208 @@
               <div class="item-actions"><span>↑</span><span>↓</span><span>Edit</span><span class="danger">×</span></div>
             </li>
           </ol>
+          <div class="send-next" id="s2-sendnext">Send next</div>
         </div>
       </div>
 
-      <!-- ================= SCENE B — BOUNDED WORKFLOW (4.2–7.6s) ================= -->
-      <div id="sceneB" class="scene">
-        <div class="kicker" id="b-kicker">Scene 4 · Bounded workflow</div>
-        <div class="headline" id="b-head" style="font-size: 60px; top: 168px; max-width: 620px;">
+      <!-- ================= SCENE 3 — COMPOSER ACTIONS (12.0–19.0s) ================= -->
+      <div id="s3" class="scene" data-layout-allow-overlap>
+        <div class="kicker" id="s3-kicker" style="left: 136px; top: 108px;">Scene 3 · Composer actions</div>
+        <div class="headline" id="s3-head" style="left: 132px; top: 158px; font-size: 66px;">
+          Start from the <span class="accent">composer.</span>
+        </div>
+
+        <div class="palette" id="s3-palette" style="left: 132px; top: 320px;">
+          <div class="palette-search">
+            <span class="slash">/</span>
+            <span class="field"><b id="s3-typed">loop 4 audit reliability gaps</b><span class="caret" id="s3-search-caret"></span></span>
+            <span class="yolo-chip">YOLO</span>
+          </div>
+          <div class="palette-group">Automated workflows</div>
+          <div class="cmd" id="s3-goal">
+            <span class="hl" id="s3-hl-goal"></span>
+            <span class="name">/goal</span>
+            <span class="desc">Start a marker-driven objective that YOLO can continue for bounded turns.</span>
+          </div>
+          <div class="cmd" id="s3-loop">
+            <span class="hl" id="s3-hl-loop"></span>
+            <span class="name">/loop</span>
+            <span class="desc">Run bounded, marker-driven iterations toward one objective.</span>
+          </div>
+          <div class="palette-group">Prompt shortcuts</div>
+          <div class="cmd" id="s3-review">
+            <span class="hl" id="s3-hl-review"></span>
+            <span class="name">/review</span>
+            <span class="desc">Queue an adversarial review prompt for the current work or scope.</span>
+          </div>
+          <div class="cmd" id="s3-continue">
+            <span class="hl" id="s3-hl-continue"></span>
+            <span class="name">/continue</span>
+            <span class="desc">Queue a prompt to continue the current task, optionally with a direction.</span>
+          </div>
+          <div class="palette-foot">
+            <span class="foot-chip">YOLO command · not a native ChatGPT command</span>
+          </div>
+        </div>
+
+        <div class="chat" id="s3-composer-hint" style="right: 132px; top: 470px; width: 520px;">
+          <div class="composer" style="margin: 26px; border-radius: 16px;">
+            <div class="ph">Type <b>/</b> in the composer<span class="caret" id="s3-caret"></span></div>
+            <div class="send">/</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 4 — BOUNDED WORKFLOW (19.0–28.0s) ================= -->
+      <div id="s4" class="scene" data-layout-allow-overlap>
+        <div class="kicker" id="s4-kicker" style="left: 136px; top: 640px;">Scene 4 · Bounded workflow</div>
+        <div class="headline-scrim" style="left: 60px; top: 620px; width: 1120px; height: 360px;"></div>
+        <div class="headline" id="s4-head" style="left: 132px; top: 700px; font-size: 62px; max-width: 700px;">
           Bounded workflows.<br /><span class="accent">Visible state. Your controls.</span>
         </div>
 
-        <!-- Real product screenshot as pinned context (mask reveal) -->
-        <div class="shot-frame" id="b-shot">
-          <div class="shot-clip" data-layout-allow-overflow><img src="public/screenshot-queue.png" alt="Real YOLO queue popup" /></div>
-          <div class="shot-tag">Real product capture · popup.html + styles.css</div>
-        </div>
-
-        <div class="workflow-card" id="b-card" style="right: 132px; top: 300px;">
+        <div class="workflow-card" id="s4-card" style="left: 50%; top: 130px; transform: translateX(-50%);">
           <div class="wf-head">
             <span class="wf-badge">◆ loop</span>
             <div class="wf-title">Audit reliability gaps</div>
             <div class="wf-sub-wrap">
-              <div class="wf-sub" id="b-sub1"><span class="run">running</span> · iteration 1/4</div>
-              <div class="wf-sub" id="b-sub2"><span class="run">running</span> · iteration 2/4</div>
-              <div class="wf-sub" id="b-sub3"><span class="pause">paused</span> · iteration 2/4</div>
+              <div class="wf-sub" id="s4-sub1"><span class="run">running</span> · iteration 1/4</div>
+              <div class="wf-sub" id="s4-sub2"><span class="run">running</span> · iteration 2/4</div>
+              <div class="wf-sub" id="s4-sub3"><span class="pause">paused</span> · iteration 2/4</div>
             </div>
           </div>
           <div class="wf-body">
             <div class="segments">
-              <div class="segment"><div class="fill" id="b-seg1"></div></div>
-              <div class="segment"><div class="fill" id="b-seg2"></div></div>
-              <div class="segment"><div class="fill" id="b-seg3"></div></div>
-              <div class="segment"><div class="fill" id="b-seg4"></div></div>
+              <div class="segment"><div class="fill" id="s4-seg1"></div></div>
+              <div class="segment"><div class="fill" id="s4-seg2"></div></div>
+              <div class="segment"><div class="fill" id="s4-seg3"></div></div>
+              <div class="segment"><div class="fill" id="s4-seg4"></div></div>
             </div>
+            <div class="seg-labels"><span>1/4</span><span>2/4</span><span>3/4</span><span>4/4</span></div>
             <div class="wf-actions">
-              <div class="wf-btn primary" id="b-btn-pause">Pause</div>
+              <div class="wf-btn primary" id="s4-btn-pause">Pause</div>
               <div class="wf-btn">Edit</div>
               <div class="wf-btn danger">Stop</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 5 — OPTIONAL GITHUB (28.0–35.0s) ================= -->
+      <div id="s5" class="scene" data-layout-allow-overlap>
+        <div class="kicker" id="s5-kicker" style="left: 136px; top: 96px;">Scene 5 · Optional GitHub setup</div>
+        <div class="headline" id="s5-head1" style="left: 132px; top: 150px; font-size: 58px; max-width: 720px;">
+          Connect <span class="accent">GitHub</span> to ChatGPT.
+        </div>
+        <div class="headline" id="s5-head2" style="left: 132px; top: 150px; font-size: 58px; max-width: 720px;">
+          YOLO keeps the<br />next steps <span class="accent">moving.</span>
+        </div>
+
+        <!-- ChatGPT side: generic connected-app chip + pinned boundary label -->
+        <div class="chat" id="s5-chat" style="left: 132px; top: 360px; width: 780px;">
+          <div class="chat-top">
+            <div class="chat-dots"><i></i><i></i><i></i></div>
+            <div class="chat-title">ChatGPT <span>· coding task</span></div>
+          </div>
+          <div class="chat-body" style="padding: 26px 30px 22px;">
+            <div class="app-chip" id="s5-appchip" style="position: relative; left: 0; top: 0; box-shadow: none; border-color: var(--border);">
+              <span class="glyph">⌥</span>
+              <div class="lines">
+                <strong>GitHub</strong>
+                <span class="conn">Connected to ChatGPT · repository context</span>
+              </div>
+            </div>
+            <div class="msg assistant" style="margin-top: 22px; margin-bottom: 6px;">
+              <div class="avatar">◍</div>
+              <div class="bubble" style="font-size: 22px;">
+                <span class="who">Assistant</span>
+                <p class="dim">I can see the repository context. Ready when you are.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="boundary-label" id="s5-boundary" style="left: 150px; top: 300px;">
+          <span class="b-dot"></span>Optional GitHub app · Connected directly to ChatGPT
+        </div>
+
+        <!-- YOLO side: coding sequence queue -->
+        <div class="yolo-panel" id="s5-panel" style="right: 132px; top: 300px; width: 660px;">
+          <div class="panel-head">
+            <span class="brand-mark">Y</span>
+            <div class="brand-copy">
+              <h1>YOLO <span class="status-badge"><span class="dot"></span>Ready</span></h1>
+              <p>Current conversation · Balanced</p>
+            </div>
+            <span class="head-spacer"></span>
+            <span class="queue-count" id="s5-count">0 queued</span>
+          </div>
+          <ol class="seq-list">
+            <li class="seq-item" id="s5-seq1"><span class="step">#1</span><strong>Inspect the repository issue or goal.</strong><span class="tag">inspect</span></li>
+            <li class="seq-item" id="s5-seq2"><span class="step">#2</span><strong>Implement the smallest complete fix.</strong><span class="tag">implement</span></li>
+            <li class="seq-item" id="s5-seq3"><span class="step">#3</span><strong>Run or inspect the validation.</strong><span class="tag">validate</span></li>
+            <li class="seq-item" id="s5-seq4"><span class="step">#4</span><strong>Review the changes for regressions.</strong><span class="tag">review</span></li>
+            <li class="seq-item" id="s5-seq5"><span class="step">#5</span><strong>Summarize the final state and risks.</strong><span class="tag">summarize</span></li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 6 — RELIABILITY (35.0–40.0s) ================= -->
+      <div id="s6" class="scene" data-layout-allow-overlap>
+        <!-- 6a — Draft protected -->
+        <div class="truth" id="s6a">
+          <div class="truth-head">Draft protected.</div>
+          <div class="truth-proof"><span class="pill mono">draft kept</span> YOLO never overwrites what you're typing.</div>
+          <div class="truth-mini">
+            <div class="tm-head"><span class="brand-mark">Y</span><strong>Next instruction</strong></div>
+            <div class="tm-body">
+              <div class="tm-line"><b>Your draft is still here.</b> A queued send waited instead of replacing it.</div>
+              <div class="tm-field">Half-written note I'm still editing…<span class="caret" id="s6-caret" style="height:24px;vertical-align:-4px;"></span></div>
+              <div class="tm-status warn">◆ delivery deferred · draft preserved</div>
+            </div>
+          </div>
+        </div>
+        <!-- 6b — Ambiguous? It pauses. -->
+        <div class="truth" id="s6b">
+          <div class="truth-head">Ambiguous? It pauses.</div>
+          <div class="truth-proof"><span class="pill warn">paused</span> Fail-closed when delivery isn't certain.</div>
+          <div class="truth-mini">
+            <div class="tm-head"><span class="brand-mark">Y</span><strong>Activity</strong></div>
+            <div class="tm-body">
+              <div class="tm-line"><b>Couldn't confirm the send.</b> YOLO paused instead of guessing.</div>
+              <div class="tm-status warn">◆ paused · waiting for you</div>
+              <div class="tm-footer"><span>No duplicate sent</span><span class="mono">status: paused</span></div>
+            </div>
+          </div>
+        </div>
+        <!-- 6c — Local by default. -->
+        <div class="truth" id="s6c">
+          <div class="truth-head">Local by default.</div>
+          <div class="truth-proof"><span class="pill ok">no telemetry</span> Settings and workflows stay on your device.</div>
+          <div class="truth-mini">
+            <div class="tm-head"><span class="brand-mark">Y</span><strong>Storage</strong></div>
+            <div class="tm-body">
+              <div class="tm-line"><b>No hosted backend. No remote code.</b> Nothing leaves the browser.</div>
+              <div class="tm-status warn" style="background: var(--success-soft); color: var(--success);">◆ chrome.storage.local</div>
+              <div class="tm-footer"><span class="hl-local">Local-only automation</span><span class="mono">v1.0.0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 7 — END CARD (40.0–44.5s) ================= -->
+      <div id="s7" class="scene" data-layout-allow-overlap>
+        <div class="endcard">
+          <div class="end-inner">
+            <div class="end-mark" id="s7-mark">Y</div>
+            <div class="end-title" id="s7-title">YOLO for ChatGPT</div>
+            <div class="end-tag" id="s7-tag">Queue the next steps. Stay in control.</div>
+            <div class="end-support" id="s7-support">Local-first · Open source · No telemetry</div>
+            <div class="end-ctas" id="s7-ctas">
+              <span class="end-cta primary">github.com/kartikkabadi/chatgpt-yolo</span>
+              <span class="end-cta secondary">Sponsor development</span>
+            </div>
+            <div class="end-legal" id="s7-legal">Independent project. Not affiliated with OpenAI.</div>
           </div>
         </div>
       </div>
@@ -328,78 +332,183 @@
 
     <script>
       window.__timelines = window.__timelines || {};
+      if (window.gsap && window.TextPlugin) gsap.registerPlugin(TextPlugin);
 
-      // Initial states owned by GSAP (keeps CSS free of conflicting transforms).
-      gsap.set("#sceneB", { opacity: 0 });
-      gsap.set(["#a-row1", "#a-row2", "#a-row3"], { opacity: 0, y: 26 });
-      gsap.set(["#b-seg1", "#b-seg2", "#b-seg3", "#b-seg4"], { scaleX: 0, transformOrigin: "left center" });
-      gsap.set(["#b-sub2", "#b-sub3"], { opacity: 0 });
+      /* ---------- Initial states (owned by GSAP; CSS stays transform-free) ---------- */
+      // Only Scene 1 is visible at t=0.
+      gsap.set(["#s2", "#s3", "#s4", "#s5", "#s6", "#s7"], { opacity: 0 });
+      gsap.set("#s1-head", { opacity: 0, y: 14 });
+      gsap.set("#s1-scrim", { opacity: 0 });
+
+      gsap.set(["#s2-row1", "#s2-row2", "#s2-row3"], { opacity: 0, y: 26 });
+      gsap.set("#s2-sendnext", { opacity: 0.55 });
+
+      gsap.set(["#s3-hl-goal", "#s3-hl-loop", "#s3-hl-review", "#s3-hl-continue"], { opacity: 0 });
+      gsap.set("#s3-typed", { text: "" });
+
+      gsap.set(["#s4-seg1", "#s4-seg2", "#s4-seg3", "#s4-seg4"], { scaleX: 0, transformOrigin: "left center" });
+      gsap.set(["#s4-sub2", "#s4-sub3"], { opacity: 0 });
+
+      gsap.set("#s5-head2", { opacity: 0 });
+      gsap.set(["#s5-seq1", "#s5-seq2", "#s5-seq3", "#s5-seq4", "#s5-seq5"], { opacity: 0, y: 20 });
+      gsap.set("#s5-boundary", { opacity: 0, y: -10 });
+      gsap.set("#s5-appchip", { opacity: 0 });
+
+      gsap.set(["#s6a", "#s6b", "#s6c"], { opacity: 0 });
+
+      gsap.set(["#s7-title", "#s7-tag", "#s7-support", "#s7-ctas", "#s7-legal"], { opacity: 0, y: 18 });
+      gsap.set("#s7-mark", { opacity: 0, scale: 0.9, transformOrigin: "50% 50%" });
 
       const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.out" } });
 
-      /* ---------- SCENE A — Queue (0.0–4.2s) ---------- */
-      // Kinetic headline + kicker rise in.
-      tl.from("#a-kicker", { opacity: 0, y: 14, duration: 0.5 }, 0.1);
-      tl.from("#a-head", { opacity: 0, y: 24, duration: 0.7 }, 0.2);
+      // Reusable bounded caret blink (finite; safe for a seekable timeline).
+      function blink(sel, at, ticks) {
+        tl.to(sel, { opacity: 0, duration: 0.45, repeat: (ticks * 2) - 1, yoyo: true, ease: "steps(1)" }, at);
+      }
 
-      // Panel masks in from the right (clip reveal + settle) — controlled camera.
-      tl.from("#a-panel", { opacity: 0, x: 64, duration: 0.7, ease: "power3.out" }, 0.35);
+      /* ================= SCENE 1 — Problem (0.0–4.0) ================= */
+      // Card is present on the first frame (strong establishing frame, no blank/black start); it settles up gently.
+      tl.from("#s1-chat", { y: 24, duration: 0.7, ease: "power3.out" }, 0.0);
+      tl.to("#s1-scrim", { opacity: 1, duration: 0.6 }, 0.5);
+      tl.to("#s1-head", { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 0.6);
+      blink("#s1-caret", 1.2, 3);
+      // Gentle push-in on the conversation (controlled camera).
+      tl.fromTo("#s1-chat", { transformOrigin: "50% 40%", scale: 1.0 }, { scale: 1.03, duration: 4.0, ease: "none" }, 0.0);
 
-      // Queue rows insert one at a time (queue-item movement); count ticks with them.
-      const rows = ["#a-row1", "#a-row2", "#a-row3"];
-      rows.forEach((row, i) => {
-        const at = 0.9 + i * 0.55;
+      /* ---- transition S1 -> S2 (3.7–4.3) ---- */
+      tl.to("#s1", { opacity: 0, y: -50, duration: 0.5, ease: "power2.in" }, 3.7);
+      tl.to("#s2", { opacity: 1, duration: 0.5 }, 4.0);
+
+      /* ================= SCENE 2 — Queue (4.0–12.0) ================= */
+      tl.from("#s2-kicker", { opacity: 0, y: 14, duration: 0.5 }, 4.2);
+      tl.from("#s2-head", { opacity: 0, y: 24, duration: 0.7 }, 4.3);
+      tl.from("#s2-panel", { opacity: 0, x: 70, duration: 0.7, ease: "power3.out" }, 4.4);
+      // Rows insert one at a time; the live queued count ticks with them.
+      ["#s2-row1", "#s2-row2", "#s2-row3"].forEach((row, i) => {
+        const at = 5.0 + i * 1.0;
         tl.to(row, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, at);
-        tl.set("#a-count", { textContent: (i + 1) + " queued" }, at + 0.1);
+        tl.set("#s2-count", { textContent: (i + 1) + " queued" }, at + 0.1);
       });
+      // Small reorder nudge on row 3 (ordering is user-controlled).
+      tl.to("#s2-row3", { y: -84, duration: 0.35, ease: "power1.inOut" }, 8.2)
+        .to("#s2-row3", { y: 0, duration: 0.35, ease: "power1.inOut" }, 8.9);
+      // Controlled transition toward sending: Send next pulses once.
+      tl.to("#s2-sendnext", { opacity: 1, duration: 0.3 }, 10.6)
+        .to("#s2-sendnext", { scale: 1.03, transformOrigin: "50% 50%", duration: 0.25, yoyo: true, repeat: 1 }, 10.6);
+      // Slow push-in (controlled camera).
+      tl.fromTo("#s2", { transformOrigin: "62% 42%", scale: 1.0 }, { scale: 1.035, duration: 8.0, ease: "none" }, 4.0);
 
-      // Small reorder nudge on row 3 to show ordering is user-controlled.
-      tl.to("#a-row3", { y: -8, duration: 0.25, ease: "power1.inOut" }, 3.0)
-        .to("#a-row3", { y: 0, duration: 0.25, ease: "power1.inOut" }, 3.25);
+      /* ---- transition S2 -> S3 (11.6–12.2) ---- */
+      tl.to("#s2", { opacity: 0, y: -50, duration: 0.5, ease: "power2.in" }, 11.6);
+      tl.to("#s3", { opacity: 1, duration: 0.5 }, 12.0);
 
-      // Slow push-in on the whole scene (controlled camera).
-      tl.fromTo("#sceneA",
-        { transformOrigin: "62% 42%", scale: 1.0 },
-        { scale: 1.045, duration: 4.2, ease: "none" }, 0);
+      /* ================= SCENE 3 — Composer actions (12.0–19.0) ================= */
+      tl.from("#s3-kicker", { opacity: 0, y: 14, duration: 0.5 }, 12.2);
+      tl.from("#s3-head", { opacity: 0, y: 22, duration: 0.6 }, 12.3);
+      tl.from("#s3-composer-hint", { opacity: 0, x: 40, duration: 0.5, ease: "power3.out" }, 12.3);
+      blink("#s3-caret", 12.4, 2);
+      // Palette masks up from the composer edge (clip reveal).
+      tl.from("#s3-palette", { opacity: 0, y: 40, clipPath: "inset(100% 0 0 0)", duration: 0.6, ease: "power3.out" }, 12.6);
+      // Highlight bar steps /goal -> /loop -> /review -> /continue (~0.7s each).
+      const cmds = ["#s3-hl-goal", "#s3-hl-loop", "#s3-hl-review", "#s3-hl-continue"];
+      cmds.forEach((hl, i) => {
+        const at = 13.2 + i * 0.75;
+        tl.to(hl, { opacity: 1, duration: 0.25 }, at);
+        if (i < cmds.length - 1) tl.to(hl, { opacity: 0, duration: 0.25 }, at + 0.6);
+      });
+      // Land back on /loop, then type the concrete bounded argument.
+      tl.to("#s3-hl-continue", { opacity: 0, duration: 0.25 }, 16.0)
+        .to("#s3-hl-loop", { opacity: 1, duration: 0.25 }, 16.0);
+      tl.to("#s3-typed", { text: "loop 4 audit reliability gaps", duration: 1.4, ease: "none" }, 16.3);
+      blink("#s3-search-caret", 16.3, 5);
 
-      /* ---------- SCENE TRANSITION (4.0–4.6s) ---------- */
-      // Scene A wipes up + fades; Scene B crossfades in beneath it.
-      tl.to("#sceneA", { opacity: 0, y: -60, duration: 0.55, ease: "power2.in" }, 4.0);
-      tl.to("#sceneB", { opacity: 1, duration: 0.5 }, 4.2);
+      /* ---- transition S3 -> S4 (18.6–19.2) ---- */
+      tl.to("#s3", { opacity: 0, y: -50, duration: 0.5, ease: "power2.in" }, 18.6);
+      tl.to("#s4", { opacity: 1, duration: 0.5 }, 19.0);
 
-      /* ---------- SCENE B — Bounded workflow (4.2–7.6s) ---------- */
-      tl.from("#b-kicker", { opacity: 0, y: 14, duration: 0.5 }, 4.3);
-      tl.from("#b-head", { opacity: 0, y: 22, duration: 0.6 }, 4.4);
+      /* ================= SCENE 4 — Bounded workflow (19.0–28.0) ================= */
+      tl.from("#s4-card", { opacity: 0, y: 44, duration: 0.6, ease: "power3.out" }, 19.2);
+      tl.from("#s4-kicker", { opacity: 0, y: 14, duration: 0.5 }, 19.6);
+      tl.to("#s4-head", { opacity: 1, duration: 0.01 }, 19.6); // head is visible by default; keep explicit
+      tl.from("#s4-head", { opacity: 0, y: 22, duration: 0.6 }, 19.7);
+      // Segments draw in empty first (upper bound visible up front).
+      tl.fromTo(".segment", { opacity: 0.4 }, { opacity: 1, duration: 0.4, stagger: 0.06 }, 19.8);
+      // Iteration 1 fills green.
+      tl.to("#s4-seg1", { scaleX: 1, duration: 0.6 }, 20.4);
+      // Iteration 2 fills green; sub-line advances 1/4 -> 2/4.
+      tl.to("#s4-sub1", { opacity: 0, duration: 0.3 }, 22.4)
+        .to("#s4-sub2", { opacity: 1, duration: 0.3 }, 22.5);
+      tl.to("#s4-seg2", { scaleX: 1, duration: 0.6 }, 22.6);
+      // Pause pressed at 24.6: green -> amber, sub-line -> paused, button -> Resume.
+      tl.to("#s4-sub2", { opacity: 0, duration: 0.3 }, 24.5)
+        .to("#s4-sub3", { opacity: 1, duration: 0.3 }, 24.6);
+      tl.to("#s4-seg1, #s4-seg2", { backgroundColor: "#9b640d", duration: 0.35 }, 24.6);
+      tl.to("#s4-btn-pause", { scale: 1.05, transformOrigin: "50% 50%", duration: 0.18, yoyo: true, repeat: 1 }, 24.6);
+      tl.set("#s4-btn-pause", { textContent: "Resume" }, 24.7);
+      // Hold on the paused/bounded state (does NOT run forever).
+      tl.fromTo("#s4-card", { transformOrigin: "50% 40%", scale: 1.0 }, { scale: 1.025, duration: 8.0, ease: "none" }, 19.2);
 
-      // Real product screenshot reveals via a clip-path mask + gentle zoom (mask motion).
-      tl.from("#b-shot", { opacity: 0, x: -40, duration: 0.6, ease: "power3.out" }, 4.5);
-      tl.fromTo(".shot-clip img",
-        { clipPath: "inset(0 100% 0 0)", scale: 1.06 },
-        { clipPath: "inset(0 0% 0 0)", scale: 1.0, duration: 0.9, ease: "power2.out" }, 4.6);
+      /* ---- transition S4 -> S5 (27.5–28.2) — subtle crop pan ---- */
+      tl.to("#s4", { opacity: 0, x: -60, duration: 0.55, ease: "power2.inOut" }, 27.5);
+      tl.to("#s5", { opacity: 1, duration: 0.55 }, 28.0);
 
-      // Workflow card masks in.
-      tl.from("#b-card", { opacity: 0, x: 56, duration: 0.6, ease: "power3.out" }, 4.55);
+      /* ================= SCENE 5 — Optional GitHub (28.0–35.0) ================= */
+      tl.from("#s5-kicker", { opacity: 0, y: 14, duration: 0.5 }, 28.2);
+      tl.from("#s5-head1", { opacity: 0, y: 22, duration: 0.6 }, 28.3);
+      tl.from("#s5-chat", { opacity: 0, x: -40, duration: 0.6, ease: "power3.out" }, 28.4);
+      tl.from("#s5-panel", { opacity: 0, x: 56, duration: 0.6, ease: "power3.out" }, 28.5);
+      tl.to("#s5-appchip", { opacity: 1, duration: 0.5 }, 29.0);
+      // Boundary label fades in and stays pinned for the whole scene.
+      tl.to("#s5-boundary", { opacity: 1, y: 0, duration: 0.5 }, 29.0);
+      // Five coding-sequence items insert in order (mirror Scene 2 vocabulary).
+      ["#s5-seq1", "#s5-seq2", "#s5-seq3", "#s5-seq4", "#s5-seq5"].forEach((row, i) => {
+        const at = 29.6 + i * 0.48;
+        tl.to(row, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, at);
+        tl.set("#s5-count", { textContent: (i + 1) + " queued" }, at + 0.05);
+      });
+      // Line 2 replaces line 1 (strictly sequential, never overlapping).
+      tl.to("#s5-head1", { opacity: 0, y: -18, duration: 0.4 }, 32.2)
+        .to("#s5-head2", { opacity: 1, y: 0, duration: 0.5 }, 32.4);
+      gsap.set("#s5-head2", { y: 12 });
 
-      // Progress segments establish the upper bound, then fill (bounded, visible state).
-      tl.to("#b-seg1", { scaleX: 1, duration: 0.5 }, 5.1);
-      tl.to("#b-seg2", { scaleX: 1, duration: 0.5 }, 5.9);
+      /* ---- transition S5 -> S6 (34.5–35.2) ---- */
+      tl.to("#s5", { opacity: 0, duration: 0.5, ease: "power2.in" }, 34.6);
+      tl.to("#s6", { opacity: 1, duration: 0.4 }, 35.0);
 
-      // Iteration sub-line advances 1/4 -> 2/4 -> paused (green -> amber).
-      tl.to("#b-sub1", { opacity: 0, duration: 0.3 }, 5.85)
-        .to("#b-sub2", { opacity: 1, duration: 0.3 }, 5.9);
-      tl.to("#b-sub2", { opacity: 0, duration: 0.3 }, 6.55)
-        .to("#b-sub3", { opacity: 1, duration: 0.3 }, 6.6);
+      /* ================= SCENE 6 — Reliability (35.0–40.0) ================= */
+      // Three quick, readable truths, each on a real product state (~1.6s dwell).
+      // 6a Draft protected (35.0–36.6)
+      tl.fromTo("#s6a", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 35.05);
+      tl.from("#s6a .truth-head", { opacity: 0, y: 18, duration: 0.4 }, 35.1);
+      tl.from("#s6a .truth-mini", { opacity: 0, x: 40, duration: 0.45, ease: "power3.out" }, 35.2);
+      tl.from("#s6a .truth-proof", { opacity: 0, y: 14, duration: 0.4 }, 35.35);
+      blink("#s6-caret", 35.4, 3);
+      tl.to("#s6a", { opacity: 0, duration: 0.3 }, 36.6);
+      // 6b Ambiguous? It pauses (36.7–38.3)
+      tl.fromTo("#s6b", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 36.7);
+      tl.from("#s6b .truth-head", { opacity: 0, y: 18, duration: 0.4 }, 36.8);
+      tl.from("#s6b .truth-mini", { opacity: 0, x: 40, duration: 0.45, ease: "power3.out" }, 36.9);
+      tl.from("#s6b .truth-proof", { opacity: 0, y: 14, duration: 0.4 }, 37.05);
+      tl.to("#s6b", { opacity: 0, duration: 0.3 }, 38.3);
+      // 6c Local by default (38.4–40.0)
+      tl.fromTo("#s6c", { opacity: 0 }, { opacity: 1, duration: 0.35 }, 38.4);
+      tl.from("#s6c .truth-head", { opacity: 0, y: 18, duration: 0.4 }, 38.5);
+      tl.from("#s6c .truth-mini", { opacity: 0, x: 40, duration: 0.45, ease: "power3.out" }, 38.6);
+      tl.from("#s6c .truth-proof", { opacity: 0, y: 14, duration: 0.4 }, 38.75);
 
-      // Pause pressed: running color settles to amber, button becomes Resume.
-      tl.to("#b-seg1, #b-seg2", { backgroundColor: "#9b640d", duration: 0.35 }, 6.6);
-      tl.set("#b-btn-pause", { textContent: "Resume" }, 6.65);
+      /* ---- transition S6 -> S7 (39.6–40.2) ---- */
+      tl.to("#s6", { opacity: 0, duration: 0.5, ease: "power2.in" }, 39.6);
+      tl.to("#s7", { opacity: 1, duration: 0.4 }, 40.0);
 
-      // Hold on the paused/bounded state so the "does not run forever" claim reads.
-      tl.fromTo("#sceneB",
-        { transformOrigin: "50% 50%", scale: 1.0 },
-        { scale: 1.02, duration: 3.4, ease: "none" }, 4.2);
+      /* ================= SCENE 7 — End card (40.0–44.5) ================= */
+      tl.to("#s7-mark", { opacity: 1, scale: 1.0, duration: 0.6, ease: "power3.out" }, 40.2);
+      tl.to(["#s7-title", "#s7-tag"], { opacity: 1, y: 0, duration: 0.6, stagger: 0.08 }, 40.6);
+      tl.to("#s7-support", { opacity: 1, y: 0, duration: 0.5 }, 41.1);
+      tl.to("#s7-ctas", { opacity: 1, y: 0, duration: 0.5 }, 41.3);
+      tl.to("#s7-legal", { opacity: 1, y: 0, duration: 0.5 }, 41.5);
+      // Everything holds static ~2.9s so the URL + legal line read + screenshot cleanly.
 
-      window.__timelines["spike"] = tl;
+      window.__timelines["launch"] = tl;
     </script>
   </body>
 </html>
