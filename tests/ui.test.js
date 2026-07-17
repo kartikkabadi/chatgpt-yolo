@@ -91,7 +91,7 @@ test("ChatGPT content scripts include the composer-native command system", () =>
   assert.ok(scripts.indexOf("content.js") < scripts.indexOf("command-runtime.js"));
 });
 
-test("command palette supports slash and Codex-style command shortcuts", () => {
+test("command palette supports slash and YOLO command shortcuts", () => {
   const source = read("command-ui.js");
   assert.match(source, /event\.key === "\/"/);
   assert.match(source, /event\.shiftKey && event\.key\.toLowerCase\(\) === "p"/);

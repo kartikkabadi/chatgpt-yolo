@@ -4,9 +4,9 @@ YOLO v1 is the integrated, public release of the reviewed command/workflow engin
 
 ## Dependency graph
 
-- Base: PR #3 (`feature/codex-command-workflows`) at its reviewed exact head.
-- Port: PR #4 (`design/codex-premium-ui`) visual and interaction changes.
-- Preserve: PR #3 command scripts, workflow runtime, full fallback injection stack, queue ownership, safety policy, and tests.
+- Base: command/workflow engine at its reviewed exact head.
+- Port: visual and interaction changes from the reviewed premium interface branch.
+- Preserve: command scripts, workflow runtime, full fallback injection stack, queue ownership, safety policy, and tests.
 - Add: open-source licensing, contributor/security/privacy policy, onboarding, packaging, release automation, and public installation/support documentation.
 
 ## Release bar

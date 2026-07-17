@@ -41,3 +41,12 @@ test("onboarding is entirely local and packaged", () => {
   assert.doesNotMatch(html, /https?:\/\//i);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/i);
 });
+
+test("release README is packaged unconditionally and matches source", async () => {
+  const { packageExtension } = await import("../scripts/package.mjs");
+  const outDir = await packageExtension();
+  const releaseText = fs.readFileSync(path.join(root, "README.release.md"), "utf8");
+  const packagedText = fs.readFileSync(path.join(outDir, "README.md"), "utf8");
+  assert.equal(packagedText, releaseText);
+  assert.doesNotMatch(packagedText, /\.\.\/docs\/assets|\.\.\/marketing\//);
+});

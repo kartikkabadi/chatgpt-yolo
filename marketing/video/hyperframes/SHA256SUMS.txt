@@ -1,0 +1,17 @@
+# SHA256 checksums — marketing/video/hyperframes
+# Paths are relative to this directory. Verify: sha256sum -c SHA256SUMS.txt
+#
+# --- Launch video deliverables (final 16:9 + square) ---
+21d7c13125bc1645bb51e18f0b35062693391fd15aeb5ae106d7923a50efa9b3  yolo-launch-16x9.mp4
+68ed2a1d8789bd25f75fceb822db251b47bbe806fc7adcb4792b87f0997f9217  yolo-launch-16x9.ffprobe.json
+5f2cbbec5907a82bf7a70f5d8416185830039b635799500483c7320b8cd86830  yolo-launch-square.mp4
+91928f1d49d08ae743d3e2be336875a855c0085058cf32c4341679180ddd8e92  yolo-launch-square.ffprobe.json
+6ec6706a35524c8e604f519f07e1a62530ae26df95d0ecd3e8dd9eb2f573e5cf  index.html
+fda2722ae8225717ffc3f239150ee9bc7ac2db5696cfbc24b1088cf654e37ffa  launch.css
+73ff16598cab9f943f67cda53ec8e6c7de242de69a65070bc40f606846c38264  square/index.html
+35f04bef898d4782bb30bb949e8f613d0cd2973bf0721cd5277da6f039c013e5  square/square.css
+c174bfce53a729418d57a8ad8625e7247c793a22fef8e2851e3cfa3de9cd8280  vendor/gsap.min.js
+14f3898c5e985cd5d985918e2368813d35e9629da4884f05d03bb3d0d10f170f  vendor/TextPlugin.min.js
+#
+# --- Render verification artifact (marketing/renders/contact-sheet.png) ---
+c28f1b826fb1c730a336f63c3c042ae53bdcdb51ae69ae1bbff5c13554c8dfa8  ../../renders/contact-sheet.png

@@ -209,7 +209,7 @@
       `Persistent objective: ${workflow.objective}`,
       "Work toward the objective concretely. Inspect the current conversation and continue from the actual state instead of restarting or repeating prior commentary.",
       "At the very end of every response, emit exactly one control marker on its own line:",
-      "[YOLO:CONTINUE] when more autonomous work remains; [YOLO:DONE] only when the objective is genuinely complete; [YOLO:BLOCKED] when specific user input or unavailable access is required.",
+      "[YOLO:CONTINUE] when more work remains toward the objective; [YOLO:DONE] only when the objective is genuinely complete; [YOLO:BLOCKED] when specific user input or unavailable access is required.",
       "Do not emit more than one marker. Begin now."
     ].join("\n\n");
   }

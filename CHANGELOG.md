@@ -5,6 +5,9 @@ All notable changes are documented here.
 ## Unreleased
 
 - Reaffirmed YOLO as a browser-only ChatGPT extension and documented the product boundary, non-goals, roadmap, and success measures.
+- Rebuilt README information architecture with a clearer hook, primary actions, GitHub-to-ChatGPT setup guidance, and sponsorship presentation.
+- Added launch visual assets, video storyboard, and distribution copy under `marketing/` and `docs/assets/`.
+- Removed public-facing third-party coding-assistant wording from the manifest and onboarding to preserve the independent-project boundary.
 - Added automated release verification for narrow permissions/hosts, local-only packaged files, no remote or dynamic code, and no CLI/agent/server/native-messaging surfaces.
 - Stabilized CI, CodeQL, package artifacts, and tagged GitHub releases on maintained GitHub Actions versions with timeouts and concurrency controls.
 - Improved public issue forms, pull-request review guidance, code ownership, contribution rules, README disclosures, and the manual release smoke checklist.
@@ -22,7 +25,7 @@ All notable changes are documented here.
 - Added a persistent, queue-backed slash-action palette with explicit workflow, prompt-shortcut, and YOLO-control categories.
 - Added bounded `/goal` and `/loop` workflows with per-conversation state, CAS revisions, runner leases, exact delivery identity, response stabilization, and required terminal control markers.
 - Replaced misleading `/compact`, `/queue`, and `/clear` actions with truthful `/handoff`, `/status`, and `/stop` semantics.
-- Redesigned the popup and Advanced settings around a task-first Codex/ChatGPT-style interface.
+- Redesigned the popup and Advanced settings around a task-first, ChatGPT-native interface.
 - Added searchable settings navigation, accessible queue actions, explicit template states, destructive confirmations, and reduced-motion behavior.
 - Added first-run onboarding, MIT licensing, privacy/security/contribution policy, reproducible packaging, and release automation.
 - Added safe settings/template backups and privacy-safe diagnostics; active automation state is deliberately excluded.

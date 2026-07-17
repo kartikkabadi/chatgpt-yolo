@@ -54,6 +54,9 @@ export async function verifyRuntimeFiles() {
     if (path.isAbsolute(relative) || relative.includes("..")) throw new Error(`Unsafe runtime path: ${relative}`);
     await access(path.join(root, relative));
   }
+  // The release README must exist and be the source for the packaged README.
+  const releaseReadme = path.join(root, "README.release.md");
+  await access(releaseReadme);
 
   const manifest = await readJson("manifest.json");
   const pkg = await readJson("package.json");
@@ -70,6 +73,17 @@ export async function packageExtension() {
     const destination = path.join(output, relative);
     await mkdir(path.dirname(destination), { recursive: true });
     await copyFile(path.join(root, relative), destination);
+  }
+  // Ship the release README unconditionally so release archives never contain
+  // the repository README with broken relative image/docs links.
+  const releaseReadme = path.join(root, "README.release.md");
+  await access(releaseReadme);
+  await copyFile(releaseReadme, path.join(output, "README.md"));
+
+  const releaseText = await readFile(releaseReadme, "utf8");
+  const packagedText = await readFile(path.join(output, "README.md"), "utf8");
+  if (releaseText !== packagedText) {
+    throw new Error("Packaged README.md does not match README.release.md");
   }
   return output;
 }
