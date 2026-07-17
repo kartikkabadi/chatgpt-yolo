@@ -29,13 +29,14 @@ jobs:
           python3 scripts/adjust-queue-readiness-patch.py
           python3 scripts/apply-queue-readiness-fix.py
           rm -f .queue-fix-trigger
-          git diff > /tmp/queue-readiness.patch
+          git add -A
+          git diff --cached > /tmp/queue-readiness.patch
       - name: Validate final branch state
         id: validate
         shell: bash
         run: |
           set +e
-          git diff --check 2>&1 | tee /tmp/diff-check.log
+          git diff --cached --check 2>&1 | tee /tmp/diff-check.log
           diff_status=${PIPESTATUS[0]}
           npm run validate:core 2>&1 | tee /tmp/validation.log
           validation_status=${PIPESTATUS[0]}
@@ -60,6 +61,5 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
           git commit -m "fix: report queue readiness and wake on cooldown"
           git push origin HEAD:fix/queue-readiness-wakeup
