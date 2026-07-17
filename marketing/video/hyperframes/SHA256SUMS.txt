@@ -1,9 +1,40 @@
+# SHA256 checksums — marketing/video/hyperframes
+# Paths are relative to this directory. Verify: sha256sum -c SHA256SUMS.txt
+#
+# --- Launch video deliverables (Wave C, Storyboard A) ---
+46e5ffb860b8b0c5f0fead0a21d5d412af86c50cf8b6867f1ed7a942fc8f19a2  yolo-launch-16x9.mp4
+7e661edd45495101fb53a93b1aa1efc091eec0b754536c321fd030f078f2bd79  yolo-launch-16x9.ffprobe.json
+a9a26402c5cbd62022973df3a3b3de06645b36fefe7858ea5fb36c703d58f093  yolo-launch-square.mp4
+708f083220e81974331c0c3422f16afba6178accea4f994162db76fa908e8cec  yolo-launch-square.ffprobe.json
+75bc5dcdf775f051956a7c0a87a96185018bf54ce44c33bf8a9e5da1d543c378  index.html
+fda2722ae8225717ffc3f239150ee9bc7ac2db5696cfbc24b1088cf654e37ffa  launch.css
+731fd7e9e4c8ad2117c43abde54b816f98d897d14c4808f5ff3e490a063530e6  square/index.html
+35f04bef898d4782bb30bb949e8f613d0cd2973bf0721cd5277da6f039c013e5  square/square.css
+#
+# --- Render verification artifacts (marketing/renders) ---
+4daf2e4abeefe9d766c0530b527b4bcdf9c86b41ee8429bdb28c19bcdd2702e9  ../../renders/contact-sheet.png
+28a4b14c27d071a5e61141039024dfab69584db154ff63a437602b78aaf6afe4  ../../renders/frame-samples/00-first-frame-0.00s.png
+89b190dfa1e23fdd182383d9daa8b8a683105aba0a44c588eb7abfb600cb32f8  ../../renders/frame-samples/01-scene1-problem-2.00s.png
+9cd66247b98a7c5f794ae6a039ffe280ab69626d011f346cf55c7b575e0132df  ../../renders/frame-samples/02-transition-s1-s2-4.00s.png
+9b153725dc971929d7f6a3d05c8fe2306bc8c856aaf6319eb21e76b991804b1d  ../../renders/frame-samples/03-scene2-queue-8.00s.png
+2bd9f3a9d03820aa4552e21b0a746fe8a6f6f9defc1c99d47ac47e8704d1ee56  ../../renders/frame-samples/04-transition-s2-s3-12.00s.png
+4a204f0fd386192bb2f45cc180339417a175d4d7dff341e91e8a7ca8a123005d  ../../renders/frame-samples/05-scene3-composer-17.50s.png
+22908821aeb30fc74929848e1b1970bfeacbdd9efd69ba3adfde5d0271df216c  ../../renders/frame-samples/06-transition-s3-s4-19.00s.png
+83cc0fff406367907c6a7f6fe92bf8308029952c40df42087d6fd1c8a2a0beed  ../../renders/frame-samples/07-scene4-bounded-25.00s.png
+6acce994bcc7e6731b784aff8b960a6cfa05c2d5fbe695f4668e9b91661380b2  ../../renders/frame-samples/08-transition-s4-s5-28.00s.png
+eb0cbe7b6ca16effb8a220d95affa0ff1a88055fb69ba523f903be9bfef0f194  ../../renders/frame-samples/09-scene5-github-33.00s.png
+ae578ccc79bae021bd412d7284ac933a30387e13f31d02fa3d7252e4f843fe91  ../../renders/frame-samples/10-transition-s5-s6-35.00s.png
+6c12eaa70b081465c469f41fb7c500661ba526b70fe52b6ae90e745ba834f37d  ../../renders/frame-samples/11-scene6-reliability-37.50s.png
+6745d77af681f26f9d5502a6970efa850c1e0de8ebfb01cad7de445643ebf9f1  ../../renders/frame-samples/12-transition-s6-s7-40.00s.png
+438ce2aedb459a599de4f82a008314e1852d0f6b7631e893e1666f16c2947b6a  ../../renders/frame-samples/13-scene7-endcard-43.00s.png
+#
+# --- Framework spike (preserved evidence) ---
 191e6f9a1fdacb38c9f2ba2972cef5fc253b3d5eb79ee033967e55429b592ee5  spike.mp4
 74b9364f8235d597bc2f86d259d7534af3a16aceb94e7e38d4c6861bf104c0f7  spike.ffprobe.json
-8755ae7d60b36776430db09cdc30cfce5e3e68a939e49ebe3b8a3cac0f6c27e6  public/screenshot-queue.png
-7160a812c518ccd1f550515038fed74f446ab8878f6ffcd86d155f21862a3ba3  index.html
+ea6bf87ab755ecc20f221d7816bd1e4a9a1190677c5c43c171f4722f80c74e04  spike/index.html
 832784f4961dc4ba56f6d0df3a36b01c1bfd946aa2fc5ffd9397390ec8f39477  source/capture-popup.html
 c6e93ff9785cf26108bc1bb32ed66b860e29edb54340666e3a9e06efaebf9c0a  scripts/capture.mjs
+8755ae7d60b36776430db09cdc30cfce5e3e68a939e49ebe3b8a3cac0f6c27e6  public/screenshot-queue.png
 7bf347b8aa8b5a5f749485a4552670b10c1409c0c9c52796f7116e00ab69f107  frames/contact-sheet.png
 52003bc68c399c289b97d26c9e2148a2b9eb7bbc1062ece081a1bb5d1f937c82  frames/scene-a-queue.png
 7111f642980e6459f950a7c2518c9bac1e555e1f9980bbb22e78d4d0174ee583  frames/scene-b-bounded.png
