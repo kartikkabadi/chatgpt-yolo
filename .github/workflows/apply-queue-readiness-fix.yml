@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/queue-readiness-wakeup
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
