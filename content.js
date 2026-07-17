@@ -51,6 +51,9 @@
     cycleInFlight: false,
     actionInFlight: false,
     scanQueued: false,
+    scanWakeTimer: null,
+    scanWakeAt: 0,
+    pendingManualQueueRetry: false,
     reloadScheduled: false,
     pageLoadedAt: Date.now(),
     hydrated: false,
@@ -380,8 +383,7 @@
     await incrementCounter(counterKey);
   }
 
-  function composerHasText() {
-    const composer = Platforms.findComposer(state.platform);
+  function composerHasText(composer = Platforms.findComposer(state.platform)) {
     return Boolean(Platforms.composerText(composer).trim());
   }
 
@@ -417,29 +419,59 @@
     return now() - Math.max(state.pageLoadedAt, state.hydratedAt) >= state.settings.loadGraceSec * 1000;
   }
 
+  function hydrationRetryAfterMs(timestamp = now()) {
+    if (state.hydrated || document.readyState === "loading") return 0;
+    const anchor = state.hydrationCandidateSince || state.lastDomActivityAt;
+    return Math.max(0, anchor + Lifecycle.HYDRATION_QUIET_MS - timestamp);
+  }
+
+  function checkSafeForInput(workflow = workflowHealth()) {
+    const timestamp = now();
+    const routeCurrent = routeIsCurrent();
+    const durablePage = Config.isDurablePageId(state.pageId);
+    const composer = routeCurrent && durablePage ? Platforms.findComposer(state.platform) : null;
+    const hydrated = Boolean(composer) && probeHydration();
+    return Lifecycle.inputSafety({
+      routeCurrent,
+      durablePage,
+      composerPresent: Boolean(composer),
+      hydrated,
+      hydrationRetryAfterMs: hydrationRetryAfterMs(timestamp),
+      workflowAwaitingResponse: Boolean(workflow.awaitingResponse),
+      generating: state.generationActive || Platforms.isGenerating(state.platform),
+      generationHoldUntil: state.generationHoldUntil,
+      lastDomActivityAt: state.lastDomActivityAt,
+      composerBusy: Boolean(composer && Platforms.composerText(composer).trim()),
+      now: timestamp
+    });
+  }
+
   function safeForInput() {
-    if (!routeIsCurrent() || !Config.isDurablePageId(state.pageId) || !probeHydration()) return false;
     const workflow = workflowHealth();
     if (workflow.awaitingResponse) return false;
-    if (state.generationActive || Platforms.isGenerating(state.platform) || now() < state.generationHoldUntil) return false;
-    if (now() - state.lastDomActivityAt < 1_500) return false;
-    if (composerHasText()) return false;
-    return true;
+    return checkSafeForInput(workflow).safe;
+  }
+
+  function scheduleInputRetry(safety, automatic) {
+    const retryAfterMs = Math.max(0, Number(safety?.retryAfterMs) || 0);
+    if (retryAfterMs <= 0) return;
+    if (!automatic) state.pendingManualQueueRetry = true;
+    queueCycle(retryAfterMs + 25);
   }
 
   function updateGenerationState() {
     const active = Platforms.isGenerating(state.platform);
     const timestamp = now();
-    const transitioned = state.generationActive !== active;
+    const wasGenerating = state.generationActive;
+    const transitioned = wasGenerating !== active;
+    state.generationHoldUntil = Lifecycle.nextGenerationHoldUntil({
+      wasGenerating,
+      generating: active,
+      currentHoldUntil: state.generationHoldUntil,
+      now: timestamp
+    });
     if (state.runtime) {
-      if (active) {
-        state.runtime.lastGenerationAt = timestamp;
-        state.generationHoldUntil = Math.max(state.generationHoldUntil, timestamp + 60_000);
-      }
-      if (state.generationActive && !active) {
-        state.runtime.lastGenerationAt = timestamp;
-        state.generationHoldUntil = Math.max(state.generationHoldUntil, timestamp + 15_000);
-      }
+      if (active || (wasGenerating && !active)) state.runtime.lastGenerationAt = timestamp;
       if (transitioned || (active && timestamp - state.lastGenerationPersistAt >= 30_000)) {
         state.lastGenerationPersistAt = timestamp;
         saveRuntime();
@@ -769,18 +801,16 @@
     if (state.actionInFlight || !state.platform) return false;
     if (automatic && (!automationReady() || !state.settings.queueAutoRunEnabled)) return false;
     if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
-    if (updateGenerationState()) {
-      if (!automatic) await setBlocked("queue.generating", "The chat is still generating");
+    if (!automatic) state.pendingManualQueueRetry = false;
+
+    updateGenerationState();
+    const safety = checkSafeForInput();
+    if (!safety.safe) {
+      if (!automatic) await setBlocked(safety.code, safety.reason);
+      scheduleInputRetry(safety, automatic);
       return false;
     }
-    if (!safeForInput()) {
-      if (!automatic) await setBlocked("queue.composer_busy", "The composer contains a draft");
-      return false;
-    }
-    if (!Platforms.findComposer(state.platform)) {
-      if (!automatic) await setBlocked("queue.composer_missing", "The message composer is not available yet");
-      return false;
-    }
+    if (!automatic) clearBlocked();
     if (automatic && now() < (state.runtime.nextQueueAt || 0)) return false;
 
     if (automatic) {
@@ -820,8 +850,11 @@
         return false;
       }
       updateGenerationState();
-      if (!safeForInput()) {
-        await releaseQueueClaim(queuePageId, item, "Chat became busy before the queued message could send");
+      const sendSafety = checkSafeForInput();
+      if (!sendSafety.safe) {
+        await releaseQueueClaim(queuePageId, item, `Queue paused before send: ${sendSafety.reason}`);
+        if (!automatic) await setBlocked(sendSafety.code, sendSafety.reason);
+        scheduleInputRetry(sendSafety, automatic);
         return false;
       }
 
@@ -910,6 +943,7 @@
       if (!probeHydration()) return;
       if (await handleErrorState()) return;
       if (await handleApprovalCards()) return;
+      if (state.pendingManualQueueRetry && await handleQueue(false)) return;
       if (await handleQueue(true)) return;
       if (await handleDeepNudge()) return;
       await handlePeriodicRefresh();
@@ -921,13 +955,27 @@
   }
 
   function queueCycle(delayMs = null) {
-    if (state.destroyed || state.scanQueued || state.reloadScheduled) return;
+    if (state.destroyed || state.reloadScheduled) return;
+    const requested = delayMs == null
+      ? Lifecycle.mutationDelay({ hidden: document.hidden, generating: state.generationActive })
+      : delayMs;
+    const delay = Math.max(0, Number.isFinite(Number(requested)) ? Number(requested) : 0);
+    const wakeAt = now() + delay;
+    if (state.scanQueued && state.scanWakeAt <= wakeAt) return;
+
+    window.clearTimeout(state.scanWakeTimer);
     state.scanQueued = true;
-    const delay = delayMs == null ? Lifecycle.mutationDelay({ hidden: document.hidden, generating: state.generationActive }) : delayMs;
-    window.setTimeout(() => {
+    state.scanWakeAt = wakeAt;
+    state.scanWakeTimer = window.setTimeout(() => {
       state.scanQueued = false;
+      state.scanWakeTimer = null;
+      state.scanWakeAt = 0;
+      if (state.cycleInFlight) {
+        queueCycle(50);
+        return;
+      }
       runCycle();
-    }, Math.max(0, delay));
+    }, Math.max(0, wakeAt - now()));
   }
 
   function restartScanTimer() {
@@ -978,6 +1026,7 @@
       state.lastDomActivityAt = now();
       state.generationHoldUntil = 0;
       state.lastGenerationPersistAt = 0;
+      state.pendingManualQueueRetry = false;
       clearBlocked();
       state.generationActive = false;
       await loadSettings();
@@ -1026,7 +1075,6 @@
 
   function handleDomMutation() {
     state.lastDomActivityAt = now();
-    if (state.generationActive) state.generationHoldUntil = Math.max(state.generationHoldUntil, now() + 60_000);
     queueCycle();
   }
 
@@ -1215,6 +1263,7 @@
     state.destroyed = true;
     state.observer?.disconnect();
     window.clearTimeout(state.scanTimer);
+    window.clearTimeout(state.scanWakeTimer);
     window.clearTimeout(state.routeTimer);
     window.clearTimeout(state.activitySaveTimer);
     if (state.messageListener) chrome.runtime.onMessage.removeListener(state.messageListener);
