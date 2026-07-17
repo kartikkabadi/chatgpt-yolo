@@ -22,7 +22,9 @@ jobs:
         with:
           node-version: 24
       - name: Apply focused repair
-        run: python3 scripts/apply-queue-readiness-fix.py
+        run: |
+          python3 scripts/apply-queue-readiness-fix.py
+          rm -f .queue-fix-trigger
       - name: Validate final branch state
         run: |
           git diff --check
