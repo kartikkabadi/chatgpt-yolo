@@ -1,9 +1,9 @@
 name: Apply route readiness ordering
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/queue-readiness-wakeup
+      - main
 
 permissions:
   contents: write
