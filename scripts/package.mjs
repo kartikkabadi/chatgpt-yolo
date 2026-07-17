@@ -22,6 +22,7 @@ export const RUNTIME_FILES = Object.freeze([
   "popup.html",
   "popup.js",
   "styles.css",
+  "theme.css",
   "options.html",
   "options.js",
   "options-ui.js",
