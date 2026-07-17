@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root{
+    --canvas:#f6f6f4; --surface:#ffffff; --surface-raised:#fbfbfa; --surface-hover:#f0f0ed;
+    --text:#181817; --text-soft:#55554f; --text-faint:#85847c;
+    --border:#deded8; --border-strong:#c5c5bd;
+    --primary:#181817; --primary-text:#ffffff;
+    --success:#24784b; --success-soft:#e9f6ee;
+    --warning:#9b640d; --warning-soft:#fff4dd;
+    --danger:#b33232;
+    --mono:ui-monospace,SFMono-Regular,Menlo,"Cascadia Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Inter,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1536px;height:864px;}
+  body{
+    font-family:var(--sans);color:var(--text);position:relative;overflow:hidden;
+    background:
+      linear-gradient(0deg, rgba(20,20,18,0.026) 1px, transparent 1px) 0 0 / 100% 48px,
+      linear-gradient(90deg, rgba(20,20,18,0.026) 1px, transparent 1px) 0 0 / 48px 100%,
+      var(--canvas);
+  }
+  .tick{position:absolute;width:16px;height:16px;border:1.5px solid var(--border-strong);opacity:.7;}
+  .tick.tl{top:40px;left:40px;border-right:0;border-bottom:0;}
+  .tick.tr{top:40px;right:40px;border-left:0;border-bottom:0;}
+  .tick.bl{bottom:40px;left:40px;border-right:0;border-top:0;}
+  .tick.br{bottom:40px;right:40px;border-left:0;border-top:0;}
+
+  .frame{position:absolute;inset:78px 84px;display:grid;grid-template-columns:560px 1fr;gap:64px;align-items:center;}
+
+  .lockup{display:flex;align-items:center;gap:14px;margin-bottom:32px;}
+  .mark{width:52px;height:52px;border-radius:14px;background:var(--primary);display:grid;place-items:center;box-shadow:0 12px 32px rgba(20,20,18,.10);}
+  .wordmark{font-size:14px;font-weight:700;letter-spacing:.02em;}
+  .wordmark .sub{display:block;font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-faint);margin-top:3px;letter-spacing:.03em;}
+
+  h1{font-size:56px;line-height:1.03;letter-spacing:-0.035em;font-weight:680;}
+  h1 .dim{color:var(--text-faint);}
+  .desc{margin-top:20px;font-size:18px;line-height:1.5;color:var(--text-soft);max-width:500px;letter-spacing:-0.01em;}
+
+  .actions{margin-top:30px;display:flex;align-items:center;gap:12px;}
+  .btn{height:44px;padding:0 18px;border-radius:11px;display:inline-flex;align-items:center;gap:8px;font-size:14.5px;font-weight:650;letter-spacing:-0.01em;}
+  .btn.primary{background:var(--primary);color:var(--primary-text);box-shadow:0 1px 2px rgba(0,0,0,.14);}
+  .btn.ghost{background:var(--surface);border:1px solid var(--border);color:var(--text-soft);}
+  .btn.link{background:transparent;color:var(--text-faint);padding:0 6px;}
+
+  .microline{margin-top:26px;display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text-soft);}
+  .microline .dot{color:var(--border-strong);}
+
+  /* right stage */
+  .stage{position:relative;height:640px;}
+  .context{position:absolute;left:0;top:26px;width:340px;height:560px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 50px rgba(20,20,18,.07);overflow:hidden;opacity:.96;}
+  .ctx-head{height:42px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 14px;}
+  .ctx-head .dot3{display:flex;gap:6px;}
+  .ctx-head .dot3 i{width:9px;height:9px;border-radius:50%;background:var(--border-strong);display:block;}
+  .ctx-head .lbl{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);letter-spacing:.04em;margin-left:4px;}
+  .ctx-body{padding:16px 14px;display:grid;gap:12px;}
+  .bubble{border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.5;color:var(--text-soft);}
+  .bubble.user{background:var(--surface-hover);margin-left:40px;color:var(--text);}
+  .bubble.assist{background:var(--surface-raised);border:1px solid var(--border);margin-right:24px;}
+  .bubble.assist .bar{height:8px;border-radius:5px;background:var(--surface-hover);margin:7px 0;}
+  .bubble.assist .bar.s{width:70%;} .bubble.assist .bar.m{width:90%;}
+  .ghtag{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text-faint);background:var(--surface-hover);border:1px solid var(--border);border-radius:999px;padding:3px 8px;letter-spacing:.03em;}
+
+  .panel{position:absolute;right:0;top:0;width:520px;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 1px 0 rgba(255,255,255,.6),0 30px 64px rgba(20,20,18,.14);padding:20px 20px 18px;}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .ph-left{display:flex;align-items:center;gap:9px;}
+  .ph-mark{width:26px;height:26px;border-radius:8px;background:var(--primary);display:grid;place-items:center;}
+  .ph-title{font-size:13px;font-weight:700;letter-spacing:-0.01em;}
+  .badge-on{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--success);background:var(--success-soft);border-radius:999px;padding:3px 9px;}
+
+  .palette{border:1px solid var(--border);border-radius:12px;background:var(--surface-raised);padding:8px;margin-bottom:14px;}
+  .palette .q{font-family:var(--mono);font-size:12.5px;color:var(--text);padding:5px 7px;}
+  .palette .q .cursor{color:var(--text-faint);}
+  .cmd{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:8px;font-family:var(--mono);font-size:11.5px;}
+  .cmd:hover,.cmd.sel{background:var(--surface-hover);}
+  .cmd.sel{background:color-mix(in srgb,var(--primary) 7%, var(--surface-hover));}
+  .cmd .name{color:var(--text);font-weight:700;}
+  .cmd .hint{color:var(--text-faint);}
+
+  .spine{position:relative;padding-left:6px;}
+  .rail{position:absolute;left:11px;top:24px;bottom:24px;width:2px;background:var(--border);border-radius:2px;}
+  .node{position:relative;display:flex;gap:12px;align-items:center;padding:8px 0;}
+  .idx{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:700;background:var(--surface);color:var(--text-faint);border:1.5px solid var(--border-strong);z-index:1;}
+  .card{flex:1;min-width:0;background:var(--surface-raised);border:1px solid var(--border);border-radius:10px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .card .txt{font-size:12.5px;color:var(--text);letter-spacing:-0.005em;}
+  .chip{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:2px 7px;color:var(--text-soft);background:var(--surface-hover);border:1px solid var(--border);}
+  .node.running .idx{background:var(--success);color:#fff;border-color:var(--success);}
+  .node.running .card{border-color:color-mix(in srgb,var(--success) 40%,var(--border));box-shadow:0 0 0 3px var(--success-soft);}
+  .node.running .chip{background:var(--success-soft);color:var(--success);border-color:color-mix(in srgb,var(--success) 30%,transparent);}
+  .node.done .idx{background:var(--surface-hover);color:var(--text-faint);}
+  .node.done .txt{color:var(--text-faint);}
+
+  .controls{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+  .cbtn{height:32px;padding:0 12px;border-radius:9px;font-size:12px;font-weight:650;border:1px solid var(--border);background:var(--surface-raised);color:var(--text-soft);display:inline-flex;align-items:center;gap:6px;}
+  .cbtn.pause{color:var(--warning);border-color:color-mix(in srgb,var(--warning) 30%,var(--border));}
+  .cbtn.stop{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 26%,var(--border));}
+  .cbtn.spacer{margin-left:auto;background:transparent;border:0;font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+</style>
+</head>
+<body>
+  <div class="tick tl"></div><div class="tick tr"></div><div class="tick bl"></div><div class="tick br"></div>
+  <div class="frame">
+    <div class="rail-left">
+      <div class="lockup">
+        <div class="mark"><svg width="32" height="32" viewBox="0 0 128 128"><path d="M32 32h16l16 24 16-24h16L72 72v24H56V72L32 32Z" fill="#fff"/></svg></div>
+        <div class="wordmark">YOLO for ChatGPT<span class="sub">independent · not affiliated with OpenAI</span></div>
+      </div>
+      <h1>Queue the next steps.<br><span class="dim">Run bounded workflows.</span></h1>
+      <p class="desc">Stop babysitting long ChatGPT conversations. YOLO adds persistent instruction queues and visible, bounded automation — right in the composer.</p>
+      <div class="actions">
+        <span class="btn primary">Install</span>
+        <span class="btn ghost">Watch demo</span>
+        <span class="btn link">Sponsor development</span>
+      </div>
+      <div class="microline"><span>Local-first</span><span class="dot">·</span><span>Open source</span><span class="dot">·</span><span>No telemetry</span></div>
+    </div>
+
+    <div class="stage">
+      <div class="context">
+        <div class="ctx-head"><span class="dot3"><i></i><i></i><i></i></span><span class="lbl">long conversation</span></div>
+        <div class="ctx-body">
+          <div class="bubble user">Audit this repository and fix the top reliability gaps, one by one.</div>
+          <div class="bubble assist"><div class="bar m"></div><div class="bar s"></div><div class="bar m"></div><div class="bar s"></div></div>
+          <span class="ghtag">Optional GitHub app · connected to ChatGPT</span>
+          <div class="bubble user">Continue with the next step.</div>
+          <div class="bubble assist"><div class="bar s"></div><div class="bar m"></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ph-left"><div class="ph-mark"><svg width="16" height="16" viewBox="0 0 128 128"><path d="M32 32h16l16 24 16-24h16L72 72v24H56V72L32 32Z" fill="#fff"/></svg></div><span class="ph-title">YOLO</span></div>
+          <span class="badge-on">On · running</span>
+        </div>
+        <div class="palette">
+          <div class="q">/re<span class="cursor">│</span></div>
+          <div class="cmd sel"><span class="name">/review</span><span class="hint">queue a review pass</span></div>
+          <div class="cmd"><span class="name">/goal</span><span class="hint">bounded objective</span></div>
+          <div class="cmd"><span class="name">/loop</span><span class="hint">bounded iteration</span></div>
+          <div class="cmd"><span class="name">/continue</span><span class="hint">send next step</span></div>
+        </div>
+        <div class="spine">
+          <div class="rail"></div>
+          <div class="node done"><div class="idx">1</div><div class="card"><span class="txt">Review the implementation for edge cases</span><span class="chip">done</span></div></div>
+          <div class="node running"><div class="idx">2</div><div class="card"><span class="txt">Run the complete validation suite</span><span class="chip">running</span></div></div>
+          <div class="node"><div class="idx">3</div><div class="card"><span class="txt">Fix any reproducible failures</span><span class="chip">queued</span></div></div>
+          <div class="node"><div class="idx">4</div><div class="card"><span class="txt">Review the final diff for regressions</span><span class="chip">queued</span></div></div>
+        </div>
+        <div class="controls">
+          <span class="cbtn pause">Pause</span>
+          <span class="cbtn">Edit</span>
+          <span class="cbtn stop">Stop</span>
+          <span class="cbtn spacer">loop 2 / 5 · bounded</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

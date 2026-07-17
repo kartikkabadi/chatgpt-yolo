@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root{
+    --canvas:#f6f6f4; --surface:#ffffff; --surface-raised:#fbfbfa; --surface-hover:#f0f0ed;
+    --text:#181817; --text-soft:#55554f; --text-faint:#85847c;
+    --border:#deded8; --border-strong:#c5c5bd;
+    --primary:#181817; --primary-text:#ffffff;
+    --success:#24784b; --success-soft:#e9f6ee;
+    --warning:#9b640d; --warning-soft:#fff4dd;
+    --danger:#b33232;
+    --mono:ui-monospace,SFMono-Regular,Menlo,"Cascadia Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Inter,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1280px;height:640px;}
+  body{
+    font-family:var(--sans);
+    color:var(--text);
+    background:
+      linear-gradient(0deg, rgba(20,20,18,0.028) 1px, transparent 1px) 0 0 / 100% 40px,
+      linear-gradient(90deg, rgba(20,20,18,0.028) 1px, transparent 1px) 0 0 / 40px 100%,
+      var(--canvas);
+    position:relative;overflow:hidden;
+  }
+  /* corner registration ticks — engineering-drawing cue */
+  .tick{position:absolute;width:14px;height:14px;border:1.5px solid var(--border-strong);opacity:.7;}
+  .tick.tl{top:34px;left:34px;border-right:0;border-bottom:0;}
+  .tick.tr{top:34px;right:34px;border-left:0;border-bottom:0;}
+  .tick.bl{bottom:34px;left:34px;border-right:0;border-top:0;}
+  .tick.br{bottom:34px;right:34px;border-left:0;border-top:0;}
+
+  .frame{position:absolute;inset:56px 64px;display:grid;grid-template-columns:1fr 476px;gap:52px;align-items:center;}
+
+  /* left rail */
+  .lockup{display:flex;align-items:center;gap:14px;margin-bottom:34px;}
+  .mark{width:56px;height:56px;border-radius:15px;background:var(--primary);display:grid;place-items:center;box-shadow:0 12px 32px rgba(20,20,18,.10);}
+  .wordmark{font-size:15px;font-weight:700;letter-spacing:.02em;color:var(--text);}
+  .wordmark .sub{display:block;font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.04em;color:var(--text-faint);margin-top:3px;}
+
+  h1{font-size:62px;line-height:1.02;letter-spacing:-0.035em;font-weight:680;color:var(--text);}
+  h1 .dim{color:var(--text-faint);}
+  .desc{margin-top:22px;font-size:19px;line-height:1.5;color:var(--text-soft);max-width:520px;letter-spacing:-0.01em;}
+
+  .microline{margin-top:34px;display:inline-flex;align-items:center;gap:12px;font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--text-soft);}
+  .microline .dot{color:var(--border-strong);}
+
+  /* right: control line / queue schematic */
+  .panel{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    box-shadow:0 1px 0 rgba(255,255,255,.6), 0 20px 46px rgba(20,20,18,.08);
+    padding:22px 22px 20px;position:relative;
+  }
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .panel-title{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);}
+  .qcount{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text-soft);background:var(--surface-hover);border-radius:999px;padding:3px 9px;}
+
+  .spine{position:relative;padding-left:8px;}
+  .node{position:relative;display:flex;gap:14px;align-items:flex-start;padding:11px 0;}
+  .rail{position:absolute;left:11px;top:26px;bottom:26px;width:2px;background:var(--border);border-radius:2px;}
+  .idx{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+    font-family:var(--mono);font-size:11px;font-weight:700;background:var(--surface);color:var(--text-faint);
+    border:1.5px solid var(--border-strong);z-index:1;}
+  .card{flex:1;min-width:0;background:var(--surface-raised);border:1px solid var(--border);border-radius:11px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .card .txt{font-size:13.5px;line-height:1.35;color:var(--text);letter-spacing:-0.006em;}
+  .chip{flex:0 0 auto;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:3px 8px;color:var(--text-soft);background:var(--surface-hover);border:1px solid var(--border);}
+
+  .node.running .idx{background:var(--success);color:#fff;border-color:var(--success);}
+  .node.running .card{border-color:color-mix(in srgb,var(--success) 40%, var(--border));box-shadow:0 0 0 3px var(--success-soft);}
+  .node.running .chip{background:var(--success-soft);color:var(--success);border-color:color-mix(in srgb,var(--success) 30%, transparent);}
+  .node.paused .idx{background:var(--warning-soft);color:var(--warning);border-color:color-mix(in srgb,var(--warning) 45%, var(--border));}
+  .node.paused .chip{background:var(--warning-soft);color:var(--warning);border-color:color-mix(in srgb,var(--warning) 30%, transparent);}
+  .node.done .idx{background:var(--surface-hover);color:var(--text-faint);}
+  .node.done .txt{color:var(--text-faint);}
+
+  /* bound bracket — visualizes /loop bounds */
+  .bound{position:absolute;right:-2px;top:66px;bottom:60px;width:16px;border:1.5px solid var(--border-strong);border-left:0;border-radius:0 6px 6px 0;}
+  .bound-label{position:absolute;right:-8px;top:50%;transform:translate(100%,-50%);font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text-faint);letter-spacing:.04em;writing-mode:vertical-rl;}
+</style>
+</head>
+<body>
+  <div class="tick tl"></div><div class="tick tr"></div><div class="tick bl"></div><div class="tick br"></div>
+  <div class="frame">
+    <div class="rail-left">
+      <div class="lockup">
+        <div class="mark">
+          <svg width="34" height="34" viewBox="0 0 128 128"><path d="M32 32h16l16 24 16-24h16L72 72v24H56V72L32 32Z" fill="#fff"/></svg>
+        </div>
+        <div class="wordmark">YOLO for ChatGPT<span class="sub">independent · not affiliated with OpenAI</span></div>
+      </div>
+      <h1>Queue the<br>next steps.<span class="dim"></span></h1>
+      <p class="desc">A local-first Chrome extension for reliable queues and bounded workflows in long ChatGPT conversations.</p>
+      <div class="microline">
+        <span>Local-first</span><span class="dot">·</span><span>Open source</span><span class="dot">·</span><span>No telemetry</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Instruction queue</span>
+        <span class="qcount">5 queued</span>
+      </div>
+      <div class="spine">
+        <div class="rail"></div>
+        <div class="node done"><div class="idx">1</div><div class="card"><span class="txt">Review the implementation for edge cases</span><span class="chip">done</span></div></div>
+        <div class="node running"><div class="idx">2</div><div class="card"><span class="txt">Run the complete validation suite</span><span class="chip">running</span></div></div>
+        <div class="node"><div class="idx">3</div><div class="card"><span class="txt">Fix any reproducible failures</span><span class="chip">queued</span></div></div>
+        <div class="node paused"><div class="idx">4</div><div class="card"><span class="txt">Review the final diff for regressions</span><span class="chip">paused</span></div></div>
+        <div class="node"><div class="idx">5</div><div class="card"><span class="txt">Summarize what changed &amp; what remains</span><span class="chip">queued</span></div></div>
+        <div class="bound"></div><span class="bound-label">/loop · bounded</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
