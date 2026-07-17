@@ -1,10 +1,41 @@
 # YOLO for ChatGPT
 
-A local-first Chromium extension that turns long ChatGPT conversations into a reliable, queue-driven workspace with bounded workflows, safety controls, and a quiet task-first interface.
+**Queue the next steps. Run bounded workflows. Stop babysitting long ChatGPT conversations.**
+
+A local-first Chromium extension that adds persistent instruction queues, composer-native actions, and visible, bounded automation to ChatGPT.
 
 > **Independent project:** YOLO is not affiliated with or endorsed by OpenAI. It does not use the OpenAI API, run a backend, inject remote code, or collect telemetry.
 
-## What it does
+[![CI](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/ci.yml/badge.svg)](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/codeql.yml/badge.svg)](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-informational.svg)](manifest.json)
+
+![YOLO for ChatGPT — a persistent instruction queue running alongside a long ChatGPT conversation](docs/assets/hero.webp)
+
+**[Install](#install) · [Watch the demo](#demo) · [Sponsor development](https://whop.com/vex-app/support-for-oss/)**
+
+---
+
+## Why YOLO
+
+Long ChatGPT tasks still make you come back just to keep them moving — to send the next instruction, say *continue*, ask for another review, or run the next validation step. YOLO lets you line those steps up once and keeps them running inside the conversation, with everything visible and under your control.
+
+### Queue the next steps
+
+Add, reorder, edit, pause, retry, and safely deliver future instructions — per conversation, persisted locally.
+
+### Run bounded workflows
+
+Use `/goal` and `/loop` with visible state, explicit limits, and Pause/Edit/Stop controls. Nothing runs unbounded.
+
+### Stay in control
+
+Protect drafts, avoid duplicate sends, and pause when delivery becomes ambiguous. YOLO fails closed rather than guessing.
+
+---
+
+## What it adds to ChatGPT
 
 YOLO adds four layers to ChatGPT:
 
@@ -15,7 +46,7 @@ YOLO adds four layers to ChatGPT:
 
 Everything runs in the browser. Settings, queues, templates, and workflow state are stored in `chrome.storage.local`.
 
-## Highlights
+### Highlights
 
 - Per-conversation persistent queues with drag ordering, editing, retry, pause, send-next, and fail-closed delivery recovery.
 - `/goal <objective>` for marker-driven persistent objectives.
@@ -39,17 +70,72 @@ The core repository does not include coding-agent hooks, a CLI, local daemon, MC
 
 See [Product direction](docs/PRODUCT_DIRECTION.md) for the principles, non-goals, roadmap, and success measures.
 
+---
+
+## Recommended for coding workflows: connect GitHub to ChatGPT
+
+For repository work, the strongest setup pairs YOLO with **ChatGPT's GitHub app** (previously called the GitHub connector). The two are independent:
+
+- **ChatGPT's GitHub app** provides repository context and, where your plan, app permissions, and enabled tools support it, repository actions.
+- **YOLO** maintains the queue and bounded sequence of prompts inside the ChatGPT conversation.
+
+To set it up:
+
+1. Open **ChatGPT → Settings**.
+2. Open **Apps**.
+3. Find and connect **GitHub**.
+4. Authorize only the repositories you want ChatGPT to access.
+5. Select or invoke GitHub in the relevant conversation where necessary.
+6. Then use YOLO to queue and bound the sequence of work.
+
+> With GitHub connected, ChatGPT can inspect repository context and, where supported and authorized, help work through issues, code changes, reviews, and pull requests. YOLO keeps the sequence of instructions moving inside the conversation.
+
+> **The GitHub app is optional and independent from YOLO.** YOLO never receives your GitHub credentials or repository data.
+
+### Example coding workflow
+
+Ask ChatGPT to inspect a repository issue or goal, then queue the follow-up steps in YOLO:
+
+1. *Implement the smallest complete fix.*
+2. *Review the resulting changes for regressions.*
+3. *Run or inspect the relevant validation.*
+4. *Fix concrete findings.*
+5. *Summarize the final state and remaining risks.*
+
+A bounded `/goal` or `/loop` can wrap the iterative middle of this sequence so it advances turn by turn with visible limits. Available GitHub capabilities vary by plan, mode, permissions, and rollout — YOLO does not add or change them; it only coordinates the next prompts.
+
+---
+
+## Screenshots
+
+![Per-conversation queue with several ordered instructions and a live queue count](docs/assets/screenshot-queue.webp)
+*The queue holds the next instructions per conversation, with clear ordering and item state.*
+
+![YOLO command palette showing /goal, /loop, /review, and /continue in the ChatGPT composer](docs/assets/screenshot-command-palette.webp)
+*Composer-native YOLO actions from `/` or `Cmd/Ctrl + Shift + P`.*
+
+![Active bounded workflow showing objective, iteration state, and Pause, Edit, and Stop controls](docs/assets/screenshot-workflow.webp)
+*Bounded workflows show the objective, remaining iterations, and explicit controls.*
+
+![ChatGPT with the GitHub app connected while YOLO manages the queued follow-up prompts](docs/assets/screenshot-github-workflow.webp)
+*Connect GitHub to ChatGPT for repository context. YOLO keeps the next steps queued and bounded.*
+
+![Advanced settings showing profiles, approvals off by default, recovery, and local data controls](docs/assets/screenshot-settings.webp)
+*Advanced settings keep detailed controls — profiles, approvals, recovery, limits, and local data — out of the everyday path.*
+
+## Demo
+
+<a id="demo"></a>
+
+[![Watch the YOLO demo](docs/assets/demo-poster.webp)](docs/assets/demo-poster.webp)
+
+A short walkthrough of queuing the next steps and running a bounded workflow inside a long ChatGPT conversation.
+
+---
+
 ## Install
 
-### From a release archive
-
-1. Download the latest `yolo-v*.zip` release asset and unzip it.
-2. Open `chrome://extensions` in Chrome, Edge, Brave, Arc, or another Chromium browser.
-3. Enable **Developer mode**.
-4. Select **Load unpacked** and choose the unzipped `yolo` folder.
-5. Open or refresh a ChatGPT conversation.
-
-### From source
+### From source (recommended today)
 
 ```bash
 git clone https://github.com/kartikkabadi/chatgpt-yolo.git
@@ -59,6 +145,15 @@ npm run package
 ```
 
 Then load `dist/yolo` as an unpacked extension.
+
+### From a release archive
+
+When a release is published, download the `yolo-v*.zip` asset from the [Releases](https://github.com/kartikkabadi/chatgpt-yolo/releases) page, unzip it, and load the `yolo` folder as an unpacked extension:
+
+1. Open `chrome://extensions` in Chrome, Edge, Brave, Arc, or another Chromium browser.
+2. Enable **Developer mode**.
+3. Select **Load unpacked** and choose the unzipped `yolo` folder.
+4. Open or refresh a ChatGPT conversation.
 
 ## First run
 
@@ -177,6 +272,19 @@ Architecture and invariants are documented in [Architecture](docs/ARCHITECTURE.m
 Every release must pass automated validation and a manual unpacked-extension smoke pass against the current live ChatGPT interface. ChatGPT does not expose a stable public DOM contract, so selector compatibility cannot be guaranteed by unit tests alone.
 
 See [Releasing](docs/RELEASING.md) and [Troubleshooting](docs/TROUBLESHOOTING.md).
+
+## Support development
+
+YOLO is free and open source. Maintaining a browser extension against a changing third-party interface requires ongoing testing, compatibility fixes, and development tooling. If it saves you time, a $5 or $10 contribution helps keep the project maintained.
+
+**[Sponsor development](https://whop.com/vex-app/support-for-oss/)**
+
+You can also help by:
+
+- Starring the repository.
+- Reporting reproducible bugs with clear steps.
+- Contributing fixes and improvements.
+- Sharing the project with people who run long ChatGPT tasks.
 
 ## Contributing and security
 

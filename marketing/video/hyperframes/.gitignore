@@ -1,0 +1,17 @@
+# Marketing video tooling — never bundle into the extension runtime.
+node_modules/
+package-lock.json.bak
+
+# Downloaded browser binaries (fetched on demand via @puppeteer/browsers).
+chrome-headless-shell/
+.cache/
+.local-chromium/
+
+# HyperFrames working/output dirs.
+renders/
+.debug/
+.hyperframes/
+*.log
+
+# Temporary frame dumps (only curated frames/ samples are committed).
+tmp/

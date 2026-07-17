@@ -3,7 +3,7 @@
   "name": "YOLO for ChatGPT",
   "short_name": "YOLO",
   "version": "1.1.0",
-  "description": "Local-first Codex-style workflows, reliable queues, and bounded automation for ChatGPT.",
+  "description": "Local-first Chrome extension for reliable queues and bounded workflows in long ChatGPT conversations.",
   "homepage_url": "https://github.com/kartikkabadi/chatgpt-yolo",
   "minimum_chrome_version": "114",
   "permissions": [

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="YOLO">
+  <title>YOLO</title>
+  <!-- Source brand mark. Near-black rounded square with a bold "Y",
+       matching the extension's .brand-mark (styles.css): --primary #181817,
+       --primary-text #ffffff, moderate rounded corners. -->
+  <rect width="128" height="128" rx="34" fill="#181817"/>
+  <text x="64" y="66" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif"
+        font-size="76" font-weight="800" text-anchor="middle" dominant-baseline="central" letter-spacing="-1">Y</text>
+</svg>

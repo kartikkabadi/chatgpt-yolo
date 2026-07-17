@@ -1,0 +1,115 @@
+{
+  "images": [
+    {
+      "path": "docs/assets/hero.webp",
+      "role": "README hero",
+      "format": "webp",
+      "dimensions": "1536x864",
+      "size_budget_kb": 500,
+      "source": "marketing/image-production/render.py",
+      "alt": "YOLO for ChatGPT — a persistent instruction queue running alongside a long ChatGPT conversation."
+    },
+    {
+      "path": "docs/assets/social-preview.png",
+      "role": "GitHub social preview / Open Graph",
+      "format": "png",
+      "dimensions": "1280x640",
+      "size_budget_kb": 1024,
+      "source": "marketing/image-production/render.py",
+      "alt": "YOLO for ChatGPT — queue the next steps. Local-first, open source, no telemetry."
+    },
+    {
+      "path": "docs/assets/demo-poster.webp",
+      "role": "Video first-frame / README demo cover / X thumbnail",
+      "format": "webp",
+      "dimensions": "1920x1080",
+      "size_budget_kb": 500,
+      "source": "marketing/image-production/render.py",
+      "alt": "YOLO for ChatGPT demo — queue the next steps and run bounded workflows inside ChatGPT."
+    },
+    {
+      "path": "docs/assets/screenshot-queue.webp",
+      "role": "README screenshot — per-conversation queue",
+      "format": "webp",
+      "dimensions": "1440x900",
+      "size_budget_kb": 350,
+      "source": "marketing/capture/capture.mjs",
+      "alt": "YOLO popup showing a per-conversation queue with ordered instructions and a live queue count."
+    },
+    {
+      "path": "docs/assets/screenshot-command-palette.webp",
+      "role": "README screenshot — composer-native slash-action palette",
+      "format": "webp",
+      "dimensions": "1440x900",
+      "size_budget_kb": 350,
+      "source": "marketing/capture/capture.mjs",
+      "alt": "YOLO command palette listing slash actions such as /goal, /loop, /review, and /continue in the ChatGPT composer."
+    },
+    {
+      "path": "docs/assets/screenshot-workflow.webp",
+      "role": "README screenshot — bounded /goal or /loop workflow",
+      "format": "webp",
+      "dimensions": "1440x900",
+      "size_budget_kb": 350,
+      "source": "marketing/capture/capture.mjs",
+      "alt": "YOLO bounded workflow showing an objective, iteration progress, and Pause/Edit/Stop controls."
+    },
+    {
+      "path": "docs/assets/screenshot-github-workflow.webp",
+      "role": "README screenshot — optional GitHub-to-ChatGPT setup",
+      "format": "webp",
+      "dimensions": "1440x900",
+      "size_budget_kb": 350,
+      "source": "marketing/capture/capture.mjs",
+      "alt": "ChatGPT with the GitHub app connected while YOLO manages the queued follow-up prompts."
+    },
+    {
+      "path": "docs/assets/screenshot-settings.webp",
+      "role": "README screenshot — advanced settings",
+      "format": "webp",
+      "dimensions": "1440x900",
+      "size_budget_kb": 350,
+      "source": "marketing/capture/capture.mjs",
+      "alt": "YOLO Advanced settings page showing profiles, approvals off by default, and local data controls."
+    },
+    {
+      "path": "docs/assets/yolo-mark.svg",
+      "role": "Scalable brand mark",
+      "format": "svg",
+      "dimensions": "128x128 (scalable)",
+      "size_budget_kb": 1,
+      "source": "marketing/image-production/render.py",
+      "alt": "YOLO brand mark — a near-black rounded square with a bold Y."
+    }
+  ],
+  "videos": [
+    {
+      "path": "marketing/video/hyperframes/yolo-launch-16x9.mp4",
+      "role": "Primary 16:9 launch video",
+      "format": "mp4",
+      "dimensions": "1920x1080",
+      "duration_s": "35-45",
+      "fps": 30,
+      "codec": "h264",
+      "pix_fmt": "yuv420p",
+      "audio": false,
+      "faststart": true,
+      "size_budget_mb": 35,
+      "source": "marketing/video/hyperframes/index.html"
+    },
+    {
+      "path": "marketing/video/hyperframes/yolo-launch-square.mp4",
+      "role": "Square (1:1) launch video recomposition",
+      "format": "mp4",
+      "dimensions": "1080x1080",
+      "duration_s": "35-45",
+      "fps": 30,
+      "codec": "h264",
+      "pix_fmt": "yuv420p",
+      "audio": false,
+      "faststart": true,
+      "size_budget_mb": 35,
+      "source": "marketing/video/hyperframes/index.html (square composition)"
+    }
+  ]
+}
