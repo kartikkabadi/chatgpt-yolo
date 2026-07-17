@@ -214,12 +214,20 @@ test("advanced settings has searchable persistent section navigation", () => {
 });
 
 test("premium visual systems include focus, reduced motion, and responsive layouts", () => {
-  const popupCss = read("styles.css");
+  const themeCss = read("theme.css");
   const optionsCss = read("options.css");
-  for (const css of [popupCss, optionsCss]) {
-    assert.match(css, /:focus-visible/);
-    assert.match(css, /prefers-reduced-motion/);
-    assert.match(css, /--surface:/);
+  // Shared tokens, base resets, focus, and reduced motion live in theme.css.
+  assert.match(themeCss, /:focus-visible/);
+  assert.match(themeCss, /prefers-reduced-motion/);
+  assert.match(themeCss, /--surface:/);
+  // Each surface loads theme.css before its page-specific stylesheet.
+  for (const name of ["popup.html", "options.html", "onboarding.html"]) {
+    const html = read(name);
+    const themePos = html.search(/href="theme\.css"/);
+    const pageCss = name === "popup.html" ? /href="styles\.css"/ : name === "options.html" ? /href="options\.css"/ : /href="onboarding\.css"/;
+    const pagePos = html.search(pageCss);
+    assert.ok(themePos !== -1, `${name} must link theme.css`);
+    assert.ok(pagePos > themePos, `${name} must load theme.css before its page stylesheet`);
   }
   assert.match(optionsCss, /@media \(max-width: 680px\)/);
   assert.match(optionsCss, /position: sticky/);

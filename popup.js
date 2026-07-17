@@ -110,6 +110,7 @@
     els.status.textContent = "Unavailable";
     els.status.dataset.on = "false";
     els.scope.textContent = scopeMessage;
+    els.scope.title = scopeMessage;
     // Settings and templates are extension-owned and remain usable without a ChatGPT tab.
     els.manageTemplates.disabled = false;
     els.advanced.disabled = false;
@@ -318,7 +319,9 @@
     els.status.textContent = settings.enabled ? "Running" : "Paused";
     els.status.dataset.on = String(Boolean(settings.enabled));
     els.scope.textContent = `${contentState?.platform || "Chat"} · current conversation`;
+    els.scope.title = els.scope.textContent;
     els.lastAction.textContent = contentState?.lastAction?.message || "No activity yet";
+    els.lastAction.title = els.lastAction.textContent;
     els.sessionActions.textContent = String(runtime.sessionActionCount || 0);
     els.hourlyActions.textContent = String(
       (runtime.approvalCountLastHour || 0)
