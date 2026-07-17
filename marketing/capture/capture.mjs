@@ -257,12 +257,19 @@ async function buildQueueScene(scn) {
   ${foot}`;
 }
 
+// Nonce shared between the CSP meta and the capture script so the real
+// options.* scripts (which need Chrome extension APIs) are blocked while our
+// own populate script runs. This avoids parsing/sanitizing HTML with regex.
+const SETTINGS_NONCE = "yolo-capture";
+
 async function buildSettingsScene(scn) {
   let optionsHtml = await readFile(join(REPO_ROOT, "options.html"), "utf8");
   const optionsCss = fileUrl("options.css");
-  optionsHtml = optionsHtml
-    .replace(/<link rel="stylesheet" href="options\.css">/, `<link rel="stylesheet" href="${optionsCss}">`)
-    .replace(/<script[\s\S]*?<\/script>/g, "");
+  const csp = `<meta http-equiv="Content-Security-Policy" content="script-src 'nonce-${SETTINGS_NONCE}'">`;
+  optionsHtml = optionsHtml.replace(
+    '<link rel="stylesheet" href="options.css">',
+    `${csp}<link rel="stylesheet" href="${optionsCss}">`
+  );
 
   // Focused selection only: Overview (profiles), Approvals (off by default),
   // Safety (limits + always-on draft protection), Data (local data controls).
@@ -274,7 +281,7 @@ async function buildSettingsScene(scn) {
     .search-empty { display: none !important; }
   </style>`;
 
-  const populate = `<script>
+  const populate = `<script nonce="${SETTINGS_NONCE}">
     (function () {
       const KEEP = ${JSON.stringify([...KEEP])};
       for (const sec of document.querySelectorAll("[data-settings-section]")) {
