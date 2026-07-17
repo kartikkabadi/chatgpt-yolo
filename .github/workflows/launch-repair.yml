@@ -88,7 +88,18 @@ jobs:
           Path(".github/workflows/launch-repair.yml").unlink()
           PY
       - name: Validate repaired branch
-        run: npm run validate
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run validate 2>&1 | tee repaired-validation.txt
+      - name: Upload repaired validation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: repaired-validation
+          path: repaired-validation.txt
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Commit repaired branch
         shell: bash
         run: |
