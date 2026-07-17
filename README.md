@@ -278,7 +278,7 @@ See [Releasing](docs/RELEASING.md) and [Troubleshooting](docs/TROUBLESHOOTING.md
 
 ## Support development
 
-YOLO is free and open source. Maintaining a browser extension against a changing third-party interface requires ongoing testing, compatibility fixes, and development tooling. If it saves you time, a $5 or $10 contribution helps keep the project maintained.
+YOLO is free and open source. Maintaining a browser extension against a changing third-party interface requires ongoing testing, compatibility fixes, and development tooling. If it saves you time, a $5, $10, or $20 contribution helps keep the project maintained.
 
 **[Sponsor development](https://whop.com/vex-app/support-for-oss/)** — sponsorship is entirely optional and is never required to install or use YOLO.
 

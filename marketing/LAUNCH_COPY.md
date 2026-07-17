@@ -18,7 +18,7 @@ GitHub connects directly to ChatGPT; YOLO only manages the prompt queue and boun
 
 Install: clone the repo, run `npm run validate && npm run package`, then load `dist/yolo` as an unpacked extension. A release archive will be available once the first GitHub release is published.
 
-If YOLO saves you time, the repo has a Sponsor button—one-time $5 or $10 genuinely helps fund maintenance.
+If YOLO saves you time, the repo has a Sponsor button—one-time $5, $10, or $20 genuinely helps fund maintenance.
 
 Found a reproducible bug? Open an issue with steps and your browser/OS version.
 
@@ -62,7 +62,7 @@ YOLO for ChatGPT — queue the next steps and run bounded workflows in long Chat
 
 ## Sponsor follow-up
 
-If YOLO saves you time, there’s also a Sponsor button on the repo—one-time $5 or $10 genuinely helps fund ongoing maintenance. Totally optional; the extension stays free and open source.
+If YOLO saves you time, there’s also a Sponsor button on the repo—one-time $5, $10, or $20 genuinely helps fund ongoing maintenance. Totally optional; the extension stays free and open source.
 
 ## Video alt text
 
