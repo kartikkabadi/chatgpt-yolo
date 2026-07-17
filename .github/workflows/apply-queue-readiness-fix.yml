@@ -28,11 +28,34 @@ jobs:
         run: |
           python3 scripts/apply-queue-readiness-fix.py
           rm -f .queue-fix-trigger
+          git diff > /tmp/queue-readiness.patch
       - name: Validate final branch state
+        id: validate
+        shell: bash
         run: |
-          git diff --check
-          npm run validate:core
+          set +e
+          git diff --check 2>&1 | tee /tmp/diff-check.log
+          diff_status=${PIPESTATUS[0]}
+          npm run validate:core 2>&1 | tee /tmp/validation.log
+          validation_status=${PIPESTATUS[0]}
+          printf 'diff_status=%s\nvalidation_status=%s\n' "$diff_status" "$validation_status" > /tmp/status.txt
+          if [ "$diff_status" -ne 0 ] || [ "$validation_status" -ne 0 ]; then
+            exit 1
+          fi
+      - name: Preserve repair diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: queue-readiness-repair-diagnostics
+          path: |
+            /tmp/queue-readiness.patch
+            /tmp/diff-check.log
+            /tmp/validation.log
+            /tmp/status.txt
+          if-no-files-found: error
+          retention-days: 3
       - name: Commit repair
+        if: steps.validate.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
