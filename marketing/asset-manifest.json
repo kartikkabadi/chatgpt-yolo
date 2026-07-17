@@ -97,13 +97,14 @@
       "role": "Primary 16:9 launch video",
       "format": "mp4",
       "dimensions": "1920x1080",
-      "duration_s": "~40",
+      "duration_s": "44.5",
       "fps": 30,
       "codec": "h264",
       "pix_fmt": "yuv420p",
       "audio": false,
       "faststart": true,
       "size_budget_mb": 35,
+      "actual_size_mb": 8.1,
       "source": "marketing/video/hyperframes/index.html"
     },
     {
@@ -111,14 +112,15 @@
       "role": "Square (1:1) launch video recomposition",
       "format": "mp4",
       "dimensions": "1080x1080",
-      "duration_s": "~40",
+      "duration_s": "44.5",
       "fps": 30,
       "codec": "h264",
       "pix_fmt": "yuv420p",
       "audio": false,
       "faststart": true,
       "size_budget_mb": 35,
-      "source": "marketing/video/hyperframes/index.html (square composition)"
+      "actual_size_mb": 6.6,
+      "source": "marketing/video/hyperframes/square/index.html (square composition)"
     }
   ]
 }

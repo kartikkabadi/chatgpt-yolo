@@ -1,5 +1,6 @@
 {
-  "id": "chatgpt-yolo-hyperframes-spike",
-  "name": "chatgpt-yolo-hyperframes-spike",
-  "createdAt": "2026-07-17T04:07:14.299Z"
+  "id": "chatgpt-yolo-hyperframes-launch",
+  "name": "chatgpt-yolo-hyperframes-launch",
+  "description": "Full 7-scene YOLO for ChatGPT launch video (16:9 + square) rendered with HyperFrames.",
+  "createdAt": "2026-07-17T05:05:00.000Z"
 }
