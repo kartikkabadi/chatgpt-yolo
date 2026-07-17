@@ -800,7 +800,6 @@
   async function handleQueue(automatic = true) {
     if (state.actionInFlight || !state.platform) return false;
     if (automatic && (!automationReady() || !state.settings.queueAutoRunEnabled)) return false;
-    if (!automatic && (!state.loaded || !routeIsCurrent())) return false;
     if (!automatic) state.pendingManualQueueRetry = false;
 
     updateGenerationState();
@@ -810,6 +809,7 @@
       scheduleInputRetry(safety, automatic);
       return false;
     }
+    if (!automatic && !state.loaded) return false;
     if (!automatic) clearBlocked();
     if (automatic && now() < (state.runtime.nextQueueAt || 0)) return false;
 

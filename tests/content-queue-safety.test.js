@@ -10,6 +10,8 @@ test("queue handling uses granular readiness reasons and timed wakeups", () => {
   assert.match(source, /Lifecycle\.inputSafety\(/);
   assert.match(source, /scheduleInputRetry\(safety, automatic\)/);
   assert.match(source, /pendingManualQueueRetry && await handleQueue\(false\)/);
+  assert.doesNotMatch(source, /if \(!automatic && \(!state\.loaded \|\| !routeIsCurrent\(\)\)\) return false/);
+  assert.match(source, /if \(!automatic && !state\.loaded\) return false/);
   assert.doesNotMatch(
     source,
     /if \(!safeForInput\(\)\) \{\s*if \(!automatic\) await setBlocked\("queue\.composer_busy"/
