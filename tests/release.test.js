@@ -37,15 +37,17 @@ test("ordinary pull-request CI is immutable and read-only", () => {
   const ci = read(".github/workflows/ci.yml");
   assert.match(ci, /permissions:\s*\n\s*contents: read/);
   assert.doesNotMatch(ci, /git push|contents: write|release\/v1-open-source|\.apply-/);
-  assert.match(ci, /Validate on Node 20/);
-  assert.match(ci, /Validate on Node 24/);
+  assert.match(ci, /name: Validate on Node \$\{\{ matrix\.node-version \}\}/);
+  assert.match(ci, /node-version:\s*\n\s*- 20\s*\n\s*- 24/);
   assert.match(ci, /name: yolo-preview/);
 });
 
 test("release workflow validates tag identity and emits an archive checksum", () => {
   const release = read(".github/workflows/release.yml");
   assert.match(release, /test "\$GITHUB_REF_NAME" = "v\$\{version\}"/);
-  assert.match(release, /zip -X -rq/);
+  assert.match(release, /source_date_epoch=\$\(git log -1 --format=%ct\)/);
+  assert.match(release, /LC_ALL=C sort -z/);
+  assert.match(release, /zip -X -q/);
   assert.match(release, /sha256sum/);
   assert.match(release, /if-no-files-found: error/);
   assert.match(release, /gh release create/);

@@ -237,8 +237,9 @@ test("settings controller provides filtering, active navigation, and save-state 
 test("queue item controls are explicitly named and respect reorder boundaries", () => {
   const source = read("popup.js");
   assert.match(source, /button\.setAttribute\("aria-label", title\)/);
-  assert.match(source, /moveUp\.disabled = index === 0/);
-  assert.match(source, /moveDown\.disabled = index === items\.length - 1/);
+  assert.match(source, /moveUp\.disabled = hasWorkflowItem \|\| managed \|\| index === 0/);
+  assert.match(source, /moveDown\.disabled = hasWorkflowItem \|\| managed \|\| index === items\.length - 1/);
+  assert.match(source, /li\.draggable = !hasWorkflowItem/);
 });
 
 test("settings navigation preserves scope and respects reduced motion", () => {
@@ -280,6 +281,6 @@ test("slash actions expose only viable product semantics", () => {
   assert.match(commands, /name: "stop"[\s\S]*kind: "control"/);
   assert.match(runtime, /\["plan", "review", "fix", "handoff", "continue"\]/);
   assert.doesNotMatch(runtime, /name === "queue"|name === "clear"|"compact"/);
-  assert.match(readme, /not native ChatGPT or Codex commands/i);
+  assert.match(readme, /not native ChatGPT commands/i);
   assert.match(readme, /does \*\*not\*\* compact or alter ChatGPT context/i);
 });

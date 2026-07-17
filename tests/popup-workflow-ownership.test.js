@@ -8,8 +8,9 @@ const source = fs.readFileSync(path.join(__dirname, "..", "popup.js"), "utf8");
 test("popup visibly marks and disables workflow-owned queue mutations", () => {
   assert.match(source, /function workflowOwned\(item\)/);
   assert.match(source, /managed by workflow/);
-  assert.match(source, /moveUp\.disabled = managed/);
-  assert.match(source, /moveDown\.disabled = managed/);
+  assert.match(source, /moveUp\.disabled = hasWorkflowItem \|\| managed/);
+  assert.match(source, /moveDown\.disabled = hasWorkflowItem \|\| managed/);
+  assert.match(source, /li\.draggable = !hasWorkflowItem/);
   assert.match(source, /edit\.disabled = managed/);
   assert.match(source, /remove\.disabled = managed/);
   assert.match(source, /els\.clearQueue\.disabled = busy \|\| items\.length === 0 \|\| hasWorkflowItem/);

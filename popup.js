@@ -217,7 +217,7 @@
       li.dataset.id = item.id;
       li.dataset.state = item.state;
       li.dataset.workflowOwned = String(managed);
-      li.draggable = !managed && item.state !== "sending" && !busy;
+      li.draggable = !hasWorkflowItem && !managed && item.state !== "sending" && !busy;
 
       const drag = itemButton("⋮⋮", managed ? "Workflow-managed message" : "Drag to reorder", () => {}, "drag-handle");
       drag.setAttribute("aria-label", managed ? "Workflow-managed queued message" : "Drag queued message");
@@ -265,18 +265,18 @@
       const moveDown = itemButton("↓", "Move down", () => reorderQueue(moveOrder(item.id, 1)));
       const edit = itemButton("Edit", managed ? "Edit the active workflow instead" : "Edit message", () => beginEdit(item));
       const remove = itemButton("×", managed ? "Stop the active workflow instead" : "Remove message", () => removeItem(item.id), "danger");
-      moveUp.disabled = managed || index === 0;
-      moveDown.disabled = managed || index === items.length - 1;
+      moveUp.disabled = hasWorkflowItem || managed || index === 0;
+      moveDown.disabled = hasWorkflowItem || managed || index === items.length - 1;
       edit.disabled = managed;
       remove.disabled = managed;
       actions.append(moveUp, moveDown, edit, remove);
       if (busy || item.state === "sending") {
         for (const button of actions.querySelectorAll("button")) button.disabled = true;
         drag.disabled = true;
-      } else if (managed) drag.disabled = true;
+      } else if (managed || hasWorkflowItem) drag.disabled = true;
 
       li.append(drag, copy, actions);
-      if (!managed) {
+      if (!managed && !hasWorkflowItem) {
         li.addEventListener("dragstart", (event) => {
           draggedId = item.id;
           li.classList.add("dragging");

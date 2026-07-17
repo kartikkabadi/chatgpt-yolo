@@ -80,7 +80,7 @@ test("data background exports and imports without touching live automation", asy
   storage.yoloGlobal = { queueLimitPerHour: 11 };
   storage[`yoloPage:${encodeURIComponent(pageId)}`] = { enabled: true };
   storage.yoloTemplatesV1 = [{ id: "one", name: "One", text: "template text" }];
-  storage.yoloQueuesV1 = { [pageId]: { items: [{ text: "QUEUE-SECRET" }] };
+  storage.yoloQueuesV1 = { [pageId]: { items: [{ text: "QUEUE-SECRET" }] } };
   storage[`yoloWorkflow:${encodeURIComponent(pageId)}`] = { objective: "WORKFLOW-SECRET" };
 
   const exported = await invoke({ type: "YOLODATA_EXPORT" });
@@ -142,7 +142,7 @@ test("imports delete stale page overrides while preserving live automation state
   const stalePage = "https://chatgpt.com/c/stale-import";
   storage.yoloPageSettings = { [stalePage]: { enabled: true } };
   storage[`yoloPage:${encodeURIComponent(stalePage)}`] = { enabled: true };
-  storage.yoloQueuesV1 = { [stalePage]: { items: [{ text: "KEEP-QUEUE" }] };
+  storage.yoloQueuesV1 = { [stalePage]: { items: [{ text: "KEEP-QUEUE" }] } };
   const value = backup();
   const previewToken = await preview(invoke, value);
   const response = await invoke({ type: "YOLODATA_IMPORT_APPLY", backup: JSON.stringify(value), previewToken });
