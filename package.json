@@ -15,7 +15,10 @@
     "test": "node --test",
     "verify:extension": "node scripts/verify-extension.mjs",
     "package": "node scripts/package.mjs",
-    "validate": "npm run check && npm test && npm run verify:extension && node scripts/package.mjs --check && node scripts/validate-asset-manifest.mjs && node scripts/no-bare-installs.mjs"
+    "validate:core": "npm run check && npm test && npm run verify:extension && node scripts/package.mjs --check && node scripts/no-bare-installs.mjs",
+    "validate:assets": "node scripts/validate-asset-manifest.mjs",
+    "validate": "npm run validate:core && npm run validate:assets",
+    "validate:all": "npm run validate"
   },
   "engines": {
     "node": ">=20"

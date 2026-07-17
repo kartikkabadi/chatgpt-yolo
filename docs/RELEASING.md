@@ -3,7 +3,7 @@
 ## Automated gate
 
 1. Update `CHANGELOG.md` and ensure `config.js`, `manifest.json`, and `package.json` use the same version.
-2. Run `npm run validate` on Node 20 or newer.
+2. Run `npm run validate:core` on Node 20 or newer.
 3. Confirm `npm run verify:extension` reports the narrow public-extension boundary.
 4. Review the `manifest.json` diff explicitly. New hosts, permissions, optional permissions, remote code, or non-extension runtime surfaces require a separate architecture and security review.
 5. Run `npm run package` and inspect the exact files under `dist/yolo`.

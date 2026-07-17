@@ -19,7 +19,7 @@ The committed images and videos in `docs/assets/` and `marketing/video/hyperfram
 
 ```bash
 # Validate extension (no marketing tooling required)
-npm run validate
+npm run validate:core
 
 # Verify final video integrity
 cd marketing/video/hyperframes

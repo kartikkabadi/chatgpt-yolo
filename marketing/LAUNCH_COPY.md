@@ -1,32 +1,35 @@
 # Launch copy — YOLO for ChatGPT
 
-## Recommended launch post
+## Recommended X launch post (≤ 280 characters)
 
-ChatGPT is great at long tasks—until you have to keep coming back just to say “continue,” “review it,” or “run the tests.”
+ChatGPT is great at long tasks—until you have to keep nudging it. I built YOLO, a free open-source Chrome extension that adds a durable prompt queue and bounded workflows to ChatGPT. Queue the next steps and stay in control.
 
-I built YOLO: an open-source Chrome extension that adds a reliable prompt queue and bounded workflows to ChatGPT.
+github.com/kartikkabadi/chatgpt-yolo
 
-Queue the next steps, walk away, and stay in control.
+## X reply thread
 
-→ github.com/kartikkabadi/chatgpt-yolo
-
-## First reply
-
-Best coding setup: connect the GitHub app in ChatGPT, grant only the repo you want, then use YOLO to queue the sequence—inspect → implement → test → review → summarize.
-
-GitHub connects directly to ChatGPT; YOLO only manages the prompt queue and bounded workflow.
+Reply 1 — Install from the release:
 
 Install from the v1.1.0 release:
+1. Download yolo-v1.1.0.zip from github.com/kartikkabadi/chatgpt-yolo/releases/tag/v1.1.0
+2. Optional: gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+3. Unzip and load `yolo` at chrome://extensions (Developer mode).
 
-1. Download `yolo-v1.1.0.zip` from the [v1.1.0 release](https://github.com/kartikkabadi/chatgpt-yolo/releases/tag/v1.1.0).
-2. Optionally verify the attestation: `gh attestation verify yolo-v1.1.0.zip --owner kartikkabadi`.
-3. Unzip and load `yolo` as an unpacked extension at `chrome://extensions` (Developer mode → Load unpacked).
+Reply 2 — Or build from source:
 
-Developers can also build from source: `npm run validate && npm run package`, then load `dist/yolo`.
+Or build from source:
+git clone github.com/kartikkabadi/chatgpt-yolo.git
+cd chatgpt-yolo
+npm run validate:core && npm run package
+Then load `dist/yolo` unpacked at chrome://extensions.
 
-If YOLO saves you time, the repo has a Sponsor button—one-time $5, $10, or $20 genuinely helps fund maintenance.
+Reply 3 — Privacy and scope:
 
-Found a reproducible bug? Open an issue with steps and your browser/OS version.
+YOLO's settings, queues, templates, and workflow state stay in `chrome.storage.local`. YOLO has no hosted backend and no telemetry. It only manages your prompt queue and bounded `/goal` or `/loop` workflows inside ChatGPT.
+
+Reply 4 — Sponsor and bug reports:
+
+If YOLO saves you time, the repo has a Sponsor button—one-time $5, $10, or $20 helps fund maintenance. Bugs: open a GitHub issue with steps and your browser/OS version. github.com/kartikkabadi/chatgpt-yolo/issues
 
 ## Shorter punchier alternative
 
@@ -34,7 +37,7 @@ Stop babysitting long ChatGPT tasks. YOLO queues the next steps and runs bounded
 
 ## Technical / open-source alternative
 
-YOLO is a local-first, MIT-licensed Chrome extension that adds a durable instruction queue and bounded `/goal` / `/loop` workflows to ChatGPT. Everything stays in `chrome.storage.local`; no backend, no telemetry, no remote code. If you want deterministic control over long, iterative prompts, it is built for you.
+YOLO is a local-first, MIT-licensed Chrome extension that adds a durable instruction queue and bounded `/goal` / `/loop` workflows to ChatGPT. YOLO's settings, queues, templates, and workflow state stay in `chrome.storage.local`; YOLO has no hosted backend, no telemetry, and no remote code. If you want deterministic control over long, iterative prompts, it is built for you.
 
 ## Hacker News title and submission text
 
@@ -52,7 +55,7 @@ Long ChatGPT tasks shouldn’t need you to keep coming back to say “continue.�
 
 ## Reddit version
 
-I made a free, open-source Chrome extension called YOLO for ChatGPT. It lets you queue follow-up instructions and run bounded `/goal` or `/loop` workflows so you don’t have to babysit long ChatGPT sessions. Everything is local; no backend or telemetry.
+I made a free, open-source Chrome extension called YOLO for ChatGPT. It lets you queue follow-up instructions and run bounded `/goal` or `/loop` workflows so you don’t have to babysit long ChatGPT sessions. YOLO's settings, queues, templates, and workflow state stay local in `chrome.storage.local`; YOLO has no hosted backend and no telemetry.
 
 ## Repository description
 

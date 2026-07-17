@@ -8,7 +8,8 @@
 
 ## Validation
 
-- [ ] `npm run validate`
+- [ ] `npm run validate:core`
+- [ ] `npm run validate:assets` (when changing marketing assets)
 - [ ] `npm run package`
 - [ ] Manual unpacked-extension smoke test when DOM/UI behavior changed
 - [ ] No remote code, telemetry, or unnecessary host access

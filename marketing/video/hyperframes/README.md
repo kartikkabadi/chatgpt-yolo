@@ -1,6 +1,6 @@
 # HyperFrames — YOLO for ChatGPT launch video
 
-This directory contains the final, vendored source for the *YOLO for ChatGPT* launch video (Visual Direction A, Storyboard A).
+This directory contains the final, vendored source for the *YOLO for ChatGPT* launch video.
 
 | Output | Composition | Dimensions | Notes |
 | --- | --- | --- | --- |
@@ -32,4 +32,4 @@ Product-truth guarantees enforced by the composition:
 - The end card states *"Independent project. Not affiliated with OpenAI."* — no OpenAI endorsement is implied anywhere.
 - No audio track; the cut is designed to read fully muted.
 
-Verification artifacts live in `marketing/renders/` (contact sheet + per-scene / per-transition frame samples) and alongside the videos (`*.ffprobe.json`, `SHA256SUMS.txt`).
+Verification artifacts live alongside the videos (`*.ffprobe.json`, `SHA256SUMS.txt`) and in `marketing/renders/contact-sheet.png`.

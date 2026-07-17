@@ -44,7 +44,7 @@ YOLO adds four layers to ChatGPT:
 3. **Safety controls** for approvals, recovery, nudges, stale tabs, and ambiguous delivery.
 4. **A focused interface** that keeps everyday actions simple and moves detailed controls into Advanced settings.
 
-Everything runs in the browser. Settings, queues, templates, and workflow state are stored in `chrome.storage.local`.
+The extension runs entirely in your browser. YOLO's settings, queues, templates, and workflow state are stored in `chrome.storage.local`. Queued prompts are sent to ChatGPT through the normal composer, just as if you typed them.
 
 ### Highlights
 
@@ -156,7 +156,7 @@ gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
 ```bash
 git clone https://github.com/kartikkabadi/chatgpt-yolo.git
 cd chatgpt-yolo
-npm run validate
+npm run validate:core
 npm run package
 ```
 
@@ -264,7 +264,7 @@ Requirements: Node.js 20 or newer. There are no npm dependencies.
 npm run check
 npm test
 npm run verify:extension
-npm run validate
+npm run validate:core
 npm run package
 ```
 

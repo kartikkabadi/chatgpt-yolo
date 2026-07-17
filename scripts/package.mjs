@@ -71,6 +71,14 @@ export async function packageExtension() {
     await mkdir(path.dirname(destination), { recursive: true });
     await copyFile(path.join(root, relative), destination);
   }
+  // Ship a release README without broken relative image / docs links.
+  const releaseReadme = path.join(root, "README.release.md");
+  try {
+    await access(releaseReadme);
+    await copyFile(releaseReadme, path.join(output, "README.md"));
+  } catch {
+    // fall back to the repository README
+  }
   return output;
 }
 

@@ -8,7 +8,7 @@ Read [Product direction](docs/PRODUCT_DIRECTION.md) before proposing substantial
 
 1. Open or reference an issue for substantial behavior changes.
 2. Keep the change focused; do not mix UI redesign, queue semantics, and automation policy in one PR.
-3. Run `npm run validate`.
+3. Run `npm run validate:core`.
 4. Run `npm run package` and confirm `dist/yolo` contains only allowlisted runtime files.
 5. Smoke-test the unpacked extension when changing ChatGPT selectors or browser behavior.
 6. Include screenshots for UI changes and describe storage, permission, compatibility, and migration impact.

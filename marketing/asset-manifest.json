@@ -12,7 +12,7 @@
       "sha256": "88712221f1584d9fe12ead2e0664222526ef122bc1e203fc3a41c546b9a4a1a5",
       "source": "Extension design system (popup.html, styles.css, options.css) rendered through a Playwright/Pillow pipeline",
       "generated_by": "Playwright + Pillow render of staged HTML",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "YOLO for ChatGPT — a persistent instruction queue running alongside a long ChatGPT conversation."
     },
@@ -26,7 +26,7 @@
       "sha256": "0ddcc6188c5ab99b13fbbc0f0a532c4eb5bb5eb23b5933a03ec37d92d817f68c",
       "source": "Extension design system rendered through a Playwright/Pillow pipeline",
       "generated_by": "Playwright + Pillow render of staged HTML",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "YOLO for ChatGPT — queue the next steps. Local-first, open source, no telemetry."
     },
@@ -40,7 +40,7 @@
       "sha256": "e079628027989002aaac3185939d046316ac6b817e96befef5fc5fd1ce9800b9",
       "source": "Extension design system rendered through a Playwright/Pillow pipeline",
       "generated_by": "Playwright + Pillow render of staged HTML",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "YOLO for ChatGPT demo — queue the next steps and run bounded workflows inside ChatGPT."
     },
@@ -54,7 +54,7 @@
       "sha256": "15badadcddbd5fc6fcc605722f3a099871451e707e08ecbce11655c185951fa2",
       "source": "popup.html, styles.css, options.css (extension design system)",
       "generated_by": "Node/Playwright capture of staged extension markup",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "YOLO popup showing a per-conversation queue with ordered instructions and a live queue count."
     },
@@ -68,7 +68,7 @@
       "sha256": "5c298e10c29d7d2c77331e40f55263ced5d9d66870238a4b9b2085be235f1628",
       "source": "popup.html, styles.css, options.css, commands.js",
       "generated_by": "Node/Playwright capture of staged extension markup",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "YOLO command palette listing slash actions such as /goal, /loop, /review, and /continue in the ChatGPT composer."
     },
@@ -82,7 +82,7 @@
       "sha256": "b99370261e152e9d2dccdb01f081c1c8ceeb8e5ac6bb95b0a0bf9a73a837d840",
       "source": "popup.html, styles.css, options.css",
       "generated_by": "Node/Playwright capture of staged extension markup",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "YOLO bounded workflow showing an objective, iteration progress, and Pause/Edit/Stop controls."
     },
@@ -96,7 +96,7 @@
       "sha256": "b021955d3c3b3a5bfefdbdc8a2fd0e8a3eb288eb37620c86d8c9f6dade5e2915",
       "source": "popup.html, styles.css, options.css",
       "generated_by": "Node/Playwright capture of staged extension markup",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "ChatGPT with the GitHub app connected while YOLO manages the queued follow-up prompts."
     },
@@ -110,7 +110,7 @@
       "sha256": "89a391fa9f47d38f95e88371841f7ca0f43bdee734f64fdd3849868832bbde19",
       "source": "options.html, options.css, styles.css",
       "generated_by": "Node/Playwright capture of staged extension markup",
-      "generation_command": "Committed final asset (generation source archived separately)",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": true,
       "alt": "YOLO Advanced settings page showing profiles, approvals off by default, and local data controls."
     },
@@ -138,7 +138,7 @@
       "sha256": "99bcf583d644d60a1792e3a55a9a98f5f7228a3fd9ddbad235000ff9790aae12",
       "source": "Brand mark source file",
       "generated_by": "copied as-is",
-      "generation_command": "Committed final asset",
+      "generation_command": "Committed final asset. The staging/render pipeline was intentionally discarded after verification; only the optimized asset and its verification metadata are retained.",
       "staged": false,
       "alt": "YOLO brand mark — a near-black rounded square with a bold Y."
     }
@@ -160,7 +160,7 @@
       "sha256": "21d7c13125bc1645bb51e18f0b35062693391fd15aeb5ae106d7923a50efa9b3",
       "source": "marketing/video/hyperframes/index.html",
       "generated_by": "HyperFrames CLI (hyperframes render . --output yolo-launch-16x9.mp4 --fps 30 --quality high)",
-      "generation_command": "Committed final asset (source HTML provided for transparency)",
+      "generation_command": "Committed final asset. The source HTML is retained in this directory for transparency; the offline renderer is not part of the extension build or trusted computing base.",
       "staged": true,
       "dependencies": "vendor/gsap.min.js, vendor/TextPlugin.min.js, launch.css"
     },
@@ -180,7 +180,7 @@
       "sha256": "5f2cbbec5907a82bf7a70f5d8416185830039b635799500483c7320b8cd86830",
       "source": "marketing/video/hyperframes/square/index.html",
       "generated_by": "HyperFrames CLI (hyperframes render square --output yolo-launch-square.mp4 --fps 30 --quality high)",
-      "generation_command": "Committed final asset (source HTML provided for transparency)",
+      "generation_command": "Committed final asset. The source HTML is retained in this directory for transparency; the offline renderer is not part of the extension build or trusted computing base.",
       "staged": true,
       "dependencies": "vendor/gsap.min.js, vendor/TextPlugin.min.js, square/square.css"
     }

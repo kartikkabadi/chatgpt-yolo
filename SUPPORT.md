@@ -8,7 +8,7 @@ YOLO is community-maintained open-source software.
 2. Reload the extension at `chrome://extensions`.
 3. Refresh the ChatGPT tab.
 4. Confirm the problem still occurs with the Safe profile.
-5. Run `npm run validate` when using a source checkout.
+5. Run `npm run validate:core` when using a source checkout.
 
 Use GitHub Issues for reproducible bugs and feature proposals. Include the YOLO version, Chromium version, operating system, steps, and relevant visible error text. Do not post conversation contents, credentials, tokens, or private repository information.
 

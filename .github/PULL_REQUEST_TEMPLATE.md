@@ -8,7 +8,8 @@
 
 ## Verification
 
-- [ ] `npm run validate`
+- [ ] `npm run validate:core`
+- [ ] `npm run validate:assets` (when changing marketing assets)
 - [ ] `npm run package`
 - [ ] Loaded `dist/yolo` as an unpacked extension
 - [ ] Tested on a saved ChatGPT conversation (`/c/...`)

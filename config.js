@@ -307,7 +307,8 @@
       const host = parsed.hostname.toLowerCase();
       const defaultPort = parsed.port === "" || parsed.port === "443";
       const allowedHost = host === "chatgpt.com" || host.endsWith(".chatgpt.com");
-      return parsed.protocol === "https:" && defaultPort && parsed.username === "" && allowedHost;
+      const noUserInfo = parsed.username === "" && parsed.password === "";
+      return parsed.protocol === "https:" && defaultPort && noUserInfo && allowedHost;
     } catch {
       return false;
     }

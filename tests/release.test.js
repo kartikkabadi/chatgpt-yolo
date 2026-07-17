@@ -37,7 +37,8 @@ test("ordinary pull-request CI is immutable and read-only", () => {
   const ci = read(".github/workflows/ci.yml");
   assert.match(ci, /permissions:\s*\n\s*contents: read/);
   assert.doesNotMatch(ci, /git push|contents: write|release\/v1-open-source|\.apply-/);
-  assert.match(ci, /name: Validate on Node \$\{\{ matrix\.node-version \}\}/);
+  assert.match(ci, /name: Validate core on Node \$\{\{ matrix\.node-version \}\}/);
+  assert.match(ci, /name: Validate marketing assets/);
   assert.match(ci, /node-version:\s*\n\s*- 20\s*\n\s*- 24/);
   assert.match(ci, /name: yolo-preview/);
 });

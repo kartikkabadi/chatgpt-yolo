@@ -39,6 +39,8 @@ test("supports only HTTPS ChatGPT URLs on default ports", () => {
   assert.equal(Config.isSupportedUrl("http://chatgpt.com/c/one"), false);
   assert.equal(Config.isSupportedUrl("http://chatgpt.com:443/c/one"), false);
   assert.equal(Config.isSupportedUrl("https://user@chatgpt.com/c/one"), false);
+  assert.equal(Config.isSupportedUrl("https://:secret@chatgpt.com/c/one"), false);
+  assert.equal(Config.isSupportedUrl("https://user:secret@chatgpt.com/c/one"), false);
   assert.equal(Config.isSupportedUrl("https://grok.com/"), false);
   assert.equal(Config.isSupportedUrl("https://example.com/"), false);
   assert.equal(Config.isSupportedUrl("https://notchatgpt.com/"), false);
