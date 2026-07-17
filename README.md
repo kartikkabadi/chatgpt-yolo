@@ -127,9 +127,12 @@ A bounded `/goal` or `/loop` can wrap the iterative middle of this sequence so i
 
 <a id="demo"></a>
 
-[![Watch the YOLO demo](docs/assets/demo-poster.webp)](docs/assets/demo-poster.webp)
+<video controls poster="docs/assets/demo-poster.webp" width="100%">
+  <source src="marketing/video/hyperframes/yolo-launch-16x9.mp4" type="video/mp4">
+</video>
 
-A short walkthrough of queuing the next steps and running a bounded workflow inside a long ChatGPT conversation.
+A 40-second walkthrough of queuing the next steps and running a bounded workflow inside a long ChatGPT conversation.  
+[Download 16:9 MP4](marketing/video/hyperframes/yolo-launch-16x9.mp4) · [Download 1:1 square MP4](marketing/video/hyperframes/yolo-launch-square.mp4)
 
 ---
 
@@ -277,7 +280,7 @@ See [Releasing](docs/RELEASING.md) and [Troubleshooting](docs/TROUBLESHOOTING.md
 
 YOLO is free and open source. Maintaining a browser extension against a changing third-party interface requires ongoing testing, compatibility fixes, and development tooling. If it saves you time, a $5 or $10 contribution helps keep the project maintained.
 
-**[Sponsor development](https://whop.com/vex-app/support-for-oss/)**
+**[Sponsor development](https://whop.com/vex-app/support-for-oss/)** — sponsorship is entirely optional and is never required to install or use YOLO.
 
 You can also help by:
 

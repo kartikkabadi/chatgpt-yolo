@@ -7,7 +7,7 @@ All notable changes are documented here.
 - Reaffirmed YOLO as a browser-only ChatGPT extension and documented the product boundary, non-goals, roadmap, and success measures.
 - Rebuilt README information architecture with a clearer hook, primary actions, GitHub-to-ChatGPT setup guidance, and sponsorship presentation.
 - Added launch visual assets, video storyboard, and distribution copy under `marketing/` and `docs/assets/`.
-- Removed public-facing "Codex-style" wording from the manifest and onboarding to preserve the independent-project boundary.
+- Removed public-facing third-party coding-assistant wording from the manifest and onboarding to preserve the independent-project boundary.
 - Added automated release verification for narrow permissions/hosts, local-only packaged files, no remote or dynamic code, and no CLI/agent/server/native-messaging surfaces.
 - Stabilized CI, CodeQL, package artifacts, and tagged GitHub releases on maintained GitHub Actions versions with timeouts and concurrency controls.
 - Improved public issue forms, pull-request review guidance, code ownership, contribution rules, README disclosures, and the manual release smoke checklist.

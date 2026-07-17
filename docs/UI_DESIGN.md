@@ -1,4 +1,4 @@
-# Codex-style UI design contract
+# UI design contract
 
 This branch redesigns YOLO's popup and Advanced settings surfaces without changing queue semantics, automation policy, or background ownership.
 
