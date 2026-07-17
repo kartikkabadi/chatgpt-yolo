@@ -2,30 +2,16 @@
 # Paths are relative to this directory. Verify: sha256sum -c SHA256SUMS.txt
 #
 # --- Launch video deliverables (final 16:9 + square) ---
-348dfa603e9acae16523c0fcab8bc3d536e4a3d4fb0dc4bc31c93dd9e7c57c01  yolo-launch-16x9.mp4
-9194b3ea1197991197ed51cfcde72781817102b7619be2304861fe4d2b4c6e31  yolo-launch-16x9.ffprobe.json
-43538401b40ac9ca6cbcb483842c746ba0dbd3b3c63078b03dccaba901ea2f31  yolo-launch-square.mp4
-ab9bece25256c827feeb270378d1b2283683cc94c2a02a567d75ea9985d6183b  yolo-launch-square.ffprobe.json
-e9075feb0b15cf7d4445b13031be779f4afbe762f8bc918c5a6df755b87403f0  index.html
+21d7c13125bc1645bb51e18f0b35062693391fd15aeb5ae106d7923a50efa9b3  yolo-launch-16x9.mp4
+68ed2a1d8789bd25f75fceb822db251b47bbe806fc7adcb4792b87f0997f9217  yolo-launch-16x9.ffprobe.json
+5f2cbbec5907a82bf7a70f5d8416185830039b635799500483c7320b8cd86830  yolo-launch-square.mp4
+91928f1d49d08ae743d3e2be336875a855c0085058cf32c4341679180ddd8e92  yolo-launch-square.ffprobe.json
+6ec6706a35524c8e604f519f07e1a62530ae26df95d0ecd3e8dd9eb2f573e5cf  index.html
 fda2722ae8225717ffc3f239150ee9bc7ac2db5696cfbc24b1088cf654e37ffa  launch.css
-28ff0b6172cdf45c4e1da246f901be7b232bca5e48280db7fc1581abdb451b9e  square/index.html
+73ff16598cab9f943f67cda53ec8e6c7de242de69a65070bc40f606846c38264  square/index.html
 35f04bef898d4782bb30bb949e8f613d0cd2973bf0721cd5277da6f039c013e5  square/square.css
 c174bfce53a729418d57a8ad8625e7247c793a22fef8e2851e3cfa3de9cd8280  vendor/gsap.min.js
 14f3898c5e985cd5d985918e2368813d35e9629da4884f05d03bb3d0d10f170f  vendor/TextPlugin.min.js
 #
-# --- Render verification artifacts (marketing/renders) ---
-4dbf02945c7d9f309f2a5b4e8f62492ef07b742166ad778956c85e04db14658a  ../../renders/contact-sheet.png
-28a4b14c27d071a5e61141039024dfab69584db154ff63a437602b78aaf6afe4  ../../renders/frame-samples/00-first-frame-0.00s.png
-89b190dfa1e23fdd182383d9daa8b8a683105aba0a44c588eb7abfb600cb32f8  ../../renders/frame-samples/01-scene1-problem-2.00s.png
-9cd66247b98a7c5f794ae6a039ffe280ab69626d011f346cf55c7b575e0132df  ../../renders/frame-samples/02-transition-s1-s2-4.00s.png
-9b153725dc971929d7f6a3d05c8fe2306bc8c856aaf6319eb21e76b991804b1d  ../../renders/frame-samples/03-scene2-queue-8.00s.png
-2bd9f3a9d03820aa4552e21b0a746fe8a6f6f9defc1c99d47ac47e8704d1ee56  ../../renders/frame-samples/04-transition-s2-s3-12.00s.png
-4a204f0fd386192bb2f45cc180339417a175d4d7dff341e91e8a7ca8a123005d  ../../renders/frame-samples/05-scene3-composer-17.50s.png
-22908821aeb30fc74929848e1b1970bfeacbdd9efd69ba3adfde5d0271df216c  ../../renders/frame-samples/06-transition-s3-s4-19.00s.png
-83cc0fff406367907c6a7f6fe92bf8308029952c40df42087d6fd1c8a2a0beed  ../../renders/frame-samples/07-scene4-bounded-25.00s.png
-6acce994bcc7e6731b784aff8b960a6cfa05c2d5fbe695f4668e9b91661380b2  ../../renders/frame-samples/08-transition-s4-s5-28.00s.png
-eb0cbe7b6ca16effb8a220d95affa0ff1a88055fb69ba523f903be9bfef0f194  ../../renders/frame-samples/09-scene5-github-33.00s.png
-ae578ccc79bae021bd412d7284ac933a30387e13f31d02fa3d7252e4f843fe91  ../../renders/frame-samples/10-transition-s5-s6-35.00s.png
-6c12eaa70b081465c469f41fb7c500661ba526b70fe52b6ae90e745ba834f37d  ../../renders/frame-samples/11-scene6-reliability-37.50s.png
-6745d77af681f26f9d5502a6970efa850c1e0de8ebfb01cad7de445643ebf9f1  ../../renders/frame-samples/12-transition-s6-s7-40.00s.png
-438ce2aedb459a599de4f82a008314e1852d0f6b7631e893e1666f16c2947b6a  ../../renders/frame-samples/13-scene7-endcard-43.00s.png
+# --- Render verification artifact (marketing/renders/contact-sheet.png) ---
+c28f1b826fb1c730a336f63c3c042ae53bdcdb51ae69ae1bbff5c13554c8dfa8  ../../renders/contact-sheet.png

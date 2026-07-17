@@ -16,7 +16,13 @@ Best coding setup: connect the GitHub app in ChatGPT, grant only the repo you wa
 
 GitHub connects directly to ChatGPT; YOLO only manages the prompt queue and bounded workflow.
 
-Install: clone the repo, run `npm run validate && npm run package`, then load `dist/yolo` as an unpacked extension. A release archive will be available once the first GitHub release is published.
+Install from the v1.1.0 release:
+
+1. Download `yolo-v1.1.0.zip` from the [v1.1.0 release](https://github.com/kartikkabadi/chatgpt-yolo/releases/tag/v1.1.0).
+2. Optionally verify the attestation: `gh attestation verify yolo-v1.1.0.zip --owner kartikkabadi`.
+3. Unzip and load `yolo` as an unpacked extension at `chrome://extensions` (Developer mode → Load unpacked).
+
+Developers can also build from source: `npm run validate && npm run package`, then load `dist/yolo`.
 
 If YOLO saves you time, the repo has a Sponsor button—one-time $5, $10, or $20 genuinely helps fund maintenance.
 

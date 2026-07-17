@@ -10,10 +10,21 @@ This is the exact sequence for Kartik to publish the launch once the final PR is
 - [ ] Confirm the GitHub-app section wording is acceptable.
 - [ ] Confirm sponsor copy matches the live Whop page.
 
-## Merge and tag
+## Merge and live smoke test
 
-- [ ] Merge the PR into `main`.
-- [ ] Push the release tag: `git tag v1.1.0 && git push origin v1.1.0`.
+- [ ] Merge the PR into `main` on the explicit reviewed merge commit.
+- [ ] Pull `main` locally and run a live smoke test:
+  - Load the `dist/yolo` extension from a local `npm run validate && npm run package` build.
+  - Open `https://chatgpt.com` and confirm the YOLO popup mounts, the queue can be added/reordered, and a `/loop` workflow runs and pauses as expected.
+  - Confirm no extension console errors in the background/page context.
+  - If the smoke test fails, do **not** tag; open a follow-up issue and fix before release.
+- [ ] Only after the live smoke test passes, tag the exact reviewed merge commit:
+  ```bash
+  git fetch origin
+  git checkout origin/main
+  git tag v1.1.0 $(git rev-parse HEAD)
+  git push origin v1.1.0
+  ```
 - [ ] The `release.yml` workflow will build `yolo-v1.1.0.zip`, generate `SHA256SUMS`, and create the GitHub release.
 - [ ] Download the generated `yolo-v1.1.0.zip`, verify the SHA-256 checksum, and verify the GitHub artifact attestation:
   ```bash

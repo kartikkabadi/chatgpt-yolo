@@ -12,10 +12,8 @@ The committed images and videos in `docs/assets/` and `marketing/video/hyperfram
 - `LAUNCH_CHECKLIST.md` — Exact publish sequence for the owner.
 - `REPO_METADATA.md` — Final description, topics, homepage, social preview instructions, and `gh` commands.
 - `asset-manifest.json` — Inventory, SHA-256, provenance, and specs for every launch asset.
-- `visual-direction-a/` — Selected visual direction concept art.
-- `storyboard-a/` — Detailed scene breakdown for the final storyboard.
 - `video/` — Framework decision record and final HyperFrames source/MP4s.
-- `renders/` — Contact sheet and representative frame samples for review.
+- `renders/` — Contact sheet for visual review.
 
 ## Verification
 

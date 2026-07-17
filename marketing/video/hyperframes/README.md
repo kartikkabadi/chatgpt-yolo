@@ -20,18 +20,6 @@ ffprobe -v quiet -print_format json -show_streams -show_format yolo-launch-16x9.
 ffprobe -v quiet -print_format json -show_streams -show_format yolo-launch-square.mp4
 ```
 
-## Re-render (optional)
-
-To reproduce the videos, install [HyperFrames](https://github.com/hyperframes/hyperframes) (or run `npx hyperframes@0.7.46` with Node ≥ 22 and FFmpeg/Chromium available) and run the equivalent of:
-
-```bash
-npx hyperframes lint .
-npx hyperframes render . --output yolo-launch-16x9.mp4 --fps 30 --quality high
-npx hyperframes render square --output yolo-launch-square.mp4 --fps 30 --quality high
-```
-
-The final assets are committed so the extension repository does not require any marketing tooling to build, package, or install.
-
 ## Provenance & staged-capture disclosure
 
 Every on-screen surface is **staged from the real extension's design system** — the design tokens, component structure, slash-command copy (`commands.js`), and queue/workflow labels (`popup.html`) are copied from the product so the video reflects true product states. The scenes are **rendered HTML mockups**, not screen recordings of a live ChatGPT session, and the conversations shown are **invented demo scenarios** — no live ChatGPT capture, no real account, and no private or personal data are used.

@@ -6,7 +6,7 @@
 **Square cut:** 1080 × 1080 real recomposition, not a blind crop  
 **Audio:** optional; video must be fully understandable muted
 
-See the full scene-by-scene breakdown, copy, motion notes, and risk assessment in `marketing/storyboard-a/STORYBOARD.md`. The summary below is the single source of truth for the final render.
+The summary below is the single source of truth for the final render.
 
 ## Scene summary
 

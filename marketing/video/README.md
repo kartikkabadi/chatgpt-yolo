@@ -25,11 +25,11 @@ All final renders live in `marketing/video/hyperframes/`:
 - `SHA256SUMS.txt` — integrity hashes.
 - `index.html` / `launch.css` / `square/` / `vendor/` — final, vendored composition source.
 
-The committed MP4s are the canonical final assets. The source HTML is provided for transparency and optional re-render with the HyperFrames CLI; the extension build does not depend on it.
+The committed MP4s are the canonical final assets. The source HTML is provided for transparency; the extension build does not depend on it.
 
 ## Storyboard
 
-See `marketing/storyboard-a/STORYBOARD.md` for the detailed scene breakdown.
+See `marketing/STORYBOARD.md` for the selected scene summary.
 
 ## Verification
 

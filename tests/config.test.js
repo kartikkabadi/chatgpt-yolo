@@ -30,21 +30,27 @@ test("normalizes conversation URLs into stable page IDs", () => {
   assert.equal(Config.pageId("https://chatgpt.com/"), "https://chatgpt.com/");
 });
 
-test("supports only HTTPS ChatGPT URLs", () => {
+test("supports only HTTPS ChatGPT URLs on default ports", () => {
   assert.equal(Config.isSupportedUrl("https://chatgpt.com/c/one"), true);
   assert.equal(Config.isSupportedUrl("https://team.chatgpt.com/c/one"), true);
+  assert.equal(Config.isSupportedUrl("https://chatgpt.com:443/c/one"), true);
+  assert.equal(Config.isSupportedUrl("https://chatgpt.com:8443/c/one"), false);
+  assert.equal(Config.isSupportedUrl("https://team.chatgpt.com:9999/c/one"), false);
   assert.equal(Config.isSupportedUrl("http://chatgpt.com/c/one"), false);
   assert.equal(Config.isSupportedUrl("http://chatgpt.com:443/c/one"), false);
+  assert.equal(Config.isSupportedUrl("https://user@chatgpt.com/c/one"), false);
   assert.equal(Config.isSupportedUrl("https://grok.com/"), false);
   assert.equal(Config.isSupportedUrl("https://example.com/"), false);
   assert.equal(Config.isSupportedUrl("https://notchatgpt.com/"), false);
 });
 
-test("rejects non-HTTPS ChatGPT URLs as durable page IDs", () => {
+test("rejects non-HTTPS or non-default-port ChatGPT URLs as durable page IDs", () => {
   assert.equal(Config.isDurablePageId("http://chatgpt.com/c/abc"), false);
   assert.equal(Config.isDurablePageId("https://chatgpt.com/c/abc"), true);
-  assert.equal(Config.isDurablePageId("https://chatgpt.com/"), false);
+  assert.equal(Config.isDurablePageId("https://chatgpt.com/c/abc?x=1"), false);
   assert.equal(Config.isDurablePageId("https://chatgpt.com/c/abc#section"), false);
+  assert.equal(Config.isDurablePageId("https://chatgpt.com:8443/c/abc"), false);
+  assert.equal(Config.isDurablePageId("https://chatgpt.com/"), false);
 });
 
 test("enforces hourly and session action limits with reason codes", () => {

@@ -115,6 +115,20 @@
       "alt": "YOLO Advanced settings page showing profiles, approvals off by default, and local data controls."
     },
     {
+      "path": "marketing/renders/contact-sheet.png",
+      "role": "Visual review contact sheet for the final launch video",
+      "format": "png",
+      "dimensions": "1944x1104",
+      "size_budget_kb": 3072,
+      "actual_size_kb": 2924,
+      "sha256": "c28f1b826fb1c730a336f63c3c042ae53bdcdb51ae69ae1bbff5c13554c8dfa8",
+      "source": "marketing/video/hyperframes/yolo-launch-16x9.mp4",
+      "generated_by": "ffmpeg frame extraction + ImageMagick montage",
+      "generation_command": "Generated on demand from the final MP4",
+      "staged": true,
+      "alt": "3x3 contact sheet of representative frames from the YOLO for ChatGPT launch video."
+    },
+    {
       "path": "docs/assets/yolo-mark.svg",
       "role": "Scalable brand mark",
       "format": "svg",
@@ -143,10 +157,10 @@
       "faststart": true,
       "size_budget_mb": 35,
       "actual_size_mb": 8.1,
-      "sha256": "348dfa603e9acae16523c0fcab8bc3d536e4a3d4fb0dc4bc31c93dd9e7c57c01",
+      "sha256": "21d7c13125bc1645bb51e18f0b35062693391fd15aeb5ae106d7923a50efa9b3",
       "source": "marketing/video/hyperframes/index.html",
       "generated_by": "HyperFrames CLI (hyperframes render . --output yolo-launch-16x9.mp4 --fps 30 --quality high)",
-      "generation_command": "Committed final asset (source HTML provided for optional re-render with the HyperFrames CLI)",
+      "generation_command": "Committed final asset (source HTML provided for transparency)",
       "staged": true,
       "dependencies": "vendor/gsap.min.js, vendor/TextPlugin.min.js, launch.css"
     },
@@ -162,11 +176,11 @@
       "audio": false,
       "faststart": true,
       "size_budget_mb": 35,
-      "actual_size_mb": 6.6,
-      "sha256": "43538401b40ac9ca6cbcb483842c746ba0dbd3b3c63078b03dccaba901ea2f31",
+      "actual_size_mb": 6.7,
+      "sha256": "5f2cbbec5907a82bf7a70f5d8416185830039b635799500483c7320b8cd86830",
       "source": "marketing/video/hyperframes/square/index.html",
       "generated_by": "HyperFrames CLI (hyperframes render square --output yolo-launch-square.mp4 --fps 30 --quality high)",
-      "generation_command": "Committed final asset (source HTML provided for optional re-render with the HyperFrames CLI)",
+      "generation_command": "Committed final asset (source HTML provided for transparency)",
       "staged": true,
       "dependencies": "vendor/gsap.min.js, vendor/TextPlugin.min.js, square/square.css"
     }
