@@ -14,6 +14,8 @@
   const HIDDEN_MUTATION_DEBOUNCE_MS = 1_500;
   const HIDDEN_GENERATING_MUTATION_DEBOUNCE_MS = 5_000;
   const HYDRATION_QUIET_MS = 1_500;
+  const INPUT_SETTLE_MS = 1_500;
+  const POST_GENERATION_HOLD_MS = 15_000;
   const MARKER_RESPONSE_STABLE_MS = 15_000;
   const MISSING_MARKER_RESPONSE_STABLE_MS = 3 * 60 * 60 * 1_000;
   const REFRESH_QUIET_MS = 60_000;
@@ -49,6 +51,86 @@
     return now - Math.max(0, finite(lastDomActivityAt, 0)) >= HYDRATION_QUIET_MS;
   }
 
+  function inputSafety({
+    routeCurrent = false,
+    durablePage = false,
+    composerPresent = false,
+    hydrated = false,
+    hydrationRetryAfterMs = 0,
+    workflowAwaitingResponse = false,
+    generating = false,
+    generationHoldUntil = 0,
+    lastDomActivityAt = 0,
+    composerBusy = false,
+    now = Date.now(),
+    settleMs = INPUT_SETTLE_MS
+  } = {}) {
+    const timestamp = finite(now, Date.now());
+    const blocked = (code, reason, retryAfterMs = 0) => ({
+      safe: false,
+      code,
+      reason,
+      retryAfterMs: Math.max(0, finite(retryAfterMs, 0))
+    });
+
+    if (!routeCurrent) {
+      return blocked("route.not_current", "Conversation navigation is in progress");
+    }
+    if (!durablePage) {
+      return blocked("route.invalid", "Open a saved ChatGPT conversation before sending queued prompts");
+    }
+    if (!composerPresent) {
+      return blocked("queue.composer_missing", "The message composer is not available yet");
+    }
+    if (!hydrated) {
+      return blocked("hydration.pending", "Page elements are still loading", hydrationRetryAfterMs);
+    }
+    if (workflowAwaitingResponse) {
+      return blocked("workflow.waiting", "Workflow is waiting for ChatGPT to respond");
+    }
+    if (generating) {
+      return blocked("queue.generating", "The chat is still generating");
+    }
+
+    const holdRemaining = Math.max(0, finite(generationHoldUntil, 0) - timestamp);
+    if (holdRemaining > 0) {
+      return blocked(
+        "queue.generating_cooldown",
+        `Waiting for post-generation cooldown (${Math.ceil(holdRemaining / 1000)}s remaining)`,
+        holdRemaining
+      );
+    }
+
+    const settleRemaining = Math.max(
+      0,
+      Math.max(0, finite(lastDomActivityAt, 0))
+        + Math.max(0, finite(settleMs, INPUT_SETTLE_MS))
+        - timestamp
+    );
+    if (settleRemaining > 0) {
+      return blocked("queue.dom_cooldown", "Waiting for page layout to settle", settleRemaining);
+    }
+    if (composerBusy) {
+      return blocked("queue.composer_busy", "The composer contains a draft");
+    }
+    return { safe: true, code: "", reason: "", retryAfterMs: 0 };
+  }
+
+  function nextGenerationHoldUntil({
+    wasGenerating = false,
+    generating = false,
+    currentHoldUntil = 0,
+    now = Date.now(),
+    holdMs = POST_GENERATION_HOLD_MS
+  } = {}) {
+    const timestamp = finite(now, Date.now());
+    const current = Math.max(0, finite(currentHoldUntil, 0));
+    if (wasGenerating && !generating) {
+      return Math.max(current, timestamp + Math.max(0, finite(holdMs, POST_GENERATION_HOLD_MS)));
+    }
+    return current;
+  }
+
   function canAutomaticRefresh({
     hydrated = false,
     workflowActive = false,
@@ -71,6 +153,8 @@
     HIDDEN_ACTIVE_WORKFLOW_POLL_MS,
     HIDDEN_IDLE_WORKFLOW_POLL_MS,
     HYDRATION_QUIET_MS,
+    INPUT_SETTLE_MS,
+    POST_GENERATION_HOLD_MS,
     MARKER_RESPONSE_STABLE_MS,
     MISSING_MARKER_RESPONSE_STABLE_MS,
     REFRESH_QUIET_MS,
@@ -80,6 +164,8 @@
     workflowPollDelay,
     responseStableMs,
     hydrationCandidate,
+    inputSafety,
+    nextGenerationHoldUntil,
     canAutomaticRefresh,
     shouldProtectTab
   });

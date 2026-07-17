@@ -38,3 +38,92 @@ test("only explicitly enabled running workflows are protected from discard", () 
   assert.equal(Lifecycle.shouldProtectTab({ enabled: false, workflowStatus: "running" }), false);
   assert.equal(Lifecycle.shouldProtectTab({ enabled: true, workflowStatus: "completed" }), false);
 });
+
+
+test("input safety reports the actual blocker instead of a generic draft error", () => {
+  const base = {
+    routeCurrent: true,
+    durablePage: true,
+    composerPresent: true,
+    hydrated: true,
+    workflowAwaitingResponse: false,
+    generating: false,
+    generationHoldUntil: 0,
+    lastDomActivityAt: 0,
+    composerBusy: false,
+    now: 10_000
+  };
+
+  assert.equal(Lifecycle.inputSafety({ ...base, routeCurrent: false }).code, "route.not_current");
+  assert.equal(Lifecycle.inputSafety({ ...base, durablePage: false }).code, "route.invalid");
+  assert.equal(Lifecycle.inputSafety({ ...base, composerPresent: false }).code, "queue.composer_missing");
+  assert.deepEqual(
+    Lifecycle.inputSafety({ ...base, hydrated: false, hydrationRetryAfterMs: 700 }),
+    {
+      safe: false,
+      code: "hydration.pending",
+      reason: "Page elements are still loading",
+      retryAfterMs: 700
+    }
+  );
+  assert.equal(Lifecycle.inputSafety({ ...base, workflowAwaitingResponse: true }).code, "workflow.waiting");
+  assert.equal(Lifecycle.inputSafety({ ...base, generating: true }).code, "queue.generating");
+  assert.equal(Lifecycle.inputSafety({ ...base, composerBusy: true }).code, "queue.composer_busy");
+  assert.deepEqual(Lifecycle.inputSafety(base), {
+    safe: true,
+    code: "",
+    reason: "",
+    retryAfterMs: 0
+  });
+});
+
+test("input safety returns exact retry delays for timed blockers", () => {
+  const base = {
+    routeCurrent: true,
+    durablePage: true,
+    composerPresent: true,
+    hydrated: true,
+    workflowAwaitingResponse: false,
+    generating: false,
+    composerBusy: false,
+    now: 10_000
+  };
+
+  const generation = Lifecycle.inputSafety({
+    ...base,
+    generationHoldUntil: 12_500,
+    lastDomActivityAt: 0
+  });
+  assert.equal(generation.code, "queue.generating_cooldown");
+  assert.equal(generation.retryAfterMs, 2_500);
+  assert.match(generation.reason, /3s remaining/);
+
+  const dom = Lifecycle.inputSafety({
+    ...base,
+    generationHoldUntil: 0,
+    lastDomActivityAt: 9_500
+  });
+  assert.equal(dom.code, "queue.dom_cooldown");
+  assert.equal(dom.retryAfterMs, 1_000);
+});
+
+test("post-generation hold starts on the active-to-idle transition only", () => {
+  assert.equal(
+    Lifecycle.nextGenerationHoldUntil({
+      wasGenerating: false,
+      generating: true,
+      currentHoldUntil: 0,
+      now: 10_000
+    }),
+    0
+  );
+  assert.equal(
+    Lifecycle.nextGenerationHoldUntil({
+      wasGenerating: true,
+      generating: false,
+      currentHoldUntil: 0,
+      now: 10_000
+    }),
+    25_000
+  );
+});
