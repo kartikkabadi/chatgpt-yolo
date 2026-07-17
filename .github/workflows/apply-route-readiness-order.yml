@@ -24,6 +24,7 @@ jobs:
       - name: Apply and stage focused fix
         run: |
           python3 scripts/apply-route-readiness-order.py
+          rm -f .route-order-trigger
           git checkout HEAD -- .github/workflows/apply-route-readiness-order.yml
           git add -A
           git diff --cached --check
