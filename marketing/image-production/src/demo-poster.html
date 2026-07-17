@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { width: 1920px; height: 1080px; position: relative; overflow: hidden; background: var(--canvas); }
+  .stage { position: absolute; inset: 0; padding: 64px 80px 0; display: flex; flex-direction: column; }
+
+  /* Top brand + trust row */
+  .top { display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand .mark { width: 56px; height: 56px; font-size: 26px; border-radius: 16px; }
+  .brand b { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+  .brand span { font-size: 17px; color: var(--text-faint); font-weight: 600; margin-left: 7px; }
+  .trust { display: inline-flex; align-items: center; gap: 11px; font-family: var(--mono); font-size: 15px; color: var(--text-soft);
+           background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 10px 18px; box-shadow: 0 8px 24px rgba(20,20,18,.05); }
+  .trust .sep { color: var(--border-strong); }
+
+  /* Product surface backdrop */
+  .surface { position: relative; flex: 1; margin: 42px 0 0; }
+  .device { position: absolute; inset: 0 0 -160px; display: grid; grid-template-columns: 1fr 470px; gap: 24px;
+            filter: saturate(1); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 22px 22px 0 0;
+          box-shadow: 0 -1px 0 rgba(255,255,255,.4), 0 30px 70px rgba(20,20,18,.10); overflow: hidden; display: flex; flex-direction: column; }
+
+  .conv-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+  .conv-id { display: flex; align-items: center; gap: 11px; }
+  .conv-glyph { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-hover);
+                color: var(--text-soft); font-weight: 700; font-size: 14px; border: 1px solid var(--border); }
+  .conv-id b { font-size: 16px; font-weight: 700; }
+  .chip { display: inline-flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--text-soft);
+          background: var(--surface-raised); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; }
+  .chip .lbl { color: var(--text-faint); }
+  .chip .sep { color: var(--border-strong); }
+  .conv-body { padding: 28px 30px; display: flex; flex-direction: column; gap: 18px; }
+  .bubble-user { align-self: flex-end; max-width: 74%; background: var(--primary); color: var(--primary-text);
+                 border-radius: 16px 16px 5px 16px; padding: 15px 20px; font-size: 16px; line-height: 1.45; }
+  .bubble-ai { align-self: flex-start; max-width: 88%; background: var(--surface-raised); border: 1px solid var(--border);
+               border-radius: 16px 16px 16px 5px; padding: 18px 20px; }
+  .bubble-ai h4 { margin: 0 0 9px; font-size: 16px; font-weight: 700; }
+  .bubble-ai ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 7px; }
+  .bubble-ai li { font-size: 15px; color: var(--text-soft); line-height: 1.4; }
+  .receipt { display: flex; align-items: center; gap: 13px; color: var(--text-faint); font-size: 13.5px; margin-top: 2px; }
+  .receipt::before, .receipt::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .receipt span { font-family: var(--mono); }
+
+  .yolo-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+  .yolo-brand { display: flex; align-items: center; gap: 11px; }
+  .yolo-brand .mark { width: 32px; height: 32px; font-size: 16px; border-radius: 10px; }
+  .yolo-brand b { font-size: 17px; font-weight: 800; }
+  .badge-run { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--success);
+               background: var(--success-soft); border-radius: 999px; padding: 6px 13px; }
+  .workflow { padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 11px; }
+  .wf-kicker { font-size: 13px; color: var(--text-faint); }
+  .wf-kicker b { color: var(--text-soft); font-family: var(--mono); }
+  .wf-obj { font-size: 17px; font-weight: 700; }
+  .wf-turn { display: flex; align-items: center; gap: 13px; }
+  .wf-turn span { font-size: 13.5px; color: var(--text-soft); white-space: nowrap; font-weight: 650; }
+  .wf-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--surface-hover); overflow: hidden; }
+  .wf-bar i { display: block; height: 100%; width: 40%; background: var(--success); }
+  .wf-controls { display: flex; gap: 9px; }
+  .wf-controls button { font-size: 14px; font-weight: 700; border-radius: 9px; padding: 8px 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text-soft); }
+  .wf-controls .stop { color: var(--danger); }
+  .q-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px 12px; }
+  .q-head b { font-size: 16px; font-weight: 700; }
+  .q-head span { font-size: 13.5px; color: var(--text-faint); }
+  ol { list-style: none; margin: 0; padding: 0; }
+  .qi { display: grid; grid-template-columns: 28px 1fr auto; gap: 11px; align-items: start; padding: 14px 20px; border-top: 1px solid var(--border); }
+  .qn { font-family: var(--mono); font-size: 13.5px; color: var(--text-faint); padding-top: 1px; }
+  .qt { font-size: 15.5px; font-weight: 650; line-height: 1.3; margin-bottom: 6px; }
+  .qs { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-faint); }
+  .qs.on { color: var(--success); font-weight: 700; }
+  .qcmd { font-family: var(--mono); font-size: 12.5px; color: var(--text-soft); background: var(--surface-hover);
+          border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; }
+
+  /* Cinematic scrim + title + play affordance */
+  .scrim { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(246,246,244,0) 34%, rgba(246,246,244,.72) 60%, var(--canvas) 82%); pointer-events: none; }
+  .overlay { position: absolute; left: 80px; right: 80px; bottom: 72px; display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; }
+  .title-block { max-width: 1150px; }
+  .eyebrow { font-family: var(--mono); font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 14px; }
+  .headline { font-size: 78px; font-weight: 800; letter-spacing: -0.035em; line-height: 0.98; }
+  .subline { font-size: 24px; color: var(--text-soft); margin-top: 18px; max-width: 900px; line-height: 1.35; }
+  .play { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .play-btn { width: 116px; height: 116px; border-radius: 50%; background: var(--primary); display: grid; place-items: center;
+              box-shadow: 0 24px 60px rgba(20,20,18,.22); }
+  .play-btn::after { content: ""; width: 0; height: 0; border-style: solid; border-width: 22px 0 22px 38px;
+                     border-color: transparent transparent transparent var(--primary-text); margin-left: 8px; }
+  .play-lbl { font-family: var(--mono); font-size: 14px; color: var(--text-faint); letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="stage">
+    <div class="top">
+      <div class="brand"><div class="mark">Y</div><div><b>YOLO</b><span>for ChatGPT</span></div></div>
+      <div class="trust"><span class="dot running"></span>Local-first <span class="sep">·</span> Open source <span class="sep">·</span> No telemetry</div>
+    </div>
+
+    <div class="surface">
+      <div class="device">
+        <div class="card">
+          <div class="conv-head">
+            <div class="conv-id"><span class="conv-glyph">C</span><b>ChatGPT</b></div>
+            <div class="chip"><span class="dot running"></span><span class="lbl">Optional</span><span class="sep">·</span>GitHub app connected to ChatGPT</div>
+          </div>
+          <div class="conv-body">
+            <div class="bubble-user">Audit this repository, fix the top reliability gaps one by one, validate, and stop when complete.</div>
+            <div class="bubble-ai">
+              <h4>Reviewed the queue delivery path. Three reliability gaps stand out:</h4>
+              <ul>
+                <li>Duplicate send when a response is edited mid-delivery</li>
+                <li>No fail-closed guard on ambiguous delivery state</li>
+                <li>Draft text can be overwritten on resume</li>
+              </ul>
+            </div>
+            <div class="receipt"><span>YOLO delivered next step · 02:41</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="yolo-head">
+            <div class="yolo-brand"><span class="mark">Y</span><b>YOLO</b></div>
+            <span class="badge-run"><span class="dot running"></span>Running</span>
+          </div>
+          <div class="workflow">
+            <div class="wf-kicker">Bounded workflow · <b>/goal</b></div>
+            <div class="wf-obj">Fix reliability gaps, then stop</div>
+            <div class="wf-turn"><span>Turn 2 of 5</span><div class="wf-bar"><i></i></div></div>
+            <div class="wf-controls"><button>Pause</button><button>Edit</button><button class="stop">Stop</button></div>
+          </div>
+          <div class="q-head"><b>Queue</b><span>4 queued</span></div>
+          <ol>
+            <li class="qi"><span class="qn">01</span><div><div class="qt">Fix the duplicate-send edge case.</div><span class="qs on"><span class="dot running"></span>Sending</span></div><span class="qcmd">/fix</span></li>
+            <li class="qi"><span class="qn">02</span><div><div class="qt">Run the complete validation suite.</div><span class="qs"><span class="dot queued"></span>Queued</span></div><span class="qcmd">/loop</span></li>
+            <li class="qi"><span class="qn">03</span><div><div class="qt">Review the final diff for regressions.</div><span class="qs"><span class="dot queued"></span>Queued</span></div><span class="qcmd">/review</span></li>
+          </ol>
+        </div>
+      </div>
+      <div class="scrim"></div>
+    </div>
+
+    <div class="overlay">
+      <div class="title-block">
+        <div class="eyebrow">Product demo · 42 sec</div>
+        <div class="headline">Stop babysitting long<br>ChatGPT tasks.</div>
+        <div class="subline">Queue the next steps and run bounded workflows inside ChatGPT.</div>
+      </div>
+      <div class="play"><div class="play-btn"></div><div class="play-lbl">Watch the demo</div></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { width: 1280px; height: 640px; position: relative; overflow: hidden; }
+  /* Opaque background — no transparency for social preview. */
+  .frame { position: absolute; inset: 0; background: var(--canvas); }
+  .inner { position: absolute; inset: 30px; border: 1px solid var(--border); border-radius: 24px; background:
+           radial-gradient(120% 120% at 0% 0%, #ffffff 0%, var(--canvas) 55%); overflow: hidden; }
+  .stage { position: absolute; inset: 0; padding: 56px 64px; display: grid; grid-template-columns: 1fr 620px; gap: 48px; align-items: center; }
+
+  .left { display: flex; flex-direction: column; gap: 22px; }
+  .lock { display: flex; align-items: center; gap: 16px; }
+  .lock .mark { width: 64px; height: 64px; font-size: 30px; border-radius: 18px; }
+  .lock-copy b { display: block; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  .lock-copy span { font-size: 16px; color: var(--text-faint); font-weight: 600; }
+  .kicker { font-family: var(--mono); font-size: 13px; letter-spacing: 0.14em; color: var(--text-faint); text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+  .kicker .d { width: 4px; height: 4px; border-radius: 50%; background: var(--border-strong); }
+  .headline { font-size: 74px; font-weight: 800; letter-spacing: -0.035em; line-height: 0.98; margin: 2px 0; }
+  .descr { font-size: 20px; line-height: 1.4; color: var(--text-soft); max-width: 480px; }
+  .trust { align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono);
+           font-size: 15px; color: var(--text-soft); background: var(--surface); border: 1px solid var(--border);
+           border-radius: 999px; padding: 10px 18px; box-shadow: 0 8px 24px rgba(20,20,18,.05); }
+  .trust .sep { color: var(--border-strong); }
+
+  /* Queue crop */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+           box-shadow: 0 24px 56px rgba(20,20,18,.10); overflow: hidden; }
+  .p-strip { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .p-strip .l { display: flex; align-items: center; gap: 8px; color: var(--text-faint); }
+  .p-strip .l b { color: var(--text); font-weight: 700; }
+  .p-strip .l .ct { color: var(--text-soft); font-weight: 650; }
+  .p-strip .l .bar { width: 1px; height: 14px; background: var(--border); }
+  .p-strip .hint { font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
+  .q-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px 12px; }
+  .q-head b { font-size: 15px; font-weight: 700; }
+  .q-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-faint); }
+  .q-head .acts { display: flex; gap: 8px; }
+  .q-head .acts button { font-size: 12.5px; font-weight: 700; border: 1px solid var(--border); background: var(--surface-raised);
+                         color: var(--text-soft); border-radius: 8px; padding: 6px 12px; }
+  ol { list-style: none; margin: 0; padding: 0 0 6px; }
+  .qi { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start; padding: 13px 18px; border-top: 1px solid var(--border); }
+  .qn { font-family: var(--mono); font-size: 12.5px; color: var(--text-faint); padding-top: 1px; }
+  .qm { display: flex; flex-direction: column; gap: 6px; }
+  .qt { font-size: 14.5px; font-weight: 650; line-height: 1.3; }
+  .qs { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-faint); }
+  .qs.on { color: var(--success); font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="inner">
+      <div class="grid-bg"></div>
+      <div class="stage">
+        <div class="left">
+          <div class="lock">
+            <div class="mark">Y</div>
+            <div class="lock-copy"><b>YOLO</b><span>for ChatGPT</span></div>
+          </div>
+          <div class="kicker">Chrome extension <span class="d"></span> Manifest V3</div>
+          <div class="headline">Queue the<br>next steps.</div>
+          <div class="descr">Reliable instruction queues and bounded workflows for long ChatGPT conversations.</div>
+          <div class="trust"><span class="dot running"></span>Local-first <span class="sep">·</span> Open source <span class="sep">·</span> No telemetry</div>
+        </div>
+
+        <div class="panel">
+          <div class="p-strip">
+            <div class="l"><span>Mode</span><b>Balanced</b><span class="bar"></span><span class="ct">4 queued</span></div>
+            <span class="hint">⌘/Ctrl ↵ queue</span>
+          </div>
+          <div class="q-head">
+            <div><b>Queue</b><p>Ordered work for this conversation</p></div>
+            <div class="acts"><button>Pause</button><button>Send next</button></div>
+          </div>
+          <ol>
+            <li class="qi"><span class="qn">01</span><div class="qm"><div class="qt">Review the implementation for concrete edge cases.</div><span class="qs on"><span class="dot running"></span>Sending</span></div><span class="cmd">/review</span></li>
+            <li class="qi"><span class="qn">02</span><div class="qm"><div class="qt">Run the complete validation suite.</div><span class="qs"><span class="dot queued"></span>Queued</span></div><span class="cmd">/loop</span></li>
+            <li class="qi"><span class="qn">03</span><div class="qm"><div class="qt">Fix any reproducible failures.</div><span class="qs"><span class="dot queued"></span>Queued</span></div><span class="cmd">/fix</span></li>
+            <li class="qi"><span class="qn">04</span><div class="qm"><div class="qt">Summarize what changed and what remains.</div><span class="qs"><span class="dot queued"></span>Queued</span></div><span class="cmd">/handoff</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

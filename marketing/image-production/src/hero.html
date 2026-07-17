@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { width: 1536px; height: 864px; position: relative; overflow: hidden; }
+  .stage { position: absolute; inset: 0; padding: 44px 56px; display: flex; flex-direction: column; gap: 26px; }
+
+  /* Masthead */
+  .masthead { display: flex; align-items: center; gap: 16px; }
+  .masthead .mark { width: 52px; height: 52px; font-size: 22px; border-radius: 14px; }
+  .mh-copy { display: flex; flex-direction: column; gap: 3px; }
+  .mh-title { display: flex; align-items: baseline; gap: 9px; }
+  .mh-title b { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+  .mh-title span { font-size: 16px; color: var(--text-faint); font-weight: 600; }
+  .mh-sub { font-size: 15px; color: var(--text-soft); }
+
+  .panels { flex: 1; display: grid; grid-template-columns: 1fr 500px; gap: 26px; min-height: 0; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+          box-shadow: 0 1px 0 rgba(255,255,255,.4), 0 20px 48px rgba(20,20,18,.07); overflow: hidden;
+          display: flex; flex-direction: column; }
+
+  /* Conversation card */
+  .conv-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .conv-id { display: flex; align-items: center; gap: 10px; }
+  .conv-glyph { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+                background: var(--surface-hover); color: var(--text-soft); font-weight: 700; font-size: 13px; border: 1px solid var(--border); }
+  .conv-id b { font-size: 15px; font-weight: 700; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-soft);
+          background: var(--surface-raised); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; }
+  .chip .lbl { color: var(--text-faint); }
+  .chip .sep { color: var(--border-strong); }
+
+  .conv-body { flex: 1; padding: 24px 26px; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .bubble-user { align-self: flex-end; max-width: 78%; background: var(--primary); color: var(--primary-text);
+                 border-radius: 16px 16px 5px 16px; padding: 14px 18px; font-size: 15px; line-height: 1.45; }
+  .bubble-ai { align-self: flex-start; max-width: 90%; background: var(--surface-raised); border: 1px solid var(--border);
+               border-radius: 16px 16px 16px 5px; padding: 16px 18px; }
+  .bubble-ai h4 { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
+  .bubble-ai ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .bubble-ai li { font-size: 14px; color: var(--text-soft); line-height: 1.4; }
+
+  .receipt { display: flex; align-items: center; gap: 12px; color: var(--text-faint); font-size: 12.5px; margin: 2px 0; }
+  .receipt::before, .receipt::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .receipt span { font-family: var(--mono); }
+
+  .composer { margin: 4px 26px 24px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-raised);
+              display: flex; align-items: center; gap: 14px; padding: 14px 16px; }
+  .composer .txt { flex: 1; font-family: var(--mono); font-size: 14.5px; color: var(--text); }
+  .composer .txt b { color: var(--success); }
+  .composer .txt .muted { color: var(--text-faint); }
+  .composer .action-lbl { font-size: 10.5px; font-weight: 800; letter-spacing: 0.09em; color: var(--text-faint);
+                          border: 1px solid var(--border); border-radius: 7px; padding: 6px 9px; background: var(--surface); }
+  .composer .queue-btn { background: var(--primary); color: var(--primary-text); font-weight: 700; font-size: 14px;
+                         border-radius: 9px; padding: 9px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+  /* YOLO panel card */
+  .yolo-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .yolo-brand { display: flex; align-items: center; gap: 10px; }
+  .yolo-brand .mark { width: 30px; height: 30px; font-size: 15px; border-radius: 9px; }
+  .yolo-brand b { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .badge-run { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700;
+               color: var(--success); background: var(--success-soft); border-radius: 999px; padding: 5px 11px; }
+
+  .workflow { padding: 16px 18px 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  .wf-kicker { font-size: 12px; color: var(--text-faint); }
+  .wf-kicker b { color: var(--text-soft); font-weight: 700; font-family: var(--mono); }
+  .wf-obj { font-size: 15.5px; font-weight: 700; }
+  .wf-turn { display: flex; align-items: center; gap: 12px; }
+  .wf-turn span { font-size: 12.5px; color: var(--text-soft); white-space: nowrap; font-weight: 650; }
+  .wf-bar { flex: 1; height: 7px; border-radius: 999px; background: var(--surface-hover); overflow: hidden; }
+  .wf-bar i { display: block; height: 100%; width: 40%; background: var(--success); border-radius: 999px; }
+  .wf-controls { display: flex; gap: 8px; margin-top: 2px; }
+  .wf-controls button { font-size: 13px; font-weight: 700; border-radius: 9px; padding: 7px 14px; border: 1px solid var(--border);
+                        background: var(--surface); color: var(--text-soft); }
+  .wf-controls .stop { color: var(--danger); border-color: var(--border); }
+
+  .queue-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px 11px; }
+  .queue-head b { font-size: 15px; font-weight: 700; }
+  .queue-head span { font-size: 12.5px; color: var(--text-faint); }
+  .qlist { list-style: none; margin: 0; padding: 0 0 8px; flex: 1; }
+  .qitem { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start; padding: 12px 18px; border-top: 1px solid var(--border); }
+  .qnum { font-family: var(--mono); font-size: 12.5px; color: var(--text-faint); padding-top: 1px; }
+  .qmain { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .qtitle { font-size: 14.5px; font-weight: 650; line-height: 1.3; }
+  .qstate { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-faint); }
+  .qstate.on { color: var(--success); font-weight: 700; }
+  .qcmd { font-family: var(--mono); font-size: 11.5px; color: var(--text-soft); background: var(--surface-hover);
+          border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="stage">
+    <div class="masthead">
+      <div class="mark">Y</div>
+      <div class="mh-copy">
+        <div class="mh-title"><b>YOLO</b><span>for ChatGPT</span></div>
+        <div class="mh-sub">Queue the next steps. Run bounded workflows inside ChatGPT.</div>
+      </div>
+    </div>
+
+    <div class="panels">
+      <!-- ChatGPT conversation -->
+      <div class="card">
+        <div class="conv-head">
+          <div class="conv-id"><span class="conv-glyph">C</span><b>ChatGPT</b></div>
+          <div class="chip"><span class="dot running"></span><span class="lbl">Optional</span><span class="sep">·</span>GitHub app connected to ChatGPT</div>
+        </div>
+        <div class="conv-body">
+          <div class="bubble-user">Audit this repository, fix the top reliability gaps one by one, validate, and stop when complete.</div>
+          <div class="bubble-ai">
+            <h4>Reviewed the queue delivery path. Three reliability gaps stand out:</h4>
+            <ul>
+              <li>Duplicate send when a response is edited mid-delivery</li>
+              <li>No fail-closed guard on ambiguous delivery state</li>
+              <li>Draft text can be overwritten on resume</li>
+            </ul>
+          </div>
+          <div class="receipt"><span>YOLO delivered next step · 02:41</span></div>
+          <div class="bubble-user">Fix the duplicate-send edge case first.</div>
+          <div class="bubble-ai" style="border:none;background:transparent;padding:2px 0;">
+            <span style="font-size:14px;color:var(--text-soft);line-height:1.5;">On it — adding a fail-closed guard so a send is skipped when delivery state is ambiguous, then a dedupe check keyed on the pending item.</span>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="txt"><b>/goal</b> Fix reliability gaps <span class="muted">· bounded to 5 turns</span></div>
+          <div class="action-lbl">YOLO ACTION</div>
+          <div class="queue-btn">Queue</div>
+        </div>
+      </div>
+
+      <!-- YOLO panel -->
+      <div class="card">
+        <div class="yolo-head">
+          <div class="yolo-brand"><span class="mark">Y</span><b>YOLO</b></div>
+          <span class="badge-run"><span class="dot running"></span>Running</span>
+        </div>
+        <div class="workflow">
+          <div class="wf-kicker">Bounded workflow · <b>/goal</b></div>
+          <div class="wf-obj">Fix reliability gaps, then stop</div>
+          <div class="wf-turn"><span>Turn 2 of 5</span><div class="wf-bar"><i></i></div></div>
+          <div class="wf-controls"><button>Pause</button><button>Edit</button><button class="stop">Stop</button></div>
+        </div>
+        <div class="queue-head"><b>Queue</b><span>4 queued</span></div>
+        <ol class="qlist">
+          <li class="qitem"><span class="qnum">01</span>
+            <div class="qmain"><div class="qtitle">Fix the duplicate-send edge case.</div><span class="qstate on"><span class="dot running"></span>Sending</span></div>
+            <span class="qcmd">/fix</span></li>
+          <li class="qitem"><span class="qnum">02</span>
+            <div class="qmain"><div class="qtitle">Run the complete validation suite.</div><span class="qstate"><span class="dot queued"></span>Queued</span></div>
+            <span class="qcmd">/loop</span></li>
+          <li class="qitem"><span class="qnum">03</span>
+            <div class="qmain"><div class="qtitle">Review the final diff for regressions.</div><span class="qstate"><span class="dot queued"></span>Queued</span></div>
+            <span class="qcmd">/review</span></li>
+          <li class="qitem"><span class="qnum">04</span>
+            <div class="qmain"><div class="qtitle">Summarize what changed and what remains.</div><span class="qstate"><span class="dot queued"></span>Queued</span></div>
+            <span class="qcmd">/handoff</span></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
