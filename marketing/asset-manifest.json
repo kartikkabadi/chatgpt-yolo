@@ -6,6 +6,7 @@
       "format": "webp",
       "dimensions": "1536x864",
       "size_budget_kb": 500,
+      "actual_size_kb": 59,
       "source": "marketing/image-production/render.py",
       "alt": "YOLO for ChatGPT — a persistent instruction queue running alongside a long ChatGPT conversation."
     },
@@ -15,6 +16,7 @@
       "format": "png",
       "dimensions": "1280x640",
       "size_budget_kb": 1024,
+      "actual_size_kb": 199,
       "source": "marketing/image-production/render.py",
       "alt": "YOLO for ChatGPT — queue the next steps. Local-first, open source, no telemetry."
     },
@@ -24,6 +26,7 @@
       "format": "webp",
       "dimensions": "1920x1080",
       "size_budget_kb": 500,
+      "actual_size_kb": 71,
       "source": "marketing/image-production/render.py",
       "alt": "YOLO for ChatGPT demo — queue the next steps and run bounded workflows inside ChatGPT."
     },
@@ -33,6 +36,7 @@
       "format": "webp",
       "dimensions": "1440x900",
       "size_budget_kb": 350,
+      "actual_size_kb": 60,
       "source": "marketing/capture/capture.mjs",
       "alt": "YOLO popup showing a per-conversation queue with ordered instructions and a live queue count."
     },
@@ -42,6 +46,7 @@
       "format": "webp",
       "dimensions": "1440x900",
       "size_budget_kb": 350,
+      "actual_size_kb": 44,
       "source": "marketing/capture/capture.mjs",
       "alt": "YOLO command palette listing slash actions such as /goal, /loop, /review, and /continue in the ChatGPT composer."
     },
@@ -51,6 +56,7 @@
       "format": "webp",
       "dimensions": "1440x900",
       "size_budget_kb": 350,
+      "actual_size_kb": 45,
       "source": "marketing/capture/capture.mjs",
       "alt": "YOLO bounded workflow showing an objective, iteration progress, and Pause/Edit/Stop controls."
     },
@@ -60,6 +66,7 @@
       "format": "webp",
       "dimensions": "1440x900",
       "size_budget_kb": 350,
+      "actual_size_kb": 50,
       "source": "marketing/capture/capture.mjs",
       "alt": "ChatGPT with the GitHub app connected while YOLO manages the queued follow-up prompts."
     },
@@ -69,6 +76,7 @@
       "format": "webp",
       "dimensions": "1440x900",
       "size_budget_kb": 350,
+      "actual_size_kb": 43,
       "source": "marketing/capture/capture.mjs",
       "alt": "YOLO Advanced settings page showing profiles, approvals off by default, and local data controls."
     },
@@ -78,6 +86,7 @@
       "format": "svg",
       "dimensions": "128x128 (scalable)",
       "size_budget_kb": 1,
+      "actual_size_kb": 1,
       "source": "marketing/image-production/render.py",
       "alt": "YOLO brand mark — a near-black rounded square with a bold Y."
     }
@@ -88,7 +97,7 @@
       "role": "Primary 16:9 launch video",
       "format": "mp4",
       "dimensions": "1920x1080",
-      "duration_s": "35-45",
+      "duration_s": "~40",
       "fps": 30,
       "codec": "h264",
       "pix_fmt": "yuv420p",
@@ -102,7 +111,7 @@
       "role": "Square (1:1) launch video recomposition",
       "format": "mp4",
       "dimensions": "1080x1080",
-      "duration_s": "35-45",
+      "duration_s": "~40",
       "fps": 30,
       "codec": "h264",
       "pix_fmt": "yuv420p",
