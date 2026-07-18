@@ -39,7 +39,7 @@ function loadStore() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "portable-store.js"]) {
+  for (const file of ["config.js", "shared.js", "portable-store.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   return { Store: context.YOLOPortableStore, storage, failRemove() { failNextRemove = true; } };

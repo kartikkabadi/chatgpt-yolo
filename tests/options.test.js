@@ -55,6 +55,7 @@ function runOptions({ tabs = [], states = {} } = {}) {
   };
   context.globalThis = context;
   context.window = { setTimeout, clearTimeout, addEventListener() {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "shared.js"), "utf8"), context, { filename: "shared.js" });
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "options.js"), "utf8"), context, { filename: "options.js" });
   return {
     queried: () => queried,

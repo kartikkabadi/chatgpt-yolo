@@ -2,8 +2,9 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
+  const Shared = globalThis.YOLOShared;
   const Lifecycle = globalThis.YOLOLifecycle;
-  if (!Config || !Lifecycle || !chrome.alarms || !chrome.tabs || !chrome.scripting) return;
+  if (!Config || !Shared || !Lifecycle || !chrome.alarms || !chrome.tabs || !chrome.scripting) return;
 
   const ALARM_NAME = "yolo-tab-supervisor";
   const INJECTION_COOLDOWN_MS = 5 * 60 * 1_000;
@@ -27,9 +28,7 @@
     chrome.tabs.get(tabId, (tab) => resolve(chrome.runtime.lastError ? null : tab || null));
   });
 
-  const storageGet = (keys) => new Promise((resolve) => {
-    chrome.storage.local.get(keys, (items) => resolve(chrome.runtime.lastError ? {} : items || {}));
-  });
+  const storageGet = (keys) => Shared.storageGet(keys, { soft: true });
 
   const tabsUpdate = (tabId, updateProperties) => new Promise((resolve) => {
     chrome.tabs.update(tabId, updateProperties, (tab) => resolve(chrome.runtime.lastError ? null : tab || null));

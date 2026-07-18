@@ -60,6 +60,7 @@ test("popup keeps settings and templates reachable on unsupported pages", async 
   };
   context.globalThis = context;
   context.window = { setTimeout, clearTimeout, setInterval, clearInterval, addEventListener() {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "shared.js"), "utf8"), context, { filename: "shared.js" });
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "popup.js"), "utf8"), context, { filename: "popup.js" });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(queried, true);

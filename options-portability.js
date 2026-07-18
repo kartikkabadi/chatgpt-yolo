@@ -1,11 +1,12 @@
 ((root, factory) => {
-  const api = factory(root.YOLOPortability);
+  const Shared = typeof module === "object" && module.exports ? require("./shared.js") : root.YOLOShared;
+  const api = factory(root.YOLOPortability, Shared);
   if (typeof module === "object" && module.exports) module.exports = api;
   else {
     root.YOLOOptionsPortability = api;
     if (typeof document !== "undefined" && !document.querySelector("#exportBackup")) api.mount(document, root);
   }
-})(typeof globalThis !== "undefined" ? globalThis : this, (Portability) => {
+})(typeof globalThis !== "undefined" ? globalThis : this, (Portability,Shared) => {
   "use strict";
 
   function importConfirmation(summary) {
@@ -104,12 +105,7 @@
       };
     }
 
-    const backgroundSend = (message) => new Promise((resolve) => {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) resolve(null);
-        else resolve(response || null);
-      });
-    });
+    const backgroundSend = (message) => Shared.sendMessage(message, { soft: true });
     const contentSend = (message) => new Promise((resolve) => {
       const { sourceTabId } = currentContext();
       if (!sourceTabId) return resolve(null);
@@ -171,7 +167,7 @@
         if (!response?.ok) throw new Error(response?.reason || "Could not export YOLO data");
         downloadJson(response.backup);
         setStatus(`Backup downloaded · ${response.summary.conversations} conversations · ${response.summary.templates} templates`, "success");
-      } catch (error) { setStatus(String(error?.message || error), "error"); }
+      } catch (error) { setStatus(Shared.errorMessage(error), "error"); }
       finally { await setBusy(false); }
     }
 
@@ -209,7 +205,7 @@
         }
         setStatus(`Imported ${response.summary.conversations} conversations and ${response.summary.templates} templates`, "success");
         win.setTimeout(() => win.location.reload(), 650);
-      } catch (error) { setStatus(String(error?.message || error), "error"); }
+      } catch (error) { setStatus(Shared.errorMessage(error), "error"); }
       finally {
         importInput.value = "";
         if (!applied) await setBusy(false);
@@ -233,7 +229,7 @@
         });
         await copyText(JSON.stringify(diagnostics, null, 2));
         setStatus("Privacy-safe diagnostics copied", "success");
-      } catch (error) { setStatus(String(error?.message || error), "error"); }
+      } catch (error) { setStatus(Shared.errorMessage(error), "error"); }
       finally { await setBusy(false); }
     }
 

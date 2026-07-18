@@ -10,6 +10,7 @@ export const RUNTIME_FILES = Object.freeze([
   "data-background.js",
   "portability.js",
   "config.js",
+  "shared.js",
   "lifecycle.js",
   "coordinator.js",
   "portable-store.js",
