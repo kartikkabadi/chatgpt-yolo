@@ -168,12 +168,12 @@
     if (saveTimer) {
       window.clearTimeout(saveTimer);
       saveTimer = null;
-      await saveSettings();
+      await saveSettings().catch((error) => {
+        console.error(`[YOLO options] settings save failed: ${Shared.errorMessage(error)}`);
+        els.saveStatus.textContent = "Save failed";
+      });
     }
-    await saveLock.current.catch((error) => {
-      console.error(`Flush scheduled save failed: ${Shared.errorMessage(error)}`);
-      els.saveStatus.textContent = "Save failed";
-    });
+    await saveLock.current.catch(() => {});
   }
 
   function setTemplateStatus(message = "", error = false) {
