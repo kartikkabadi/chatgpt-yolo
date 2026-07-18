@@ -166,9 +166,9 @@
     if (storedLastAction?.pageId === state.pageId && storedLastAction?.message) state.lastAction = storedLastAction;
     else state.lastAction = { message: "Idle", at: now(), level: "info", code: "idle" };
 
-    state.runtime = ContentState.ContentState.loadRuntime();
-    ContentState.ContentState.scheduleNextRefresh();
-    ContentState.ContentState.scheduleNextQueue();
+    state.runtime = ContentState.loadRuntime();
+    ContentState.scheduleNextRefresh();
+    ContentState.scheduleNextQueue();
     state.loaded = true;
   }
 

@@ -201,6 +201,7 @@
     state,
     randomMs,
     freshRuntime,
+    normalizeApprovalSignatures,
     loadRuntime,
     saveRuntime,
     scheduleNextRefresh,
