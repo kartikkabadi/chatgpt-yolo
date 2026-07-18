@@ -106,7 +106,7 @@ test('runtime reset fails closed when guard storage cannot be reset', () => {
   const reset = content.slice(start, end);
   assert.match(reset, /const guardReset = await backgroundSendWithRetry/);
   assert.match(reset, /if \(!guardReset\?\.ok\) throw new Error/);
-  assert.ok(reset.indexOf('guardReset') < reset.indexOf('state.runtime = freshRuntime()'));
+  assert.ok(reset.indexOf('guardReset') < reset.indexOf('state.runtime = ContentState.freshRuntime()'));
 });
 
 test('delivery confirmation uses a wall-clock deadline', () => {
