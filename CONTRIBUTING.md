@@ -56,8 +56,8 @@ chrome.tabs.sendMessage(tabId, message, (response) => {
 Three module patterns coexist. New code should match the file's existing pattern rather than introducing a fourth.
 
 1. **UMD (`shared.js`, `lifecycle.js`)**: exports a value for `module.exports` and also assigns `globalThis.YOLOShared`. Use this for helpers that are used in both extension pages and content scripts.
-2. **Plain IIFE (`options.js`, `popup.js`, `command-runtime.js`)**: a self-contained `(() => { ... })()` that reads peer globals from `globalThis` and often assigns a singleton back to `window` or `globalThis`. Use this for page-scoped or script-scoped state machines.
-3. **Service worker (`background.js`, `data-background.js`)**: a top-level script that runs in the extension service worker context and persists state in `chrome.storage`. No wrapper is used because the worker scope is already isolated.
+2. **Plain IIFE (`options.js`, `popup.js`, `command-runtime.js`, `data-background.js`)**: a self-contained `(() => { ... })()` that reads peer globals from `globalThis` and often assigns a singleton back to `window` or `globalThis`. Use this for page-scoped or script-scoped state machines.
+3. **Service worker (`background.js`, `background-wrapper.js`)**: a top-level script that runs in the extension service worker context and persists state in `chrome.storage`. No wrapper is used because the worker scope is already isolated.
 
 Global/singleton naming follows two shapes:
 
