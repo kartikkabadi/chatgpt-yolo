@@ -12,8 +12,10 @@
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   }
 
-  function errorMessage(error) {
-    return String(error?.message || error || "");
+  function errorMessage(error, fallback = "") {
+    if (error?.message) return String(error.message);
+    if (error === null || error === undefined) return fallback;
+    return String(error);
   }
 
   function createLock() {
