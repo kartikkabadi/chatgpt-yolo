@@ -79,6 +79,10 @@ test("errorMessage coerces errors and strings consistently", () => {
   assert.equal(Shared.errorMessage("raw string"), "raw string");
   assert.equal(Shared.errorMessage(null), "");
   assert.equal(Shared.errorMessage(undefined), "");
+  assert.equal(Shared.errorMessage(0), "0");
+  assert.equal(Shared.errorMessage(false), "false");
+  assert.equal(Shared.errorMessage(NaN), "NaN");
+  assert.equal(Shared.errorMessage(""), "");
 });
 
 test("withLock serializes tasks and recovers from failures", async () => {
