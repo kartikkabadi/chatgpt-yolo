@@ -15,6 +15,7 @@
     "platforms.js",
     "commands.js",
     "command-ui.js",
+    "content-state.js",
     "content.js",
     "command-runtime.js"
   ]);

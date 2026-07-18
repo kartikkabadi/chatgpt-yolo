@@ -18,6 +18,7 @@ export const RUNTIME_FILES = Object.freeze([
   "commands.js",
   "platforms.js",
   "command-ui.js",
+  "content-state.js",
   "content.js",
   "command-runtime.js",
   "popup.html",

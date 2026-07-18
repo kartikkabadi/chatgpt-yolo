@@ -32,6 +32,7 @@ test("content scripts load shared configuration before the engine", () => {
     "shared.js",
     "commands.js",
     "command-ui.js",
+    "content-state.js",
     "content.js",
     "command-runtime.js"
   ]);

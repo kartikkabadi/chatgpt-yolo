@@ -6,7 +6,8 @@
   const Lifecycle = globalThis.YOLOLifecycle;
   const Commands = globalThis.YOLOCommands;
   const Platforms = globalThis.YOLOPlatforms;
-  if (!Config || !Shared || !Lifecycle || !Commands || !Platforms) return;
+  const ContentState = globalThis.YOLOContentState;
+  if (!Config || !Shared || !Lifecycle || !Commands || !Platforms || !ContentState) return;
 
   if (window.__YOLO_EXTENSION__?.version === Config.VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
@@ -27,56 +28,13 @@
     queue: "queueLimitPerHour"
   });
 
-  const APPROVAL_SIGNATURE_TTL_MS = 10 * 60 * 1000;
   const FAILED_RECOVERY_RETRY_MS = 15 * 1000;
 
-  const state = {
-    destroyed: false,
-    loaded: false,
-    routeInFlight: false,
-    pageId: Config.pageId(location.href),
-    platform: Platforms.adapterForLocation(),
-    settings: { ...Config.DEFAULT_SETTINGS },
-    counters: {
-      approvalsClicked: 0,
-      continuesSent: 0,
-      deepNudgesSent: 0,
-      refreshesTriggered: 0,
-      queuedMessagesSent: 0
-    },
-    runtime: null,
-    lastAction: { message: "Idle", at: Date.now(), level: "info", code: "idle" },
-    blockedReason: "",
-    blockedCode: "",
-    generationActive: false,
-    cycleInFlight: false,
-    actionInFlight: false,
-    scanQueued: false,
-    scanWakeTimer: null,
-    scanWakeAt: 0,
-    pendingManualQueueRetry: false,
-    reloadScheduled: false,
-    pageLoadedAt: Date.now(),
-    hydrated: false,
-    hydratedAt: 0,
-    hydrationCandidateSince: 0,
-    lastDomActivityAt: Date.now(),
-    generationHoldUntil: 0,
-    lastGenerationPersistAt: 0,
-    observer: null,
-    scanTimer: null,
-    routeTimer: null,
-    activitySaveTimer: null,
-    lifecycleHandlers: [],
-    messageListener: null,
-    storageListener: null,
-    clients: new Set(),
-    ownerId: Shared.makeId("content")
-  };
+  const state = ContentState.state;
+  const randomMs = ContentState.randomMs;
 
   const now = () => Date.now();
   const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-  const randomMs = (minSec, maxSec) => Math.round(Config.randomBetween(minSec, maxSec) * 1000);
   const currentPageId = () => Config.pageId(location.href);
   const routeIsCurrent = () => currentPageId() === state.pageId;
   const workflowHealth = () => window.__YOLO_COMMAND_RUNTIME__?.getHealth?.() || {
@@ -143,82 +101,6 @@
     return backgroundSendWithRetry({ type: "YOLO_ACTION_RELEASE", pageId: state.pageId, actionKey, token });
   }
 
-  function freshRuntime() {
-    const timestamp = now();
-    return {
-      sessionStartedAt: timestamp,
-      sessionActionCount: 0,
-      history: { approval: [], recovery: [], nudge: [], refresh: [], queue: [] },
-      approvalSignatures: [],
-      lastActionAt: 0,
-      lastUserActivityAt: timestamp,
-      lastGenerationAt: timestamp,
-      lastRefreshAt: 0,
-      nextRefreshAt: 0,
-      nextQueueAt: 0,
-      lastErrorSignature: "",
-      lastErrorHandledAt: 0
-    };
-  }
-
-  function readRuntimeMap() {
-    try {
-      const parsed = JSON.parse(sessionStorage.getItem(Config.STORAGE_KEYS.runtime) || "{}");
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-
-  function normalizeApprovalSignatures(raw, fallbackAt = 0) {
-    const timestamp = now();
-    return (Array.isArray(raw) ? raw : [])
-      .map((entry) => {
-        if (typeof entry === "string") return { signature: entry, at: fallbackAt || timestamp };
-        if (!entry || typeof entry.signature !== "string") return null;
-        return { signature: entry.signature, at: Number(entry.at) || fallbackAt || timestamp };
-      })
-      .filter((entry) => entry && timestamp - entry.at < APPROVAL_SIGNATURE_TTL_MS)
-      .slice(-100);
-  }
-
-  function normalizeRuntime(raw) {
-    const fallback = freshRuntime();
-    const history = raw?.history || {};
-    const lastActionAt = Number(raw?.lastActionAt) || 0;
-    return {
-      ...fallback,
-      ...(raw && typeof raw === "object" ? raw : {}),
-      sessionActionCount: Math.max(0, Number(raw?.sessionActionCount) || 0),
-      history: {
-        approval: Config.pruneHistory(history.approval),
-        recovery: Config.pruneHistory(history.recovery),
-        nudge: Config.pruneHistory(history.nudge),
-        refresh: Config.pruneHistory(history.refresh),
-        queue: Config.pruneHistory(history.queue)
-      },
-      approvalSignatures: normalizeApprovalSignatures(raw?.approvalSignatures, lastActionAt),
-      nextQueueAt: Math.max(0, Number(raw?.nextQueueAt) || 0)
-    };
-  }
-
-  function loadRuntime(pageId = state.pageId) {
-    return normalizeRuntime(readRuntimeMap()[pageId]);
-  }
-
-  function saveRuntime() {
-    if (!state.runtime || state.destroyed) return;
-    try {
-      const map = readRuntimeMap();
-      delete map[state.pageId];
-      map[state.pageId] = state.runtime;
-      const entries = Object.entries(map).slice(-50);
-      sessionStorage.setItem(Config.STORAGE_KEYS.runtime, JSON.stringify(Object.fromEntries(entries)));
-    } catch {
-      // Session persistence is best-effort; automation can continue in memory.
-    }
-  }
-
   async function appendEvent(code, message, level = "info") {
     if (!state.pageId || state.destroyed) return;
     await backgroundSend({
@@ -262,23 +144,6 @@
     await storageSet({ [Config.STORAGE_KEYS.counters]: counters });
   }
 
-  function scheduleNextRefresh(force = false) {
-    if (!state.runtime) return;
-    if (!force && state.runtime.nextRefreshAt > now()) return;
-    const minMs = state.settings.refreshIntervalMinMin * 60 * 1000;
-    const maxMs = state.settings.refreshIntervalMaxMin * 60 * 1000;
-    state.runtime.nextRefreshAt = now() + Math.round(Config.randomBetween(minMs, maxMs));
-    saveRuntime();
-  }
-
-  function scheduleNextQueue(force = false) {
-    if (!state.runtime) return;
-    if (!force && state.runtime.nextQueueAt > 0) return;
-    if (!force) state.runtime.nextQueueAt = now();
-    else state.runtime.nextQueueAt = now() + randomMs(state.settings.queueIntervalMinSec, state.settings.queueIntervalMaxSec);
-    saveRuntime();
-  }
-
   async function loadSettings() {
     const pageKey = Config.pageSettingsKey(state.pageId);
     const actionKey = Config.lastActionKey(state.pageId);
@@ -301,9 +166,9 @@
     if (storedLastAction?.pageId === state.pageId && storedLastAction?.message) state.lastAction = storedLastAction;
     else state.lastAction = { message: "Idle", at: now(), level: "info", code: "idle" };
 
-    state.runtime = loadRuntime();
-    scheduleNextRefresh();
-    scheduleNextQueue();
+    state.runtime = ContentState.ContentState.loadRuntime();
+    ContentState.ContentState.scheduleNextRefresh();
+    ContentState.ContentState.scheduleNextQueue();
     state.loaded = true;
   }
 
@@ -324,8 +189,8 @@
     if (!response?.ok) throw new Error(response?.reason || "Could not persist conversation settings");
 
     state.settings = Config.normalizeSettings(response.settings || normalized);
-    scheduleNextRefresh(true);
-    scheduleNextQueue(true);
+    ContentState.scheduleNextRefresh(true);
+    ContentState.scheduleNextQueue(true);
     restartScanTimer();
     return state.settings;
   }
@@ -356,7 +221,7 @@
     if (incrementSession) state.runtime.sessionActionCount += 1;
     state.runtime.lastActionAt = timestamp;
     clearBlocked();
-    saveRuntime();
+    ContentState.saveRuntime();
     await incrementCounter(counterKey);
   }
 
@@ -451,7 +316,7 @@
       if (active || (wasGenerating && !active)) state.runtime.lastGenerationAt = timestamp;
       if (transitioned || (active && timestamp - state.lastGenerationPersistAt >= 30_000)) {
         state.lastGenerationPersistAt = timestamp;
-        saveRuntime();
+        ContentState.saveRuntime();
       }
     }
     state.generationActive = active;
@@ -614,7 +479,7 @@
     try {
       if (state.pageId !== actionPageId || currentPageId() !== actionPageId || composerHasText()) return false;
       state.runtime.lastRefreshAt = now();
-      scheduleNextRefresh(true);
+      ContentState.scheduleNextRefresh(true);
       const completed = await completeActionGuard("refresh", guard.token);
       completedGuard = Boolean(completed?.ok);
       if (!completedGuard) {
@@ -662,7 +527,7 @@
     const errorPageId = state.pageId;
     state.runtime.lastErrorSignature = signature;
     state.runtime.lastErrorHandledAt = now();
-    saveRuntime();
+    ContentState.saveRuntime();
     await setLastAction("Detected error; attempting recovery", "warning", "recovery.detected", true);
 
     const delayMs = randomMs(state.settings.errorDelayMinSec, state.settings.errorDelayMaxSec);
@@ -678,13 +543,13 @@
 
     if (!handled && state.runtime) {
       state.runtime.lastErrorHandledAt = now() - Math.max(0, cooldownMs - FAILED_RECOVERY_RETRY_MS);
-      saveRuntime();
+      ContentState.saveRuntime();
     }
     return handled;
   }
 
   function pruneApprovalSignatures() {
-    state.runtime.approvalSignatures = normalizeApprovalSignatures(state.runtime.approvalSignatures, state.runtime.lastActionAt);
+    state.runtime.approvalSignatures = ContentState.normalizeApprovalSignatures(state.runtime.approvalSignatures, state.runtime.lastActionAt);
   }
 
   function recentlyApproved(signature) {
@@ -873,7 +738,7 @@
       if (["recovery", "nudge"].includes(sourceAction)) {
         await recordAction(sourceAction, COUNTER_BY_ACTION[sourceAction], { incrementSession: false });
       }
-      scheduleNextQueue(true);
+      ContentState.scheduleNextQueue(true);
       await setLastAction(sourceAction ? `Sent ${sourceAction} prompt` : "Sent queued message", "success", sourceAction ? `action.${sourceAction}` : "queue.sent", true);
       return true;
     } catch (error) {
@@ -899,7 +764,7 @@
 
   async function handlePeriodicRefresh() {
     if (!automationReady() || !state.settings.autoRefreshEnabled || state.actionInFlight) return false;
-    scheduleNextRefresh();
+    ContentState.scheduleNextRefresh();
     if (now() < state.runtime.nextRefreshAt) return false;
     if (updateGenerationState() || !safeForInput()) return false;
 
@@ -992,7 +857,7 @@
 
     state.routeInFlight = true;
     try {
-      saveRuntime();
+      ContentState.saveRuntime();
       state.pageId = nextPageId;
       state.platform = Platforms.adapterForLocation();
       state.pageLoadedAt = now();
@@ -1038,8 +903,8 @@
           const legacyPageSettings = stored[Config.STORAGE_KEYS.pages]?.[settingsPageId] || {};
           const pageSettings = stored[pageKey] || legacyPageSettings;
           state.settings = Config.mergeSettings(Config.DEFAULT_SETTINGS, globalSettings, pageSettings);
-          scheduleNextRefresh(true);
-          scheduleNextQueue(true);
+          ContentState.scheduleNextRefresh(true);
+          ContentState.scheduleNextQueue(true);
           restartScanTimer();
           queueCycle();
         });
@@ -1069,7 +934,7 @@
   }
 
   function handleLifecycleSuspend() {
-    saveRuntime();
+    ContentState.saveRuntime();
   }
 
   function installObservers() {
@@ -1089,38 +954,6 @@
     restartRouteTimer();
   }
 
-  function runtimeSummary() {
-    const history = state.runtime?.history || {};
-    return {
-      sessionStartedAt: state.runtime?.sessionStartedAt || 0,
-      sessionActionCount: state.runtime?.sessionActionCount || 0,
-      approvalCountLastHour: Config.pruneHistory(history.approval).length,
-      recoveryCountLastHour: Config.pruneHistory(history.recovery).length,
-      nudgeCountLastHour: Config.pruneHistory(history.nudge).length,
-      refreshCountLastHour: Config.pruneHistory(history.refresh).length,
-      queueCountLastHour: Config.pruneHistory(history.queue).length,
-      nextRefreshAt: state.runtime?.nextRefreshAt || 0,
-      nextQueueAt: state.runtime?.nextQueueAt || 0,
-      blockedReason: state.blockedReason,
-      blockedCode: state.blockedCode
-    };
-  }
-
-  function responseState() {
-    return {
-      version: Config.VERSION,
-      settings: state.settings,
-      counters: state.counters,
-      lastAction: state.lastAction,
-      runtime: runtimeSummary(),
-      pageId: state.pageId,
-      platform: state.platform?.label || "Unsupported",
-      generating: state.generationActive,
-      hydrated: state.hydrated,
-      lastDomActivityAt: state.lastDomActivityAt,
-      lastGenerationAt: state.runtime?.lastGenerationAt || 0
-    };
-  }
 
   async function runManualAction(action) {
     if (!await ensureCurrentRoute()) return false;
@@ -1139,10 +972,10 @@
     if (!await ensureCurrentRoute()) throw new Error("Conversation navigation is still in progress");
     const guardReset = await backgroundSendWithRetry({ type: "YOLO_ACTION_RESET", pageId: state.pageId, actionKey: "" });
     if (!guardReset?.ok) throw new Error(guardReset?.reason || "Could not reset the conversation action guards");
-    state.runtime = freshRuntime();
-    scheduleNextRefresh(true);
-    scheduleNextQueue(false);
-    saveRuntime();
+    state.runtime = ContentState.freshRuntime();
+    ContentState.scheduleNextRefresh(true);
+    ContentState.scheduleNextQueue(false);
+    ContentState.saveRuntime();
     clearBlocked();
     await setLastAction("Reset session limits and action history", "info", "runtime.reset", true);
   }
@@ -1154,7 +987,7 @@
   }
 
   const commandApi = Object.freeze({
-    getState: responseState,
+    getState: ContentState.responseState,
     ensureReady: ensureCurrentRoute,
     runAction: runManualAction,
     recordStatus: setLastAction,
@@ -1186,7 +1019,7 @@
         ensureCurrentRoute()
           .then((ready) => {
             if (ready) updateGenerationState();
-            sendResponse(ready ? responseState() : null);
+            sendResponse(ready ? ContentState.responseState() : null);
           })
           .catch((error) => {
             console.error(`YOLO_GET_STATE failed: ${Shared.errorMessage(error)}`);
@@ -1198,10 +1031,10 @@
       if (message?.type === "YOLO_SET_SETTINGS" || message?.type === "YOLO_SET_TAB_SETTINGS") {
         persistSettings(message.settings || {})
           .then((settings) => {
-            sendResponse({ ok: true, settings, state: responseState() });
+            sendResponse({ ok: true, settings, state: ContentState.responseState() });
             queueCycle();
           })
-          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: ContentState.responseState() }));
         return true;
       }
 
@@ -1210,27 +1043,27 @@
           .then((ready) => {
             if (!ready) throw new Error("Conversation navigation is still in progress");
             state.settings = Config.normalizeSettings(message.settings || {});
-            scheduleNextRefresh(true);
-            scheduleNextQueue(true);
+            ContentState.scheduleNextRefresh(true);
+            ContentState.scheduleNextQueue(true);
             restartScanTimer();
             queueCycle();
-            sendResponse({ ok: true, settings: state.settings, state: responseState() });
+            sendResponse({ ok: true, settings: state.settings, state: ContentState.responseState() });
           })
-          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: ContentState.responseState() }));
         return true;
       }
 
       if (message?.type === "YOLO_RUN_ACTION") {
         runManualAction(message.action)
-          .then((ok) => sendResponse({ ok, state: responseState() }))
-          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
+          .then((ok) => sendResponse({ ok, state: ContentState.responseState() }))
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: ContentState.responseState() }));
         return true;
       }
 
       if (message?.type === "YOLO_RESET_RUNTIME") {
         resetRuntime()
-          .then(() => sendResponse({ ok: true, state: responseState() }))
-          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
+          .then(() => sendResponse({ ok: true, state: ContentState.responseState() }))
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: ContentState.responseState() }));
         return true;
       }
 
