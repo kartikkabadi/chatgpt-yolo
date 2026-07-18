@@ -884,7 +884,7 @@
     if (!state.runtime || event?.isTrusted === false) return;
     state.runtime.lastUserActivityAt = now();
     window.clearTimeout(state.activitySaveTimer);
-    state.activitySaveTimer = window.setTimeout(saveRuntime, 500);
+    state.activitySaveTimer = window.setTimeout(ContentState.saveRuntime, 500);
   }
 
 
