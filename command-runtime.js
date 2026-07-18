@@ -528,7 +528,9 @@
       try {
         await tick();
       } catch (error) {
-        await record(`Workflow poll failed: ${Shared.errorMessage(error)}`, "error", "command.workflow.poll_failed").catch(() => {});
+        await record(`Workflow poll failed: ${Shared.errorMessage(error)}`, "error", "command.workflow.poll_failed").catch((recordError) => {
+          console.error(`Workflow poll status record failed: ${Shared.errorMessage(recordError)}`);
+        });
       } finally {
         schedulePoll();
       }
