@@ -7,7 +7,8 @@
   const Commands = globalThis.YOLOCommands;
   const Platforms = globalThis.YOLOPlatforms;
   const ContentState = globalThis.YOLOContentState;
-  if (!Config || !Shared || !Lifecycle || !Commands || !Platforms || !ContentState) return;
+  const ContentStorage = globalThis.YOLOContentStorage;
+  if (!Config || !Shared || !Lifecycle || !Commands || !Platforms || !ContentState || !ContentStorage) return;
 
   if (window.__YOLO_EXTENSION__?.version === Config.VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
@@ -51,35 +52,10 @@
     return true;
   }
 
-  const storageGet = (keys) => Shared.storageGet(keys, {
-    soft: true,
-    isDestroyed: () => state.destroyed,
-    onContextInvalidated: disableStaleContext
-  });
-
-  const storageSet = (items) => Shared.storageSet(items, {
-    soft: true,
-    isDestroyed: () => state.destroyed,
-    onContextInvalidated: disableStaleContext
-  });
-
-  const backgroundSend = (message) => Shared.sendMessage(message, {
-    soft: true,
-    isDestroyed: () => state.destroyed,
-    onContextInvalidated: disableStaleContext
-  });
-
-  async function backgroundSendWithRetry(message, attempts = 3) {
-    for (let index = 0; index < attempts; index += 1) {
-      const response = await backgroundSend(message);
-      if (response) return response;
-      if (index < attempts - 1) await sleep(150 * (index + 1));
-    }
-    return null;
-  }
+  ContentStorage.setContext({ isDestroyed: () => state.destroyed, onContextInvalidated: disableStaleContext });
 
   async function claimActionGuard(actionKey, cooldownMs = 0, leaseMs = 20 * 1000) {
-    return backgroundSendWithRetry({
+    return ContentStorage.backgroundSendWithRetry({
       type: "YOLO_ACTION_CLAIM",
       pageId: state.pageId,
       actionKey,
@@ -90,64 +66,21 @@
   }
 
   async function beginActionGuard(actionKey, token) {
-    return backgroundSendWithRetry({ type: "YOLO_ACTION_BEGIN", pageId: state.pageId, actionKey, token });
+    return ContentStorage.backgroundSendWithRetry({ type: "YOLO_ACTION_BEGIN", pageId: state.pageId, actionKey, token });
   }
 
   async function completeActionGuard(actionKey, token) {
-    return backgroundSendWithRetry({ type: "YOLO_ACTION_COMPLETE", pageId: state.pageId, actionKey, token });
+    return ContentStorage.backgroundSendWithRetry({ type: "YOLO_ACTION_COMPLETE", pageId: state.pageId, actionKey, token });
   }
 
   async function releaseActionGuard(actionKey, token) {
-    return backgroundSendWithRetry({ type: "YOLO_ACTION_RELEASE", pageId: state.pageId, actionKey, token });
-  }
-
-  async function appendEvent(code, message, level = "info") {
-    if (!state.pageId || state.destroyed) return;
-    await backgroundSend({
-      type: "YOLO_EVENT_APPEND",
-      pageId: state.pageId,
-      event: { code, message, level, at: now() }
-    });
-  }
-
-  async function setLastAction(message, level = "info", code = "status", logEvent = false) {
-    state.lastAction = { message, at: now(), level, code };
-    const value = { ...state.lastAction, url: location.href, pageId: state.pageId };
-    await storageSet({
-      [Config.lastActionKey(state.pageId)]: value,
-      [Config.STORAGE_KEYS.lastAction]: value
-    });
-    if (logEvent) await appendEvent(code, message, level);
-  }
-
-  async function setBlocked(code, message, { log = false } = {}) {
-    const changed = state.blockedCode !== code || state.blockedReason !== message;
-    state.blockedCode = code;
-    state.blockedReason = message;
-    if (log && changed) await appendEvent(code, message, "warning");
-  }
-
-  function clearBlocked(prefix = "") {
-    if (!prefix || state.blockedCode.startsWith(prefix)) {
-      state.blockedCode = "";
-      state.blockedReason = "";
-    }
-  }
-
-  async function incrementCounter(key) {
-    if (!key) return;
-    const stored = await storageGet([Config.STORAGE_KEYS.counters]);
-    const counters = { ...(stored[Config.STORAGE_KEYS.counters] || {}) };
-    counters[key] = (Number(counters[key]) || 0) + 1;
-    counters.updatedAt = now();
-    state.counters = { ...state.counters, ...counters };
-    await storageSet({ [Config.STORAGE_KEYS.counters]: counters });
+    return ContentStorage.backgroundSendWithRetry({ type: "YOLO_ACTION_RELEASE", pageId: state.pageId, actionKey, token });
   }
 
   async function loadSettings() {
     const pageKey = Config.pageSettingsKey(state.pageId);
     const actionKey = Config.lastActionKey(state.pageId);
-    const stored = await storageGet([
+    const stored = await ContentStorage.storageGet([
       Config.STORAGE_KEYS.global,
       Config.STORAGE_KEYS.pages,
       Config.STORAGE_KEYS.counters,
@@ -181,7 +114,7 @@
   async function persistSettings(nextSettings) {
     if (!await ensureCurrentRoute()) throw new Error("Conversation navigation is still in progress");
     const normalized = Config.mergeSettings(state.settings, nextSettings);
-    const response = await backgroundSendWithRetry({
+    const response = await ContentStorage.backgroundSendWithRetry({
       type: "YOLODATA_SETTINGS_SET",
       pageId: state.pageId,
       settings: normalized
@@ -220,9 +153,9 @@
     state.runtime.history[action] = Config.pruneHistory([...(state.runtime.history[action] || []), timestamp], timestamp);
     if (incrementSession) state.runtime.sessionActionCount += 1;
     state.runtime.lastActionAt = timestamp;
-    clearBlocked();
+    ContentStorage.clearBlocked();
     ContentState.saveRuntime();
-    await incrementCounter(counterKey);
+    await ContentStorage.incrementCounter(counterKey);
   }
 
   function composerHasText(composer = Platforms.findComposer(state.platform)) {
@@ -397,7 +330,7 @@
 
     const limit = checkActionLimit(action);
     if (!limit.allowed) {
-      await setLastAction(`${label} blocked: ${limit.reason}`, "warning", limit.code, true);
+      await ContentStorage.setLastAction(`${label} blocked: ${limit.reason}`, "warning", limit.code, true);
       return false;
     }
 
@@ -405,7 +338,7 @@
     if (delayMs > 0) await sleep(delayMs);
     if (state.destroyed || state.pageId !== actionPageId || currentPageId() !== actionPageId || !safeForInput()) return false;
 
-    const queued = await backgroundSend({
+    const queued = await ContentStorage.backgroundSend({
       type: "YOLO_QUEUE_ADD",
       pageId: actionPageId,
       front: true,
@@ -421,14 +354,14 @@
       }
     });
     if (!queued?.ok) {
-      await setBlocked(queued?.code || `action.${action}.queue_failed`, queued?.reason || `Could not queue ${label}`);
+      await ContentStorage.setBlocked(queued?.code || `action.${action}.queue_failed`, queued?.reason || `Could not queue ${label}`);
       return false;
     }
     if (queued.alreadyCompleted) return true;
 
     const sent = await handleQueue(false);
     if (!sent && !queued.deduplicated) {
-      await setLastAction(`Queued ${label} (${reason})`, "info", `action.${action}.queued`, true);
+      await ContentStorage.setLastAction(`Queued ${label} (${reason})`, "info", `action.${action}.queued`, true);
     }
     return sent;
   }
@@ -466,7 +399,7 @@
 
     const limit = checkActionLimit(action);
     if (!limit.allowed) {
-      await setLastAction(`Refresh blocked: ${limit.reason}`, "warning", limit.code, true);
+      await ContentStorage.setLastAction(`Refresh blocked: ${limit.reason}`, "warning", limit.code, true);
       return false;
     }
 
@@ -483,11 +416,11 @@
       const completed = await completeActionGuard("refresh", guard.token);
       completedGuard = Boolean(completed?.ok);
       if (!completedGuard) {
-        await setLastAction("Refresh blocked: could not persist the cross-tab cooldown", "error", "refresh.guard_unconfirmed", true);
+        await ContentStorage.setLastAction("Refresh blocked: could not persist the cross-tab cooldown", "error", "refresh.guard_unconfirmed", true);
         return false;
       }
       await recordAction(action, "refreshesTriggered");
-      await setLastAction(`Refreshing (${reason})`, "success", `action.${action}.refresh`, true);
+      await ContentStorage.setLastAction(`Refreshing (${reason})`, "success", `action.${action}.refresh`, true);
       state.reloadScheduled = true;
       window.setTimeout(() => {
         if (currentPageId() === actionPageId) location.reload();
@@ -520,7 +453,7 @@
 
     const limit = checkActionLimit("recovery");
     if (!limit.allowed) {
-      await setLastAction(`Recovery blocked: ${limit.reason}`, "warning", limit.code, true);
+      await ContentStorage.setLastAction(`Recovery blocked: ${limit.reason}`, "warning", limit.code, true);
       return false;
     }
 
@@ -528,7 +461,7 @@
     state.runtime.lastErrorSignature = signature;
     state.runtime.lastErrorHandledAt = now();
     ContentState.saveRuntime();
-    await setLastAction("Detected error; attempting recovery", "warning", "recovery.detected", true);
+    await ContentStorage.setLastAction("Detected error; attempting recovery", "warning", "recovery.detected", true);
 
     const delayMs = randomMs(state.settings.errorDelayMinSec, state.settings.errorDelayMaxSec);
     if (delayMs > 0) await sleep(delayMs);
@@ -577,7 +510,7 @@
       let guard = null;
       let clicked = false;
       try {
-        await setLastAction(`Approval found: ${Platforms.buttonText(candidate.button) || "affirmative action"}`, "info", "approval.detected");
+        await ContentStorage.setLastAction(`Approval found: ${Platforms.buttonText(candidate.button) || "affirmative action"}`, "info", "approval.detected");
         await sleep(randomMs(state.settings.approvalDelayMinSec, state.settings.approvalDelayMaxSec));
         if (state.destroyed || state.pageId !== approvalPageId || currentPageId() !== approvalPageId) return false;
         updateGenerationState();
@@ -596,7 +529,7 @@
         clicked = true;
         const completed = await completeActionGuard("approval", guard.token);
         if (!completed?.ok) {
-          await setLastAction("Approval clicked, but cross-tab completion could not be confirmed", "error", "approval.completion_unconfirmed", true);
+          await ContentStorage.setLastAction("Approval clicked, but cross-tab completion could not be confirmed", "error", "approval.completion_unconfirmed", true);
           return true;
         }
         state.runtime.approvalSignatures = [
@@ -604,7 +537,7 @@
           { signature: refreshedCandidate.signature, at: now() }
         ].slice(-100);
         await recordAction("approval");
-        await setLastAction(`Clicked approval: ${Platforms.buttonText(refreshedCandidate.button) || "affirmative action"}`, "success", `approval.${refreshedCandidate.risk}`, true);
+        await ContentStorage.setLastAction(`Clicked approval: ${Platforms.buttonText(refreshedCandidate.button) || "affirmative action"}`, "success", `approval.${refreshedCandidate.risk}`, true);
         return true;
       } finally {
         if (guard?.ok && !clicked) await releaseActionGuard("approval", guard.token);
@@ -615,7 +548,7 @@
   }
 
   async function releaseQueueClaim(pageId, item, reason) {
-    return backgroundSendWithRetry({
+    return ContentStorage.backgroundSendWithRetry({
       type: "YOLO_QUEUE_RELEASE",
       pageId,
       itemId: item.id,
@@ -625,7 +558,7 @@
   }
 
   async function failQueueClaim(pageId, item, error, options, errorCode = "queue.send_failed", deliveryAmbiguous = false) {
-    return backgroundSendWithRetry({
+    return ContentStorage.backgroundSendWithRetry({
       type: "YOLO_QUEUE_FAIL",
       pageId,
       itemId: item.id,
@@ -647,12 +580,12 @@
     updateGenerationState();
     const safety = checkSafeForInput();
     if (!safety.safe) {
-      if (!automatic) await setBlocked(safety.code, safety.reason);
+      if (!automatic) await ContentStorage.setBlocked(safety.code, safety.reason);
       scheduleInputRetry(safety, automatic);
       return false;
     }
     if (!automatic && !state.loaded) return false;
-    if (!automatic) clearBlocked();
+    if (!automatic) ContentStorage.clearBlocked();
     if (automatic && now() < (state.runtime.nextQueueAt || 0)) return false;
 
     if (automatic) {
@@ -662,7 +595,7 @@
 
     const limit = checkActionLimit("queue");
     if (!limit.allowed) {
-      await setLastAction(`Queue blocked: ${limit.reason}`, "warning", limit.code, true);
+      await ContentStorage.setLastAction(`Queue blocked: ${limit.reason}`, "warning", limit.code, true);
       return false;
     }
 
@@ -672,14 +605,14 @@
       backoffSec: state.settings.queueRetryBackoffSec,
       pauseOnFailure: state.settings.queuePauseOnFailure
     };
-    const claim = await backgroundSend({
+    const claim = await ContentStorage.backgroundSend({
       type: "YOLO_QUEUE_CLAIM",
       pageId: queuePageId,
       ownerId: state.ownerId
     });
     if (!claim?.ok || !claim.item) {
-      if (claim?.code === "queue.paused") await setBlocked("queue.paused", "Queue is paused");
-      else if (state.blockedCode.startsWith("queue.")) clearBlocked("queue.");
+      if (claim?.code === "queue.paused") await ContentStorage.setBlocked("queue.paused", "Queue is paused");
+      else if (state.blockedCode.startsWith("queue.")) ContentStorage.clearBlocked("queue.");
       return false;
     }
 
@@ -695,12 +628,12 @@
       const sendSafety = checkSafeForInput();
       if (!sendSafety.safe) {
         await releaseQueueClaim(queuePageId, item, `Queue paused before send: ${sendSafety.reason}`);
-        if (!automatic) await setBlocked(sendSafety.code, sendSafety.reason);
+        if (!automatic) await ContentStorage.setBlocked(sendSafety.code, sendSafety.reason);
         scheduleInputRetry(sendSafety, automatic);
         return false;
       }
 
-      const markedSubmitting = await backgroundSendWithRetry({
+      const markedSubmitting = await ContentStorage.backgroundSendWithRetry({
         type: "YOLO_QUEUE_MARK_SUBMITTING",
         pageId: queuePageId,
         itemId: item.id,
@@ -708,28 +641,28 @@
       });
       if (!markedSubmitting?.ok) {
         await releaseQueueClaim(queuePageId, item, "Could not persist the queue submission phase");
-        await setLastAction("Queue send blocked: could not persist delivery intent", "error", "queue.submit_intent_failed", true);
+        await ContentStorage.setLastAction("Queue send blocked: could not persist delivery intent", "error", "queue.submit_intent_failed", true);
         return false;
       }
 
-      await setLastAction("Sending queued message", "info", "queue.sending");
+      await ContentStorage.setLastAction("Sending queued message", "info", "queue.sending");
       const submitted = await writeAndSubmit(item.text, queuePageId);
       deliveryAmbiguous = Boolean(submitted.deliveryAmbiguous);
       if (!submitted.ok) {
         await failQueueClaim(queuePageId, item, submitted.reason, queueFailureOptions, submitted.code, deliveryAmbiguous);
-        await setLastAction(`Queue send failed: ${submitted.reason}`, "error", submitted.code, true);
+        await ContentStorage.setLastAction(`Queue send failed: ${submitted.reason}`, "error", submitted.code, true);
         return false;
       }
       deliveryAmbiguous = true;
 
-      const completed = await backgroundSendWithRetry({
+      const completed = await ContentStorage.backgroundSendWithRetry({
         type: "YOLO_QUEUE_COMPLETE",
         pageId: queuePageId,
         itemId: item.id,
         claimToken: item.claimToken
       });
       if (!completed?.ok) {
-        await setLastAction("Message sent, but queue completion could not be confirmed", "warning", "queue.completion_unconfirmed", true);
+        await ContentStorage.setLastAction("Message sent, but queue completion could not be confirmed", "warning", "queue.completion_unconfirmed", true);
         return true;
       }
 
@@ -739,11 +672,11 @@
         await recordAction(sourceAction, COUNTER_BY_ACTION[sourceAction], { incrementSession: false });
       }
       ContentState.scheduleNextQueue(true);
-      await setLastAction(sourceAction ? `Sent ${sourceAction} prompt` : "Sent queued message", "success", sourceAction ? `action.${sourceAction}` : "queue.sent", true);
+      await ContentStorage.setLastAction(sourceAction ? `Sent ${sourceAction} prompt` : "Sent queued message", "success", sourceAction ? `action.${sourceAction}` : "queue.sent", true);
       return true;
     } catch (error) {
       await failQueueClaim(queuePageId, item, Shared.errorMessage(error), queueFailureOptions, "queue.exception", deliveryAmbiguous);
-      await setLastAction(`Queue send failed: ${Shared.errorMessage(error)}`, "error", "queue.failed", true);
+      await ContentStorage.setLastAction(`Queue send failed: ${Shared.errorMessage(error)}`, "error", "queue.failed", true);
       return false;
     } finally {
       state.actionInFlight = false;
@@ -790,7 +723,7 @@
       if (await handleDeepNudge()) return;
       await handlePeriodicRefresh();
     } catch (error) {
-      if (!disableStaleContext(error)) await setLastAction(`Automation error: ${Shared.errorMessage(error)}`, "error", "engine.error", true);
+      if (!disableStaleContext(error)) await ContentStorage.setLastAction(`Automation error: ${Shared.errorMessage(error)}`, "error", "engine.error", true);
     } finally {
       state.cycleInFlight = false;
     }
@@ -844,7 +777,7 @@
       try {
         await handleRouteChange();
       } catch (error) {
-        if (!disableStaleContext(error)) await setLastAction(`Route synchronization failed: ${Shared.errorMessage(error)}`, "error", "route.sync_failed", true);
+        if (!disableStaleContext(error)) await ContentStorage.setLastAction(`Route synchronization failed: ${Shared.errorMessage(error)}`, "error", "route.sync_failed", true);
       } finally {
         restartRouteTimer();
       }
@@ -869,11 +802,11 @@
       state.generationHoldUntil = 0;
       state.lastGenerationPersistAt = 0;
       state.pendingManualQueueRetry = false;
-      clearBlocked();
+      ContentStorage.clearBlocked();
       state.generationActive = false;
       await loadSettings();
       restartScanTimer();
-      await setLastAction("Loaded settings for this conversation", "info", "route.loaded");
+      await ContentStorage.setLastAction("Loaded settings for this conversation", "info", "route.loaded");
       queueCycle();
     } finally {
       state.routeInFlight = false;
@@ -897,7 +830,7 @@
         || Object.prototype.hasOwnProperty.call(changes, Config.STORAGE_KEYS.pages)
         || Object.prototype.hasOwnProperty.call(changes, pageKey);
       if (settingsChanged) {
-        storageGet([Config.STORAGE_KEYS.global, Config.STORAGE_KEYS.pages, pageKey]).then((stored) => {
+        ContentStorage.storageGet([Config.STORAGE_KEYS.global, Config.STORAGE_KEYS.pages, pageKey]).then((stored) => {
           if (state.destroyed || state.pageId !== settingsPageId || currentPageId() !== settingsPageId) return;
           const globalSettings = stored[Config.STORAGE_KEYS.global] || {};
           const legacyPageSettings = stored[Config.STORAGE_KEYS.pages]?.[settingsPageId] || {};
@@ -970,14 +903,14 @@
 
   async function resetRuntime() {
     if (!await ensureCurrentRoute()) throw new Error("Conversation navigation is still in progress");
-    const guardReset = await backgroundSendWithRetry({ type: "YOLO_ACTION_RESET", pageId: state.pageId, actionKey: "" });
+    const guardReset = await ContentStorage.backgroundSendWithRetry({ type: "YOLO_ACTION_RESET", pageId: state.pageId, actionKey: "" });
     if (!guardReset?.ok) throw new Error(guardReset?.reason || "Could not reset the conversation action guards");
     state.runtime = ContentState.freshRuntime();
     ContentState.scheduleNextRefresh(true);
     ContentState.scheduleNextQueue(false);
     ContentState.saveRuntime();
-    clearBlocked();
-    await setLastAction("Reset session limits and action history", "info", "runtime.reset", true);
+    ContentStorage.clearBlocked();
+    await ContentStorage.setLastAction("Reset session limits and action history", "info", "runtime.reset", true);
   }
 
   function registerClient(destroyClient) {
@@ -990,7 +923,7 @@
     getState: ContentState.responseState,
     ensureReady: ensureCurrentRoute,
     runAction: runManualAction,
-    recordStatus: setLastAction,
+    recordStatus: ContentStorage.setLastAction,
     registerClient
   });
 
@@ -1101,6 +1034,6 @@
     installObservers();
     runCycle();
   }).catch((error) => {
-    if (!disableStaleContext(error)) setLastAction(`Startup failed: ${Shared.errorMessage(error)}`, "error", "startup.failed", true);
+    if (!disableStaleContext(error)) ContentStorage.setLastAction(`Startup failed: ${Shared.errorMessage(error)}`, "error", "startup.failed", true);
   });
 })();
