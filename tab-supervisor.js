@@ -16,6 +16,7 @@
     "commands.js",
     "command-ui.js",
     "content-state.js",
+    "content-storage.js",
     "content.js",
     "command-runtime.js"
   ]);

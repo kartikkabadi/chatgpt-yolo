@@ -158,7 +158,7 @@ test("workflow prompt creation is atomic and responses must settle", () => {
 });
 
 test("fallback injection restores the full command content-script stack", () => {
-  const expected = '["config.js", "lifecycle.js", "platforms.js", "shared.js", "commands.js", "command-ui.js", "content-state.js", "content.js", "command-runtime.js"]';
+  const expected = '["config.js", "lifecycle.js", "platforms.js", "shared.js", "commands.js", "command-ui.js", "content-state.js", "content-storage.js", "content.js", "command-runtime.js"]';
   assert.match(read("popup.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(read("options.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
