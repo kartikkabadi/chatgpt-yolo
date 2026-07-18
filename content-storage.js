@@ -39,6 +39,7 @@
 
   async function backgroundSendWithRetry(message, attempts = 3) {
     for (let index = 0; index < attempts; index += 1) {
+      if (isDestroyed()) return null;
       const response = await backgroundSend(message);
       if (response) return response;
       if (index < attempts - 1) await sleep(150 * (index + 1));
@@ -48,6 +49,7 @@
 
   async function appendEvent(code, message, level = "info") {
     if (!state.pageId || state.destroyed) return;
+    if (!code || !message || String(message).length > 2000) return;
     await backgroundSend({
       type: "YOLO_EVENT_APPEND",
       pageId: state.pageId,
