@@ -1188,7 +1188,10 @@
             if (ready) updateGenerationState();
             sendResponse(ready ? responseState() : null);
           })
-          .catch(() => sendResponse(null));
+          .catch((error) => {
+            console.error(`YOLO_GET_STATE failed: ${Shared.errorMessage(error)}`);
+            sendResponse(null);
+          });
         return true;
       }
 
