@@ -32,7 +32,6 @@
   let saveRevision = 0;
   let busy = false;
   const saveLock = Shared.createLock();
-  let saveChain = saveLock.current;
 
   const sendBackground = (message) => Shared.sendMessage(message, { soft: true });
 
