@@ -116,22 +116,22 @@
   }
 
   chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm?.name === ALARM_NAME) sweep().catch(() => {});
+    if (alarm?.name === ALARM_NAME) sweep().catch((error) => console.error(`Tab supervisor sweep failed: ${Shared.errorMessage(error)}`));
   });
   chrome.runtime.onStartup?.addListener(() => {
     ensureAlarm();
-    sweep().catch(() => {});
+    sweep().catch((error) => console.error(`Tab supervisor startup sweep failed: ${Shared.errorMessage(error)}`));
   });
   chrome.runtime.onInstalled?.addListener(() => {
     ensureAlarm();
-    sweep().catch(() => {});
+    sweep().catch((error) => console.error(`Tab supervisor install sweep failed: ${Shared.errorMessage(error)}`));
   });
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status !== "complete") return;
-    tabsGet(tabId).then((tab) => tab && inspect(tab)).catch(() => {});
+    tabsGet(tabId).then((tab) => tab && inspect(tab)).catch((error) => console.error(`Tab supervisor updated-tab inspection failed: ${Shared.errorMessage(error)}`));
   });
   chrome.tabs.onActivated.addListener(({ tabId }) => {
-    tabsGet(tabId).then((tab) => tab && inspect(tab)).catch(() => {});
+    tabsGet(tabId).then((tab) => tab && inspect(tab)).catch((error) => console.error(`Tab supervisor activated-tab inspection failed: ${Shared.errorMessage(error)}`));
   });
   chrome.tabs.onRemoved.addListener((tabId) => lastInjectionAt.delete(tabId));
 

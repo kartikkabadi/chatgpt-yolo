@@ -170,7 +170,10 @@
       saveTimer = null;
       await saveSettings();
     }
-    await saveLock.current.catch(() => {});
+    await saveLock.current.catch((error) => {
+      console.error(`Flush scheduled save failed: ${Shared.errorMessage(error)}`);
+      els.saveStatus.textContent = "Save failed";
+    });
   }
 
   function setTemplateStatus(message = "", error = false) {
