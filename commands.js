@@ -1,8 +1,9 @@
 ((root, factory) => {
-  const api = factory();
+  const Shared = typeof module === "object" && module.exports ? require("./shared.js") : root.YOLOShared;
+  const api = factory(Shared);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.YOLOCommands = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, () => {
+})(typeof globalThis !== "undefined" ? globalThis : this, (Shared) => {
   "use strict";
 
   const MAX_OBJECTIVE_LENGTH = 4000;
@@ -35,10 +36,7 @@
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-  function makeId(prefix = "workflow") {
-    if (globalThis.crypto?.randomUUID) return `${prefix}_${globalThis.crypto.randomUUID()}`;
-    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-  }
+  const makeId = Shared.makeId;
 
   function command(name) {
     return COMMAND_BY_NAME.get(String(name || "").toLowerCase()) || null;

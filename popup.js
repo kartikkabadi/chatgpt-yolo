@@ -2,7 +2,8 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
-  if (!Config) return;
+  const Shared = globalThis.YOLOShared;
+  if (!Config || !Shared) return;
 
   const els = {
     enabled: document.querySelector("#enabled"),
@@ -60,7 +61,7 @@
     try {
       chrome.scripting.executeScript({
         target: { tabId: activeTab.id },
-        files: ["config.js", "lifecycle.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]
+        files: ["config.js", "lifecycle.js", "platforms.js", "shared.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]
       }, () => resolve(!chrome.runtime.lastError));
     } catch {
       resolve(false);
@@ -75,12 +76,7 @@
     return sendContent(message);
   }
 
-  const sendBackground = (message) => new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) resolve(null);
-      else resolve(response || null);
-    });
-  });
+  const sendBackground = (message) => Shared.sendMessage(message, { soft: true });
 
   function workflowOwned(item) {
     return Boolean(item && String(item.source || "").startsWith("workflow:") && item.sourceId);
@@ -567,6 +563,6 @@
 
   window.addEventListener("pagehide", () => window.clearInterval(pollTimer));
   init().catch((error) => {
-    setUnavailable(`Startup failed: ${String(error?.message || error)} Settings and templates remain available.`);
+    setUnavailable(`Startup failed: ${Shared.errorMessage(error)} Settings and templates remain available.`);
   });
 })();

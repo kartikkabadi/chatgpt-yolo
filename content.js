@@ -2,10 +2,11 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
+  const Shared = globalThis.YOLOShared;
   const Lifecycle = globalThis.YOLOLifecycle;
   const Commands = globalThis.YOLOCommands;
   const Platforms = globalThis.YOLOPlatforms;
-  if (!Config || !Lifecycle || !Commands || !Platforms) return;
+  if (!Config || !Shared || !Lifecycle || !Commands || !Platforms) return;
 
   if (window.__YOLO_EXTENSION__?.version === Config.VERSION) return;
   window.__YOLO_EXTENSION__?.destroy?.();
@@ -70,7 +71,7 @@
     messageListener: null,
     storageListener: null,
     clients: new Set(),
-    ownerId: `content_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+    ownerId: Shared.makeId("content")
   };
 
   const now = () => Date.now();
@@ -84,7 +85,7 @@
     awaitingResponse: false,
     pendingItemId: ""
   };
-  const isContextInvalidated = (error) => /context invalidated|extension context/i.test(String(error?.message || error || ""));
+  const isContextInvalidated = (error) => /context invalidated|extension context/i.test(Shared.errorMessage(error));
 
   function disableStaleContext(error) {
     if (!isContextInvalidated(error)) return false;
@@ -92,46 +93,22 @@
     return true;
   }
 
-  const storageGet = (keys) => new Promise((resolve) => {
-    if (state.destroyed) return resolve({});
-    try {
-      chrome.storage.local.get(keys, (items) => {
-        const error = chrome.runtime?.lastError;
-        if (error) disableStaleContext(error);
-        resolve(error ? {} : items || {});
-      });
-    } catch (error) {
-      disableStaleContext(error);
-      resolve({});
-    }
+  const storageGet = (keys) => Shared.storageGet(keys, {
+    soft: true,
+    isDestroyed: () => state.destroyed,
+    onContextInvalidated: disableStaleContext
   });
 
-  const storageSet = (items) => new Promise((resolve) => {
-    if (state.destroyed) return resolve(false);
-    try {
-      chrome.storage.local.set(items, () => {
-        const error = chrome.runtime?.lastError;
-        if (error) disableStaleContext(error);
-        resolve(!error);
-      });
-    } catch (error) {
-      disableStaleContext(error);
-      resolve(false);
-    }
+  const storageSet = (items) => Shared.storageSet(items, {
+    soft: true,
+    isDestroyed: () => state.destroyed,
+    onContextInvalidated: disableStaleContext
   });
 
-  const backgroundSend = (message) => new Promise((resolve) => {
-    if (state.destroyed) return resolve(null);
-    try {
-      chrome.runtime.sendMessage(message, (response) => {
-        const error = chrome.runtime?.lastError;
-        if (error) disableStaleContext(error);
-        resolve(error ? null : response || null);
-      });
-    } catch (error) {
-      disableStaleContext(error);
-      resolve(null);
-    }
+  const backgroundSend = (message) => Shared.sendMessage(message, {
+    soft: true,
+    isDestroyed: () => state.destroyed,
+    onContextInvalidated: disableStaleContext
   });
 
   async function backgroundSendWithRetry(message, attempts = 3) {
@@ -535,7 +512,7 @@
       return {
         ok: false,
         code: "queue.exception",
-        reason: String(error?.message || error),
+        reason: Shared.errorMessage(error),
         deliveryAmbiguous: submissionAttempted
       };
     }
@@ -900,8 +877,8 @@
       await setLastAction(sourceAction ? `Sent ${sourceAction} prompt` : "Sent queued message", "success", sourceAction ? `action.${sourceAction}` : "queue.sent", true);
       return true;
     } catch (error) {
-      await failQueueClaim(queuePageId, item, String(error?.message || error), queueFailureOptions, "queue.exception", deliveryAmbiguous);
-      await setLastAction(`Queue send failed: ${String(error?.message || error)}`, "error", "queue.failed", true);
+      await failQueueClaim(queuePageId, item, Shared.errorMessage(error), queueFailureOptions, "queue.exception", deliveryAmbiguous);
+      await setLastAction(`Queue send failed: ${Shared.errorMessage(error)}`, "error", "queue.failed", true);
       return false;
     } finally {
       state.actionInFlight = false;
@@ -948,7 +925,7 @@
       if (await handleDeepNudge()) return;
       await handlePeriodicRefresh();
     } catch (error) {
-      if (!disableStaleContext(error)) await setLastAction(`Automation error: ${String(error?.message || error)}`, "error", "engine.error", true);
+      if (!disableStaleContext(error)) await setLastAction(`Automation error: ${Shared.errorMessage(error)}`, "error", "engine.error", true);
     } finally {
       state.cycleInFlight = false;
     }
@@ -1002,7 +979,7 @@
       try {
         await handleRouteChange();
       } catch (error) {
-        if (!disableStaleContext(error)) await setLastAction(`Route synchronization failed: ${String(error?.message || error)}`, "error", "route.sync_failed", true);
+        if (!disableStaleContext(error)) await setLastAction(`Route synchronization failed: ${Shared.errorMessage(error)}`, "error", "route.sync_failed", true);
       } finally {
         restartRouteTimer();
       }
@@ -1221,7 +1198,7 @@
             sendResponse({ ok: true, settings, state: responseState() });
             queueCycle();
           })
-          .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error), state: responseState() }));
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
         return true;
       }
 
@@ -1236,21 +1213,21 @@
             queueCycle();
             sendResponse({ ok: true, settings: state.settings, state: responseState() });
           })
-          .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error), state: responseState() }));
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
         return true;
       }
 
       if (message?.type === "YOLO_RUN_ACTION") {
         runManualAction(message.action)
           .then((ok) => sendResponse({ ok, state: responseState() }))
-          .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error), state: responseState() }));
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
         return true;
       }
 
       if (message?.type === "YOLO_RESET_RUNTIME") {
         resetRuntime()
           .then(() => sendResponse({ ok: true, state: responseState() }))
-          .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error), state: responseState() }));
+          .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error), state: responseState() }));
         return true;
       }
 
@@ -1288,6 +1265,6 @@
     installObservers();
     runCycle();
   }).catch((error) => {
-    if (!disableStaleContext(error)) setLastAction(`Startup failed: ${String(error?.message || error)}`, "error", "startup.failed", true);
+    if (!disableStaleContext(error)) setLastAction(`Startup failed: ${Shared.errorMessage(error)}`, "error", "startup.failed", true);
   });
 })();

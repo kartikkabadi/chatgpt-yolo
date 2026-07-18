@@ -2,7 +2,8 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
-  if (!Config) return;
+  const Shared = globalThis.YOLOShared;
+  if (!Config || !Shared) return;
 
   const controls = Array.from(document.querySelectorAll("[data-setting]"));
   const els = {
@@ -28,16 +29,12 @@
   let editingTemplateId = "";
   let pendingTemplateId = "";
   let saveTimer = null;
-  let saveChain = Promise.resolve();
   let saveRevision = 0;
   let busy = false;
+  const saveLock = Shared.createLock();
+  let saveChain = saveLock.current;
 
-  const sendBackground = (message) => new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) resolve(null);
-      else resolve(response || null);
-    });
-  });
+  const sendBackground = (message) => Shared.sendMessage(message, { soft: true });
 
   const sendContent = (message) => new Promise((resolve) => {
     if (!sourceTabId) return resolve(null);
@@ -52,7 +49,7 @@
     try {
       chrome.scripting.executeScript({
         target: { tabId: sourceTabId },
-        files: ["config.js", "lifecycle.js", "platforms.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]
+        files: ["config.js", "lifecycle.js", "platforms.js", "shared.js", "commands.js", "command-ui.js", "content.js", "command-runtime.js"]
       }, () => resolve(!chrome.runtime.lastError));
     } catch {
       resolve(false);
@@ -152,9 +149,7 @@
       return true;
     };
 
-    const result = saveChain.catch(() => {}).then(task);
-    saveChain = result.catch(() => {});
-    return result;
+    return Shared.withLock(saveLock, task);
   }
 
   function scheduleSave(event) {
@@ -176,7 +171,7 @@
       saveTimer = null;
       await saveSettings();
     }
-    await saveChain.catch(() => {});
+    await saveLock.current.catch(() => {});
   }
 
   function setTemplateStatus(message = "", error = false) {
@@ -386,7 +381,7 @@
   init().catch((error) => {
     sourceTabId = 0;
     contentState = null;
-    els.scope.textContent = `Startup failed: ${String(error?.message || error)}`;
+    els.scope.textContent = `Startup failed: ${Shared.errorMessage(error)}`;
     els.saveStatus.textContent = "Unavailable";
     setBusy(true);
   });

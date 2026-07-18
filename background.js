@@ -1,15 +1,16 @@
 "use strict";
 
-importScripts("config.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js");
+importScripts("config.js", "shared.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js");
 
 const Config = globalThis.YOLOConfig;
+const Shared = globalThis.YOLOShared;
 const Coordinator = globalThis.YOLOCoordinator;
 const PortableStore = globalThis.YOLOPortableStore;
 const Queue = globalThis.YOLOQueue;
 const Commands = globalThis.YOLOCommands;
-const queueLock = { current: Promise.resolve() };
-const workflowLock = { current: Promise.resolve() };
-const actionLock = { current: Promise.resolve() };
+const queueLock = Shared.createLock();
+const workflowLock = Shared.createLock();
+const actionLock = Shared.createLock();
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
 const MAX_RETAINED_COMPLETED_WORKFLOWS = 100;
@@ -17,33 +18,10 @@ const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "blocked"]);
 const WORKFLOW_LEASE_MS = 2 * 60 * 1000;
 const WORKFLOW_RENEW_WINDOW_MS = 30 * 1000;
 
-const storageGet = (keys) => new Promise((resolve, reject) => {
-  chrome.storage.local.get(keys, (items) => {
-    const error = chrome.runtime.lastError;
-    if (error) reject(new Error(error.message || "Extension storage read failed"));
-    else resolve(items || {});
-  });
-});
-const storageSet = (items) => new Promise((resolve, reject) => {
-  chrome.storage.local.set(items, () => {
-    const error = chrome.runtime.lastError;
-    if (error) reject(new Error(error.message || "Extension storage write failed"));
-    else resolve(true);
-  });
-});
-const storageRemove = (keys) => new Promise((resolve, reject) => {
-  chrome.storage.local.remove(keys, () => {
-    const error = chrome.runtime.lastError;
-    if (error) reject(new Error(error.message || "Extension storage remove failed"));
-    else resolve(true);
-  });
-});
-
-function withLock(lock, task) {
-  const run = lock.current.catch(() => {}).then(task);
-  lock.current = run.catch(() => {});
-  return run;
-}
+const storageGet = Shared.storageGet;
+const storageSet = Shared.storageSet;
+const storageRemove = Shared.storageRemove;
+const withLock = Shared.withLock;
 
 async function readQueueMap() {
   const stored = await storageGet([Config.STORAGE_KEYS.queues]);
@@ -518,6 +496,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         : handleQueueMessage(message, sender);
   Promise.resolve(task)
     .then((response) => sendResponse(response))
-    .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));
+    .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error) }));
   return true;
 });

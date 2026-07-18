@@ -2,9 +2,10 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
+  const Shared = globalThis.YOLOShared;
   const Portability = globalThis.YOLOPortability;
   const Store = globalThis.YOLOPortableStore;
-  if (!Config || !Portability || !Store) return;
+  if (!Config || !Shared || !Portability || !Store) return;
 
   const previews = new Map();
   const PREVIEW_TTL_MS = 5 * 60 * 1000;
@@ -108,7 +109,7 @@
     if (!message?.type?.startsWith("YOLODATA_")) return false;
     Promise.resolve(handle(message, sender))
       .then((response) => sendResponse(response))
-      .catch((error) => sendResponse({ ok: false, reason: String(error?.message || error) }));
+      .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error) }));
     return true;
   });
 

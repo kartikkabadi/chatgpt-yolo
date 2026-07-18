@@ -1,8 +1,9 @@
 ((root, factory) => {
-  const api = factory(root.YOLOCommands);
+  const Shared = typeof module === "object" && module.exports ? require("./shared.js") : root.YOLOShared;
+  const api = factory(root.YOLOCommands, Shared);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.YOLOCommandUI = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, (Commands) => {
+})(typeof globalThis !== "undefined" ? globalThis : this, (Commands, Shared) => {
   "use strict";
 
   const noop = () => {};
@@ -340,7 +341,7 @@
         if (!result.keepOpen) closePalette({ restoreComposer: result.focusComposer !== false });
         return result;
       } catch (error) {
-        const reason = String(error?.message || error || `/${entry.name} failed`);
+        const reason = Shared.errorMessage(error) || `/${entry.name} failed`;
         showFeedback(reason);
         if (originalComposerText) callbacks.setComposerText(originalComposerText);
         return { ok: false, reason };

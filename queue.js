@@ -1,8 +1,9 @@
 ((root, factory) => {
-  const api = factory();
+  const Shared = typeof module === "object" && module.exports ? require("./shared.js") : root.YOLOShared;
+  const api = factory(Shared);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.YOLOQueue = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, () => {
+})(typeof globalThis !== "undefined" ? globalThis : this, (Shared) => {
   "use strict";
 
   const MAX_ITEMS = 50;
@@ -17,10 +18,7 @@
   const cleanText = (value, max = MAX_TEXT_LENGTH) => String(value ?? "").trim().slice(0, max);
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
-  function makeId(prefix = "q") {
-    if (globalThis.crypto?.randomUUID) return `${prefix}_${globalThis.crypto.randomUUID()}`;
-    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-  }
+  const makeId = Shared.makeId;
 
   function isWorkflowOwned(item) {
     return Boolean(item && String(item.source || "").startsWith("workflow:") && item.sourceId);

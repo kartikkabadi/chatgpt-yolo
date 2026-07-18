@@ -2,11 +2,12 @@
   "use strict";
 
   const Config = globalThis.YOLOConfig;
+  const Shared = globalThis.YOLOShared;
   const Lifecycle = globalThis.YOLOLifecycle;
   const Platforms = globalThis.YOLOPlatforms;
   const Commands = globalThis.YOLOCommands;
   const CommandUI = globalThis.YOLOCommandUI;
-  if (!Config || !Lifecycle || !Platforms || !Commands || !CommandUI) return;
+  if (!Config || !Shared || !Lifecycle || !Platforms || !Commands || !CommandUI) return;
 
   if (window.__YOLO_COMMAND_RUNTIME__?.version === Config.VERSION) return;
   window.__YOLO_COMMAND_RUNTIME__?.destroy?.();
@@ -24,30 +25,20 @@
     lastQueueAttemptAt: 0,
     unregisterEngineClient: null,
     lifecycleHandlers: [],
-    mutationLock: { current: Promise.resolve() },
-    ownerId: `command_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+    mutationLock: Shared.createLock(),
+    ownerId: Shared.makeId("command")
   };
 
   const now = () => Date.now();
   const engine = () => window.__YOLO_EXTENSION__?.commandApi || null;
 
-  function withWorkflowLock(task) {
-    const run = state.mutationLock.current.catch(() => {}).then(task);
-    state.mutationLock.current = run.catch(() => {});
-    return run;
-  }
+  const withWorkflowLock = (task) => Shared.withLock(state.mutationLock, task);
 
-  const backgroundSend = (message) => new Promise((resolve) => {
-    if (state.destroyed) return resolve(null);
-    try {
-      chrome.runtime.sendMessage(message, (response) => {
-        const error = chrome.runtime?.lastError;
-        resolve(error ? null : response || null);
-      });
-    } catch {
-      resolve(null);
-    }
+  const backgroundSend = (message) => Shared.sendMessage(message, {
+    soft: true,
+    isDestroyed: () => state.destroyed
   });
+
 
   function adapter() {
     return Platforms.adapterForLocation();
@@ -537,7 +528,7 @@
       try {
         await tick();
       } catch (error) {
-        await record(`Workflow poll failed: ${String(error?.message || error)}`, "error", "command.workflow.poll_failed").catch(() => {});
+        await record(`Workflow poll failed: ${Shared.errorMessage(error)}`, "error", "command.workflow.poll_failed").catch(() => {});
       } finally {
         schedulePoll();
       }

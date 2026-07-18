@@ -45,7 +45,7 @@ function loadDataBackground() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "portable-store.js", "portability.js", "data-background.js"]) {
+  for (const file of ["config.js", "shared.js", "portable-store.js", "portability.js", "data-background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   const dispatch = (message, sendResponse = () => {}, sender = {}) => listener(message, sender, sendResponse);
